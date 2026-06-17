@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #12151A;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  .serif { font-family: ui-serif, Georgia, serif; font-style: italic; }
+  .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  input, button, select { font-family: inherit; }
+  input::placeholder { color: #5A6168; }
+  button { cursor: pointer; }
+  .wrap { min-height: 100vh; padding: 32px 16px; }
+  .inner { max-width: 720px; margin: 0 auto; }
+
+  .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 500; }
+  .tabbtn.active { color: #12151A; }
+
+  .name-input { color: #EDEAE3; background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 26px; padding: 4px 0; }
+  .name-input:focus { outline: none; border-bottom: 1px solid #2A313A; }
+  .subtitle { color: #8A919C; font-size: 12px; margin-bottom: 12px; }
+  .date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: #8A919C; margin-bottom: 8px; }
+  .date-row label { display: flex; align-items: center; gap: 6px; }
+  .date-row input { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; }
+
+  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .gauge-top { margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; }
+  .gauge-label { color: #8A919C; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .gauge-track { background: #2A313A; position: relative; height: 14px; width: 100%; overflow: hidden; border-radius: 999px; }
+  .gauge-fill { height: 100%; border-radius: 999px; }
+  .link-btn { background: none; border: none; text-decoration: underline; font-size: 12px; padding: 0; }
+  .row-gap { display: flex; align-items: center; gap: 8px; }
+  .small-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
+  .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+
+  .chips { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px; font-size: 12px; }
+  .dot { height: 8px; width: 8px; border-radius: 999px; display: inline-block; }
+
+  .pills { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 500; background: transparent; }
+
+  .form-row { margin-bottom: 8px; display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .form-row-split { display: flex; gap: 8px; }
+  .form-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; font-size: 14px; width: 100%; }
+  .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+  .error-text { color: #FF8A5C; font-size: 12px; }
+  .add-btn { color: #12151A; border: none; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; }
+
+  .select-bar { margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .select-bar-actions { display: flex; align-items: center; gap: 12px; }
+
+  .sort-row { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .entry-count { color: #8A919C; font-size: 12px; }
+  .sort-toggle { background: #1B2027; display: flex; gap: 4px; border-radius: 999px; padding: 4px; font-size: 12px; }
+  .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; }
+  .sort-btn.active { background: #2A313A; color: #EDEAE3; }
+
+  .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; padding: 0 16px; }
+  .empty-state { color: #8A919C; padding: 40px 0; text-align: center; font-size: 14px; }
+  .item-row { border-bottom: 1px solid #2A313A; padding: 12px 0; }
+  .item-row:last-child { border-bottom: none; }
+  .item-display { display: flex; align-items: center; gap: 12px; }
+  .item-bar { height: 32px; width: 4px; flex-shrink: 0; border-radius: 999px; }
+  .item-glyph { flex-shrink: 0; font-size: 16px; width: 18px; text-align: center; }
+  .item-main { min-width: 0; flex: 1; }
+  .item-name { color: #EDEAE3; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { color: #8A919C; font-size: 12px; }
+  .item-amount { flex-shrink: 0; font-size: 14px; }
+  .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
+  .icon-btn { color: #8A919C; background: none; border: none; font-size: 14px; padding: 4px; }
+  .checkbox { flex-shrink: 0; height: 16px; width: 16px; }
+
+  .item-edit { display: flex; flex-direction: column; gap: 8px; }
+  .edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+  .edit-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
+  .edit-input.grow { flex: 1; }
+  .edit-input.amt { width: 96px; }
+  .edit-input.date { width: 140px; }
+
+  .footer-row { border-top: 1px solid #2A313A; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
+  .footer-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .footer-total { color: #EDEAE3; font-size: 18px; font-weight: 600; }
+  .bottom-row { margin-top: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap"><div class="inner">
+  <div class="tabnav" id="tabnav"></div>
+  <div id="tabroot"></div>
+</div></div>
+
+<script>
+/* ---------------- shared constants ---------------- */
+
+var TABS = [
+  { id: "travel", label: "Travel", accent: "#E8643A" },
+  { id: "budget", label: "Budget", accent: "#5BAE7A" },
+  { id: "workouts", label: "Workouts", accent: "#3DBFC4" },
+  { id: "routines", label: "Routines", accent: "#D9A441" }
+];
+
+var TRAVEL_CATEGORIES = [
+  { id: "flights", label: "Flights", color: "#E8643A", glyph: "\u2708" },
+  { id: "stay", label: "Stay", color: "#D9A441", glyph: "\u2302" },
+  { id: "activities", label: "Activities", color: "#7FA37A", glyph: "\u25C8" },
+  { id: "food", label: "Food", color: "#D9667A", glyph: "\u2726" },
+  { id: "transport", label: "Transport", color: "#5B8FA8", glyph: "\u219D" },
+  { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
+];
+
+var BUDGET_CATEGORIES = [
+  { id: "housing", label: "Housing", color: "#5BAE7A", glyph: "\u2302" },
+  { id: "food", label: "Food", color: "#D9667A", glyph: "\u2726" },
+  { id: "transport", label: "Transport", color: "#5B8FA8", glyph: "\u219D" },
+  { id: "entertainment", label: "Entertainment", color: "#C97FBF", glyph: "\u266B" },
+  { id: "savings", label: "Savings", color: "#D9A441", glyph: "\u25C6" },
+  { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
+];
+
+var WORKOUT_CATEGORIES = [
+  { id: "strength", label: "Strength", color: "#3DBFC4", glyph: "\u25B2" },
+  { id: "cardio", label: "Cardio", color: "#E1543F", glyph: "\u2665" },
+  { id: "yoga", label: "Yoga / Mobility", color: "#7FA37A", glyph: "\u2740" },
+  { id: "sports", label: "Sports", color: "#D9A441", glyph: "\u2605" },
+  { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
+];
+
+var ROUTINE_COLORS = ["#E8643A", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
+
+var BUDGET_IMPORT_BILLS = null; // scrubbed of real data for the public repo
+
+/* ---------------- helpers ---------------- */
+
+function uid() { return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7); }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function addDaysISO(iso, delta) {
+  var d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+function formatCurrency(n) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
+}
+function formatDateShort(iso) {
+  if (!iso) return "no date yet";
+  var d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return "no date yet";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function computeStreak(dateSet) {
+  var count = 0;
+  var cursor = todayISO();
+  if (!dateSet.has(cursor)) cursor = addDaysISO(cursor, -1);
+  while (dateSet.has(cursor)) {
+    count++;
+    cursor = addDaysISO(cursor, -1);
+  }
+  return count;
+}
+function categoryById(list, id) {
+  for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+  return list[list.length - 1];
+}
+function loadTabData(key, defaultData) {
+  try {
+    var saved = localStorage.getItem(key);
+    if (!saved) return JSON.parse(JSON.stringify(defaultData));
+    var parsed = JSON.parse(saved);
+    return Object.assign({}, defaultData, parsed);
+  } catch (e) {
+    return JSON.parse(JSON.stringify(defaultData));
+  }
+}
+function saveTabData(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) { console.error(e); }
+}
+
+/* ---------------- tab nav ---------------- */
+
+var currentTab = "travel";
+
+function renderTabNav() {
+  var nav = document.getElementById("tabnav");
+  nav.innerHTML = TABS.map(function (t) {
+    var active = t.id === currentTab;
+    var style = active ? "background:" + t.accent + ";border-color:" + t.accent + ";" : "";
+    return '<button class="tabbtn' + (active ? " active" : "") + '" data-tab="' + t.id + '" style="' + style + '">' + t.label + "</button>";
+  }).join("");
+  var btns = nav.querySelectorAll(".tabbtn");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function (e) {
+      currentTab = e.currentTarget.getAttribute("data-tab");
+      renderTabNav();
+      renderActiveTab();
+    });
+  }
+}
+
+function renderActiveTab() {
+  var root = document.getElementById("tabroot");
+  root.innerHTML = "";
+  if (currentTab === "travel") {
+    renderSpendTab(root, {
+      storageKey: "dashboard-travel-data",
+      defaultTitle: "New Trip",
+      categories: TRAVEL_CATEGORIES,
+      goalLabel: "Trip budget",
+      amountLabel: "Cost",
+      showDateRange: true,
+      emptyText: "Your ledger is empty. Add a flight, a stay, an activity \u2014 anything with a price.",
+      accent: "#E8643A",
+      importPreset: null,
+      importLabel: null,
+      enableSelection: false
+    });
+  } else if (currentTab === "budget") {
+    renderSpendTab(root, {
+      storageKey: "dashboard-budget-data",
+      defaultTitle: "Monthly Budget",
+      categories: BUDGET_CATEGORIES,
+      goalLabel: "Monthly budget",
+      amountLabel: "Amount",
+      showDateRange: false,
+      emptyText: "No expenses logged yet. Add your first one below.",
+      accent: "#5BAE7A",
+      importPreset: null,
+      importLabel: null,
+      enableSelection: true
+    });
+  } else if (currentTab === "workouts") {
+    renderWorkoutsTab(root);
+  } else if (currentTab === "routines") {
+    renderRoutinesTab(root);
+  }
+}
+
+/* ---------------- spend tracker (Travel + Budget) ---------------- */
+
+function renderSpendTab(root, cfg) {
+  var data = loadTabData(cfg.storageKey, { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] });
+  var sortBy = "date";
+  var editRowId = null;
+  var editRowForm = {};
+  var editRowError = "";
+  var formError = "";
+  var confirmReset = false;
+  var showBudgetInput = false;
+  var budgetDraft = "";
+  var imported = false;
+
+  function save() { saveTabData(cfg.storageKey, data); }
+
+  root.innerHTML =
+    '<header style="margin-bottom:24px;">' +
+      '<input id="stTitle" class="name-input serif" aria-label="Title" />' +
+      (cfg.showDateRange ? '<div class="date-row"><label>Dates <input type="date" id="stStart" /></label><span>\u2013</span><input type="date" id="stEnd" /><span class="mono" id="stNights"></span></div>' : "") +
+    "</header>" +
+    '<div class="card">' +
+      '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
+      '<div id="stGaugeBody"></div>' +
+    "</div>" +
+    '<div class="chips" id="stChips"></div>' +
+    '<div class="card">' +
+      '<div class="pills" id="stPills"></div>' +
+      '<div class="form-row">' +
+        '<input class="form-input" id="stName" placeholder="What is it?" />' +
+        '<div class="form-row-split">' +
+          '<input class="form-input" type="date" id="stDate" />' +
+          '<input class="form-input" type="number" min="0" step="0.01" id="stAmount" placeholder="' + escapeHtml(cfg.amountLabel) + '" />' +
+        "</div>" +
+      "</div>" +
+      '<input class="form-input" id="stNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+      '<div class="form-actions"><span class="error-text" id="stFormError"></span><button class="add-btn" id="stAddBtn" style="background:' + cfg.accent + ';">+ Add</button></div>' +
+    "</div>" +
+    (cfg.enableSelection ? '<div class="card select-bar" id="stSelectBar"></div>' : "") +
+    '<div class="sort-row">' +
+      '<span class="entry-count mono" id="stEntryCount"></span>' +
+      '<div class="sort-toggle"><button class="sort-btn active" id="stSortDate">By date</button><button class="sort-btn" id="stSortCat">By category</button></div>' +
+    "</div>" +
+    '<div class="list-card" id="stList"></div>' +
+    '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="stFooterTotal"></span></div>' +
+    '<div class="bottom-row">' +
+      (cfg.importPreset ? '<button class="link-btn" id="stImportBtn" style="color:' + cfg.accent + ';">' + escapeHtml(cfg.importLabel) + "</button>" : "") +
+      '<button class="link-btn" id="stResetBtn" style="color:#8A919C;">Clear this tab</button>' +
+    "</div>";
+
+  document.getElementById("stTitle").value = data.title;
+  if (cfg.showDateRange) {
+    document.getElementById("stStart").value = data.startDate;
+    document.getElementById("stEnd").value = data.endDate;
+  }
+
+  function renderNights() {
+    if (!cfg.showDateRange) return;
+    var el = document.getElementById("stNights");
+    if (data.startDate && data.endDate) {
+      var diff = Math.round((new Date(data.endDate + "T00:00:00") - new Date(data.startDate + "T00:00:00")) / 86400000);
+      el.textContent = diff > 0 ? diff + " nights" : "";
+    } else {
+      el.textContent = "";
+    }
+  }
+
+  function renderGauge() {
+    var totalSpent = data.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var budgetNum = Number(data.budget) || 0;
+    var amountEl = document.getElementById("stGaugeAmount");
+    var bodyEl = document.getElementById("stGaugeBody");
+    if (budgetNum > 0) {
+      var pct = Math.min(100, (totalSpent / budgetNum) * 100);
+      var over = totalSpent > budgetNum;
+      amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
+      amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
+      var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + "," + cfg.accent + "cc)";
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px ' + cfg.accent + '55;"></div></div>';
+    } else {
+      amountEl.style.color = cfg.accent;
+      amountEl.textContent = formatCurrency(totalSpent);
+      if (showBudgetInput) {
+        bodyEl.innerHTML = '<div class="row-gap"><input id="stBudgetDraft" class="small-input" type="number" min="0" placeholder="' + escapeHtml(cfg.goalLabel) + '" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="stSetBudget" style="background:' + cfg.accent + ';">Set</button></div>';
+        var bd = document.getElementById("stBudgetDraft");
+        bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
+        bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); });
+        bd.focus();
+        document.getElementById("stSetBudget").addEventListener("click", commitBudget);
+      } else {
+        bodyEl.innerHTML = '<button class="link-btn" id="stShowBudget" style="color:#8A919C;">Set a ' + escapeHtml(cfg.goalLabel.toLowerCase()) + " to track against</button>";
+        document.getElementById("stShowBudget").addEventListener("click", function () { showBudgetInput = true; renderGauge(); });
+      }
+    }
+  }
+  function commitBudget() { data.budget = budgetDraft; showBudgetInput = false; save(); renderGauge(); }
+
+  function renderChips() {
+    var totals = cfg.categories.map(function (cat) {
+      var total = data.items.filter(function (it) { return it.category === cat.id; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+      return Object.assign({}, cat, { total: total });
+    }).filter(function (c) { return c.total > 0; });
+    document.getElementById("stChips").innerHTML = totals.map(function (cat) {
+      return '<span class="chip"><span class="dot" style="background:' + cat.color + ';"></span>' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(cat.total) + "</span></span>";
+    }).join("");
+  }
+
+  function renderPillsForAddForm() {
+    var activeCat = renderPillsForAddForm._active || cfg.categories[0].id;
+    document.getElementById("stPills").innerHTML = cfg.categories.map(function (cat) {
+      var active = cat.id === activeCat;
+      return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
+    }).join("");
+    var pills = document.getElementById("stPills").querySelectorAll(".pill");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) {
+        renderPillsForAddForm._active = e.currentTarget.getAttribute("data-cat");
+        renderPillsForAddForm();
+      });
+    }
+  }
+  renderPillsForAddForm._active = cfg.categories[0].id;
+
+  function getSortedItems() {
+    var copy = data.items.slice();
+    if (sortBy === "date") {
+      copy.sort(function (a, b) { return (a.date || "9999").localeCompare(b.date || "9999"); });
+    } else {
+      var order = cfg.categories.map(function (c) { return c.id; });
+      copy.sort(function (a, b) {
+        var d = order.indexOf(a.category) - order.indexOf(b.category);
+        if (d !== 0) return d;
+        return (a.date || "9999").localeCompare(b.date || "9999");
+      });
+    }
+    return copy;
+  }
+
+  function renderSelectBar() {
+    if (!cfg.enableSelection) return;
+    var sel = new Set(data.selectedIds || []);
+    var total = data.items.filter(function (it) { return sel.has(it.id); }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    document.getElementById("stSelectBar").innerHTML =
+      '<div class="select-bar-actions"><button class="link-btn" id="stSelectAll" style="color:' + cfg.accent + ';">Select all</button>' +
+      '<button class="link-btn" id="stClearSel" style="color:#8A919C;">Clear</button></div>' +
+      '<span class="mono" style="color:' + cfg.accent + ';">' + sel.size + " selected \u00B7 " + formatCurrency(total) + "</span>";
+    document.getElementById("stSelectAll").addEventListener("click", function () {
+      data.selectedIds = getSortedItems().map(function (it) { return it.id; });
+      save();
+      renderSelectBar();
+      renderList();
+    });
+    document.getElementById("stClearSel").addEventListener("click", function () {
+      data.selectedIds = [];
+      save();
+      renderSelectBar();
+      renderList();
+    });
+  }
+
+  function toggleSelected(id) {
+    var sel = new Set(data.selectedIds || []);
+    if (sel.has(id)) sel.delete(id); else sel.add(id);
+    data.selectedIds = Array.from(sel);
+    save();
+    renderSelectBar();
+  }
+
+  function renderList() {
+    var sorted = getSortedItems();
+    document.getElementById("stEntryCount").textContent = data.items.length + (data.items.length === 1 ? " entry" : " entries");
+    var listEl = document.getElementById("stList");
+    if (sorted.length === 0) {
+      listEl.innerHTML = '<div class="empty-state">' + escapeHtml(cfg.emptyText) + "</div>";
+      return;
+    }
+    var sel = new Set(data.selectedIds || []);
+    listEl.innerHTML = sorted.map(function (item) {
+      var cat = categoryById(cfg.categories, item.category);
+      if (item.id === editRowId) {
+        var f = editRowForm;
+        return '<div class="item-row"><div class="item-edit">' +
+          '<div class="edit-line">' +
+          '<select class="edit-select" data-edit="category">' + cfg.categories.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+          '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+          "</div>" +
+          '<div class="edit-line">' +
+          '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="' + escapeHtml(cfg.amountLabel) + '" value="' + escapeHtml(f.amount) + '" />' +
+          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+          '<button class="icon-btn" data-action="save-row" style="color:' + cfg.accent + ';">\u2713</button>' +
+          '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
+          "</div></div></div>";
+      }
+      return '<div class="item-row"><div class="item-display">' +
+        (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
+        '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+        '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+        '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+        '<div class="item-sub">' + formatDateShort(item.date) + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
+        '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+        "</div></div>";
+    }).join("");
+  }
+
+  function renderFooter() {
+    var totalSpent = data.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    document.getElementById("stFooterTotal").textContent = formatCurrency(totalSpent);
+  }
+
+  function renderDynamic() {
+    renderGauge();
+    renderChips();
+    renderSelectBar();
+    renderList();
+    renderFooter();
+  }
+
+  function resetForm() {
+    document.getElementById("stName").value = "";
+    document.getElementById("stDate").value = "";
+    document.getElementById("stAmount").value = "";
+    document.getElementById("stNotes").value = "";
+    document.getElementById("stFormError").textContent = "";
+  }
+
+  function handleAdd() {
+    var name = document.getElementById("stName").value.trim();
+    var dateVal = document.getElementById("stDate").value;
+    var amountVal = document.getElementById("stAmount").value;
+    var notesVal = document.getElementById("stNotes").value;
+    var errEl = document.getElementById("stFormError");
+    if (!name) { errEl.textContent = "Give it a name first."; return; }
+    if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
+    errEl.textContent = "";
+    data.items.push({ id: uid(), category: renderPillsForAddForm._active, name: name, date: dateVal, amount: Number(amountVal), notes: notesVal });
+    save();
+    resetForm();
+    renderDynamic();
+  }
+
+  function startRowEdit(id) {
+    var item = data.items.find(function (it) { return it.id === id; });
+    if (!item) return;
+    editRowId = id;
+    editRowForm = { category: item.category, name: item.name, date: item.date, amount: String(item.amount), notes: item.notes || "" };
+    editRowError = "";
+    renderList();
+  }
+  function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
+  function saveRowEdit() {
+    if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
+    if (editRowForm.amount === "" || isNaN(Number(editRowForm.amount))) { editRowError = "Needs " + cfg.amountLabel.toLowerCase() + "."; renderList(); return; }
+    data.items = data.items.map(function (it) {
+      if (it.id !== editRowId) return it;
+      return Object.assign({}, it, editRowForm, { amount: Number(editRowForm.amount) });
+    });
+    save();
+    editRowId = null;
+    editRowError = "";
+    renderDynamic();
+  }
+  function handleDelete(id) {
+    data.items = data.items.filter(function (it) { return it.id !== id; });
+    data.selectedIds = (data.selectedIds || []).filter(function (sid) { return sid !== id; });
+    save();
+    if (editRowId === id) editRowId = null;
+    renderDynamic();
+  }
+  function handleImport() {
+    if (!cfg.importPreset) return;
+    cfg.importPreset.forEach(function (p) {
+      data.items.push({ id: uid(), category: p.category, name: p.name, date: p.date || "", amount: Number(p.amount) || 0, notes: p.notes || "" });
+    });
+    save();
+    imported = true;
+    var btn = document.getElementById("stImportBtn");
+    if (btn) btn.textContent = "Imported \u2713 (click to import again)";
+    renderDynamic();
+  }
+  function handleResetAll() {
+    var btn = document.getElementById("stResetBtn");
+    if (!confirmReset) {
+      confirmReset = true;
+      btn.textContent = "Click again to clear everything";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    data = { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] };
+    save();
+    editRowId = null;
+    confirmReset = false;
+    document.getElementById("stTitle").value = data.title;
+    if (cfg.showDateRange) { document.getElementById("stStart").value = ""; document.getElementById("stEnd").value = ""; renderNights(); }
+    resetForm();
+    renderDynamic();
+  }
+
+  document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
+  if (cfg.showDateRange) {
+    document.getElementById("stStart").addEventListener("input", function (e) { data.startDate = e.target.value; save(); renderNights(); });
+    document.getElementById("stEnd").addEventListener("input", function (e) { data.endDate = e.target.value; save(); renderNights(); });
+  }
+  document.getElementById("stAddBtn").addEventListener("click", handleAdd);
+  ["stName", "stAmount", "stNotes"].forEach(function (id) {
+    document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
+  });
+  document.getElementById("stSortDate").addEventListener("click", function () {
+    sortBy = "date";
+    document.getElementById("stSortDate").classList.add("active");
+    document.getElementById("stSortCat").classList.remove("active");
+    renderList();
+  });
+  document.getElementById("stSortCat").addEventListener("click", function () {
+    sortBy = "category";
+    document.getElementById("stSortCat").classList.add("active");
+    document.getElementById("stSortDate").classList.remove("active");
+    renderList();
+  });
+  document.getElementById("stList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (btn && btn.getAttribute("data-action") !== "toggle-sel") {
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "edit") startRowEdit(id);
+      else if (action === "delete") handleDelete(id);
+      else if (action === "save-row") saveRowEdit();
+      else if (action === "cancel-row") cancelRowEdit();
+    }
+  });
+  document.getElementById("stList").addEventListener("change", function (e) {
+    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+    if (field) editRowForm[field] = e.target.value;
+    if (e.target.getAttribute && e.target.getAttribute("data-action") === "toggle-sel") toggleSelected(e.target.getAttribute("data-id"));
+  });
+  document.getElementById("stList").addEventListener("input", function (e) {
+    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+    if (field) editRowForm[field] = e.target.value;
+  });
+  document.getElementById("stList").addEventListener("keydown", function (e) {
+    if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
+    if (e.key === "Enter") saveRowEdit();
+    if (e.key === "Escape") cancelRowEdit();
+  });
+  if (cfg.importPreset) document.getElementById("stImportBtn").addEventListener("click", handleImport);
+  document.getElementById("stResetBtn").addEventListener("click", handleResetAll);
+
+  renderNights();
+  renderPillsForAddForm();
+  renderDynamic();
+}
+
+/* ---------------- workouts tab ---------------- */
+
+function renderWorkoutsTab(root) {
+  var accent = "#3DBFC4";
+  var defaultData = { weeklyGoal: "", items: [] };
+  var data = loadTabData("dashboard-workouts-data", defaultData);
+  var sortBy = "date";
+  var activeCat = "strength";
+  var editRowId = null;
+  var editRowForm = {};
+  var editRowError = "";
+  var formError = "";
+  var confirmReset = false;
+  var showGoalInput = false;
+  var goalDraft = "";
+
+  function save() { saveTabData("dashboard-workouts-data", data); }
+
+  root.innerHTML =
+    '<header style="margin-bottom:24px;"><h2 class="serif" style="color:#EDEAE3;font-size:26px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="card"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span class="mono" id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
+    '<div class="chips" id="wkChips"></div>' +
+    '<div class="card">' +
+      '<div class="pills" id="wkPills"></div>' +
+      '<div class="form-row">' +
+        '<input class="form-input" id="wkName" placeholder="What did you do?" />' +
+        '<div class="form-row-split"><input class="form-input" type="date" id="wkDate" /><input class="form-input" type="number" min="0" id="wkDuration" placeholder="Minutes (optional)" /></div>' +
+      "</div>" +
+      '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+      '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
+    "</div>" +
+    '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div class="sort-toggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div></div>' +
+    '<div class="list-card" id="wkList"></div>' +
+    '<div class="footer-row"><span class="footer-label">Total logged</span><span class="footer-total mono" id="wkFooterTotal"></span></div>' +
+    '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
+
+  function weekStart() { return addDaysISO(todayISO(), -6); }
+
+  function renderStreak() {
+    var dateSet = new Set(data.items.filter(function (it) { return it.date; }).map(function (it) { return it.date; }));
+    var streak = computeStreak(dateSet);
+    document.getElementById("wkStreak").textContent = streak > 0 ? streak + " day streak" : "";
+  }
+
+  function renderGauge() {
+    var ws = weekStart();
+    var thisWeek = data.items.filter(function (it) { return it.date && it.date >= ws && it.date <= todayISO(); });
+    var goalNum = Number(data.weeklyGoal) || 0;
+    var amountEl = document.getElementById("wkGaugeAmount");
+    var bodyEl = document.getElementById("wkGaugeBody");
+    amountEl.style.color = accent;
+    if (goalNum > 0) {
+      var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
+      amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts";
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:linear-gradient(90deg," + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+    } else {
+      amountEl.textContent = thisWeek.length + " workouts";
+      if (showGoalInput) {
+        bodyEl.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
+        var gd = document.getElementById("wkGoalDraft");
+        gd.addEventListener("input", function (e) { goalDraft = e.target.value; });
+        gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitGoal(); });
+        gd.focus();
+        document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
+      } else {
+        bodyEl.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:#8A919C;">Set a weekly goal to track against</button>';
+        document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
+      }
+    }
+  }
+  function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
+
+  function renderChips() {
+    var counts = WORKOUT_CATEGORIES.map(function (cat) {
+      return Object.assign({}, cat, { count: data.items.filter(function (it) { return it.category === cat.id; }).length });
+    }).filter(function (c) { return c.count > 0; });
+    document.getElementById("wkChips").innerHTML = counts.map(function (cat) {
+      return '<span class="chip"><span class="dot" style="background:' + cat.color + ';"></span>' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + accent + ';">\u00D7 ' + cat.count + "</span></span>";
+    }).join("");
+  }
+
+  function renderPills() {
+    document.getElementById("wkPills").innerHTML = WORKOUT_CATEGORIES.map(function (cat) {
+      var active = cat.id === activeCat;
+      return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
+    }).join("");
+    var pills = document.getElementById("wkPills").querySelectorAll(".pill");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
+    }
+  }
+
+  function getSortedItems() {
+    var copy = data.items.slice();
+    if (sortBy === "date") {
+      copy.sort(function (a, b) { return (b.date || "0000").localeCompare(a.date || "0000"); });
+    } else {
+      var order = WORKOUT_CATEGORIES.map(function (c) { return c.id; });
+      copy.sort(function (a, b) {
+        var d = order.indexOf(a.category) - order.indexOf(b.category);
+        if (d !== 0) return d;
+        return (b.date || "0000").localeCompare(a.date || "0000");
+      });
+    }
+    return copy;
+  }
+
+  function renderList() {
+    var sorted = getSortedItems();
+    document.getElementById("wkEntryCount").textContent = data.items.length + (data.items.length === 1 ? " workout" : " workouts");
+    var listEl = document.getElementById("wkList");
+    if (sorted.length === 0) {
+      listEl.innerHTML = '<div class="empty-state">Nothing logged yet. Add your first workout below and start a streak.</div>';
+      return;
+    }
+    listEl.innerHTML = sorted.map(function (item) {
+      var cat = categoryById(WORKOUT_CATEGORIES, item.category);
+      if (item.id === editRowId) {
+        var f = editRowForm;
+        return '<div class="item-row"><div class="item-edit">' +
+          '<div class="edit-line">' +
+          '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+          '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+          "</div>" +
+          '<div class="edit-line">' +
+          '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
+          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+          '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
+          '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
+          "</div></div></div>";
+      }
+      return '<div class="item-row"><div class="item-display">' +
+        '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+        '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+        '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+        "</div></div>";
+    }).join("");
+  }
+
+  function renderFooter() {
+    var totalMinutes = data.items.reduce(function (s, it) { return s + (Number(it.duration) || 0); }, 0);
+    document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "");
+  }
+
+  function renderDynamic() { renderStreak(); renderGauge(); renderChips(); renderList(); renderFooter(); }
+
+  function resetForm() {
+    document.getElementById("wkName").value = "";
+    document.getElementById("wkDate").value = todayISO();
+    document.getElementById("wkDuration").value = "";
+    document.getElementById("wkNotes").value = "";
+    document.getElementById("wkFormError").textContent = "";
+  }
+
+  function handleAdd() {
+    var name = document.getElementById("wkName").value.trim();
+    var dateVal = document.getElementById("wkDate").value;
+    var durationVal = document.getElementById("wkDuration").value;
+    var notesVal = document.getElementById("wkNotes").value;
+    var errEl = document.getElementById("wkFormError");
+    if (!name) { errEl.textContent = "Give it a name first."; return; }
+    errEl.textContent = "";
+    data.items.push({ id: uid(), category: activeCat, name: name, date: dateVal, duration: durationVal === "" ? "" : Number(durationVal), notes: notesVal });
+    save();
+    resetForm();
+    renderDynamic();
+  }
+
+  function startRowEdit(id) {
+    var item = data.items.find(function (it) { return it.id === id; });
+    if (!item) return;
+    editRowId = id;
+    editRowForm = { category: item.category, name: item.name, date: item.date, duration: item.duration === "" ? "" : String(item.duration), notes: item.notes || "" };
+    editRowError = "";
+    renderList();
+  }
+  function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
+  function saveRowEdit() {
+    if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
+    data.items = data.items.map(function (it) {
+      if (it.id !== editRowId) return it;
+      return Object.assign({}, it, editRowForm, { duration: editRowForm.duration === "" ? "" : Number(editRowForm.duration) });
+    });
+    save();
+    editRowId = null;
+    editRowError = "";
+    renderDynamic();
+  }
+  function handleDelete(id) {
+    data.items = data.items.filter(function (it) { return it.id !== id; });
+    save();
+    if (editRowId === id) editRowId = null;
+    renderDynamic();
+  }
+  function handleResetAll() {
+    var btn = document.getElementById("wkResetBtn");
+    if (!confirmReset) {
+      confirmReset = true;
+      btn.textContent = "Click again to clear everything";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmReset = false; if (document.getElementById("wkResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    data = { weeklyGoal: "", items: [] };
+    save();
+    editRowId = null;
+    confirmReset = false;
+    resetForm();
+    renderDynamic();
+  }
+
+  document.getElementById("wkAddBtn").addEventListener("click", handleAdd);
+  ["wkName", "wkDuration", "wkNotes"].forEach(function (id) {
+    document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
+  });
+  document.getElementById("wkSortDate").addEventListener("click", function () {
+    sortBy = "date";
+    document.getElementById("wkSortDate").classList.add("active");
+    document.getElementById("wkSortCat").classList.remove("active");
+    renderList();
+  });
+  document.getElementById("wkSortCat").addEventListener("click", function () {
+    sortBy = "category";
+    document.getElementById("wkSortCat").classList.add("active");
+    document.getElementById("wkSortDate").classList.remove("active");
+    renderList();
+  });
+  document.getElementById("wkList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    var action = btn.getAttribute("data-action");
+    var id = btn.getAttribute("data-id");
+    if (action === "edit") startRowEdit(id);
+    else if (action === "delete") handleDelete(id);
+    else if (action === "save-row") saveRowEdit();
+    else if (action === "cancel-row") cancelRowEdit();
+  });
+  document.getElementById("wkList").addEventListener("input", function (e) {
+    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+    if (field) editRowForm[field] = e.target.value;
+  });
+  document.getElementById("wkList").addEventListener("change", function (e) {
+    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+    if (field) editRowForm[field] = e.target.value;
+  });
+  document.getElementById("wkList").addEventListener("keydown", function (e) {
+    if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
+    if (e.key === "Enter") saveRowEdit();
+    if (e.key === "Escape") cancelRowEdit();
+  });
+  document.getElementById("wkResetBtn").addEventListener("click", handleResetAll);
+
+  document.getElementById("wkDate").value = todayISO();
+  renderPills();
+  renderDynamic();
+}
+
+/* ---------------- routines tab ---------------- */
+
+function renderRoutinesTab(root) {
+  var accent = "#D9A441";
+  var defaultData = { routines: [] };
+  var data = loadTabData("dashboard-routines-data", defaultData);
+  var confirmReset = false;
+
+  function save() { saveTabData("dashboard-routines-data", data); }
+
+  root.innerHTML =
+    '<header style="margin-bottom:24px;"><h2 class="serif" style="color:#EDEAE3;font-size:26px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div></div>' +
+    '<div class="card"><div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div></div>' +
+    '<div class="list-card" id="rtList"></div>' +
+    '<div class="bottom-row"><button class="link-btn" id="rtResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
+
+  function renderTop() {
+    var today = todayISO();
+    var doneToday = data.routines.filter(function (r) { return r.completions.indexOf(today) !== -1; }).length;
+    var total = data.routines.length;
+    var pct = total > 0 ? (doneToday / total) * 100 : 0;
+    document.getElementById("rtTodayAmount").textContent = total > 0 ? doneToday + " of " + total + " done" : "no routines yet";
+    document.getElementById("rtGaugeFill").style.width = pct + "%";
+    var longest = data.routines.reduce(function (max, r) { var s = computeStreak(new Set(r.completions)); return s > max ? s : max; }, 0);
+    document.getElementById("rtLongest").textContent = longest > 0 ? "Longest streak: " + longest + " days" : "";
+  }
+
+  function renderList() {
+    var today = todayISO();
+    var listEl = document.getElementById("rtList");
+    if (data.routines.length === 0) {
+      listEl.innerHTML = '<div class="empty-state">No routines yet. Add the first habit you want to keep showing up for.</div>';
+      return;
+    }
+    listEl.innerHTML = data.routines.map(function (r) {
+      var doneTodayFlag = r.completions.indexOf(today) !== -1;
+      var streak = computeStreak(new Set(r.completions));
+      return '<div class="item-row"><div class="item-display">' +
+        '<span class="item-bar" style="background:' + r.color + ';"></span>' +
+        '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + '</div><div class="item-sub mono">' + (streak > 0 ? streak + " day streak" : "no streak yet") + "</div></div>" +
+        '<button class="pill" data-action="toggle" data-id="' + r.id + '" style="background:' + (doneTodayFlag ? r.color : "transparent") + ";border-color:" + r.color + ";color:" + (doneTodayFlag ? "#12151A" : r.color) + ';flex-shrink:0;">' + (doneTodayFlag ? "Done today \u2713" : "Mark done") + "</button>" +
+        '<button class="icon-btn" data-action="delete" data-id="' + r.id + '">\u2715</button>' +
+        "</div></div>";
+    }).join("");
+  }
+
+  function renderDynamic() { renderTop(); renderList(); }
+
+  document.getElementById("rtAddBtn").addEventListener("click", function () {
+    var input = document.getElementById("rtNewName");
+    var name = input.value.trim();
+    if (!name) return;
+    var color = ROUTINE_COLORS[data.routines.length % ROUTINE_COLORS.length];
+    data.routines.push({ id: uid(), name: name, color: color, completions: [] });
+    save();
+    input.value = "";
+    renderDynamic();
+  });
+  document.getElementById("rtNewName").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("rtAddBtn").click();
+  });
+  document.getElementById("rtList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    var action = btn.getAttribute("data-action");
+    var id = btn.getAttribute("data-id");
+    var today = todayISO();
+    if (action === "toggle") {
+      data.routines = data.routines.map(function (r) {
+        if (r.id !== id) return r;
+        var has = r.completions.indexOf(today) !== -1;
+        return Object.assign({}, r, { completions: has ? r.completions.filter(function (c) { return c !== today; }) : r.completions.concat([today]) });
+      });
+      save();
+      renderDynamic();
+    } else if (action === "delete") {
+      data.routines = data.routines.filter(function (r) { return r.id !== id; });
+      save();
+      renderDynamic();
+    }
+  });
+  document.getElementById("rtResetBtn").addEventListener("click", function () {
+    var btn = document.getElementById("rtResetBtn");
+    if (!confirmReset) {
+      confirmReset = true;
+      btn.textContent = "Click again to clear everything";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmReset = false; if (document.getElementById("rtResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    data = { routines: [] };
+    save();
+    confirmReset = false;
+    renderDynamic();
+  });
+
+  renderDynamic();
+}
+
+/* ---------------- boot ---------------- */
+
+renderTabNav();
+renderActiveTab();
+</script>
+</body>
+</html>
