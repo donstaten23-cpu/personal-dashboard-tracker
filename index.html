@@ -94,11 +94,48 @@
 </head>
 <body>
 <div class="wrap"><div class="inner">
-  <div class="tabnav" id="tabnav"></div>
-  <div id="tabroot"></div>
+
+  <div id="authScreen">
+    <header style="margin-bottom:24px;">
+      <h1 class="serif" style="color:#EDEAE3;font-size:28px;margin:0 0 8px;">Dashboard</h1>
+      <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
+    </header>
+    <div class="card">
+      <div class="form-row">
+        <input class="form-input" type="email" id="authEmail" placeholder="Email" autocomplete="email" />
+        <input class="form-input" type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
+      </div>
+      <div class="form-actions">
+        <span class="error-text" id="authError"></span>
+        <button class="link-btn" id="authSignUpBtn" style="color:#8A919C;">Create account</button>
+        <button class="add-btn" id="authSignInBtn" style="background:#E8643A;">Sign in</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashboardScreen" style="display:none;">
+    <div style="text-align:right;margin-bottom:12px;">
+      <button class="link-btn" id="signOutBtn" style="color:#8A919C;">Sign out</button>
+    </div>
+    <div class="tabnav" id="tabnav"></div>
+    <div id="tabroot"></div>
+  </div>
+
 </div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ---------------- Supabase config ----------------
+   Replace these two values with your own project's URL and anon/public key.
+   Find them in your Supabase project: Settings -> API.
+   Both are meant to be public/embedded in client code (security comes from
+   Row Level Security policies on the table, not from hiding this key). */
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+var supabaseClient = null;
+var currentUserId = null;
+
 /* ---------------- shared constants ---------------- */
 
 var TABS = [
@@ -175,18 +212,83 @@ function categoryById(list, id) {
   for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   return list[list.length - 1];
 }
-function loadTabData(key, defaultData) {
+async function loadTabData(key, defaultData) {
   try {
-    var saved = localStorage.getItem(key);
-    if (!saved) return JSON.parse(JSON.stringify(defaultData));
-    var parsed = JSON.parse(saved);
-    return Object.assign({}, defaultData, parsed);
+    var result = await supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle();
+    if (result.error) { console.error(result.error); return JSON.parse(JSON.stringify(defaultData)); }
+    if (result.data && result.data.data) return Object.assign({}, defaultData, result.data.data);
+    return JSON.parse(JSON.stringify(defaultData));
   } catch (e) {
+    console.error(e);
     return JSON.parse(JSON.stringify(defaultData));
   }
 }
-function saveTabData(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) { console.error(e); }
+async function saveTabData(key, data) {
+  try {
+    await supabaseClient.from("dashboard_data").upsert({ user_id: currentUserId, tab_key: key, data: data, updated_at: new Date().toISOString() });
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+/* ---------------- auth ---------------- */
+
+function showAuthScreen() {
+  document.getElementById("authScreen").style.display = "block";
+  document.getElementById("dashboardScreen").style.display = "none";
+}
+function showDashboardScreen() {
+  document.getElementById("authScreen").style.display = "none";
+  document.getElementById("dashboardScreen").style.display = "block";
+  renderTabNav();
+  renderActiveTab();
+}
+
+async function handleSignIn() {
+  var email = document.getElementById("authEmail").value.trim();
+  var password = document.getElementById("authPassword").value;
+  var errEl = document.getElementById("authError");
+  errEl.style.color = "#FF8A5C";
+  errEl.textContent = "";
+  if (!email || !password) { errEl.textContent = "Enter an email and password."; return; }
+  var result = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
+  if (result.error) errEl.textContent = result.error.message;
+}
+async function handleSignUp() {
+  var email = document.getElementById("authEmail").value.trim();
+  var password = document.getElementById("authPassword").value;
+  var errEl = document.getElementById("authError");
+  errEl.style.color = "#FF8A5C";
+  errEl.textContent = "";
+  if (!email || !password) { errEl.textContent = "Enter an email and password."; return; }
+  var result = await supabaseClient.auth.signUp({ email: email, password: password });
+  if (result.error) { errEl.textContent = result.error.message; return; }
+  if (!result.data || !result.data.session) {
+    errEl.style.color = "#7FA37A";
+    errEl.textContent = "Account created \u2014 check your email to confirm, then sign in.";
+  }
+}
+
+function bootAuth() {
+  if (!window.supabase) { document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection."; return; }
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  document.getElementById("authSignInBtn").addEventListener("click", handleSignIn);
+  document.getElementById("authSignUpBtn").addEventListener("click", handleSignUp);
+  ["authEmail", "authPassword"].forEach(function (id) {
+    document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleSignIn(); });
+  });
+  document.getElementById("signOutBtn").addEventListener("click", function () { supabaseClient.auth.signOut(); });
+
+  supabaseClient.auth.onAuthStateChange(function (event, session) {
+    if (session) {
+      currentUserId = session.user.id;
+      showDashboardScreen();
+    } else {
+      currentUserId = null;
+      showAuthScreen();
+    }
+  });
 }
 
 /* ---------------- tab nav ---------------- */
@@ -250,8 +352,9 @@ function renderActiveTab() {
 
 /* ---------------- spend tracker (Travel + Budget) ---------------- */
 
-function renderSpendTab(root, cfg) {
-  var data = loadTabData(cfg.storageKey, { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] });
+async function renderSpendTab(root, cfg) {
+  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] });
   var sortBy = "date";
   var editRowId = null;
   var editRowForm = {};
@@ -606,10 +709,11 @@ function renderSpendTab(root, cfg) {
 
 /* ---------------- workouts tab ---------------- */
 
-function renderWorkoutsTab(root) {
+async function renderWorkoutsTab(root) {
+  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
   var accent = "#3DBFC4";
   var defaultData = { weeklyGoal: "", items: [] };
-  var data = loadTabData("dashboard-workouts-data", defaultData);
+  var data = await loadTabData("dashboard-workouts-data", defaultData);
   var sortBy = "date";
   var activeCat = "strength";
   var editRowId = null;
@@ -868,10 +972,11 @@ function renderWorkoutsTab(root) {
 
 /* ---------------- routines tab ---------------- */
 
-function renderRoutinesTab(root) {
+async function renderRoutinesTab(root) {
+  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
   var accent = "#D9A441";
   var defaultData = { routines: [] };
-  var data = loadTabData("dashboard-routines-data", defaultData);
+  var data = await loadTabData("dashboard-routines-data", defaultData);
   var confirmReset = false;
 
   function save() { saveTabData("dashboard-routines-data", data); }
@@ -968,8 +1073,7 @@ function renderRoutinesTab(root) {
 
 /* ---------------- boot ---------------- */
 
-renderTabNav();
-renderActiveTab();
+bootAuth();
 </script>
 </body>
 </html>
