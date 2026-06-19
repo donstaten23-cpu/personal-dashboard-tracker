@@ -11,7 +11,7 @@
     background: #12151A;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
-  .serif { font-family: ui-serif, Georgia, serif; font-style: italic; }
+  .serif { font-family: inherit; font-style: normal; font-weight: 800; letter-spacing: -0.01em; }
   .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
   input, button, select { font-family: inherit; }
   input::placeholder { color: #5A6168; }
@@ -19,33 +19,45 @@
   .wrap { min-height: 100vh; padding: 32px 16px; }
   .inner { max-width: 720px; margin: 0 auto; }
 
+  .hero-band { background: linear-gradient(135deg, #FF8A5C 0%, #E8643A 45%, #B23A1C 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
+  .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
+  .hero-name { color: #fff; font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
+  .tab-eyebrow { color: #E8643A; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
   .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 500; }
   .tabbtn.active { color: #12151A; }
 
-  .name-input { color: #EDEAE3; background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 26px; padding: 4px 0; }
+  .name-input { color: #EDEAE3; background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 30px; padding: 4px 0; }
   .name-input:focus { outline: none; border-bottom: 1px solid #2A313A; }
-  .subtitle { color: #8A919C; font-size: 12px; margin-bottom: 12px; }
   .date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: #8A919C; margin-bottom: 8px; }
   .date-row label { display: flex; align-items: center; gap: 6px; }
   .date-row input { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; }
 
-  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
   .gauge-top { margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; }
   .gauge-label { color: #8A919C; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
   .gauge-track { background: #2A313A; position: relative; height: 14px; width: 100%; overflow: hidden; border-radius: 999px; }
   .gauge-fill { height: 100%; border-radius: 999px; }
   .link-btn { background: none; border: none; text-decoration: underline; font-size: 12px; padding: 0; }
-  .row-gap { display: flex; align-items: center; gap: 8px; }
+  .row-gap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .small-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
   .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
 
   .chips { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px; font-size: 12px; }
-  .dot { height: 8px; width: 8px; border-radius: 999px; display: inline-block; }
+  .chip-num { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; margin-right: 2px; }
 
   .pills { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
   .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 500; background: transparent; }
+
+  .trip-switcher { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .trip-pill { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .weight-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .weight-current { font-size: 28px; font-weight: 800; }
+  .weight-log-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #2A313A; font-size: 13px; }
+  .weight-log-row:last-child { border-bottom: none; }
 
   .form-row { margin-bottom: 8px; display: grid; grid-template-columns: 1fr; gap: 8px; }
   .form-row-split { display: flex; gap: 8px; }
@@ -63,7 +75,7 @@
   .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; }
   .sort-btn.active { background: #2A313A; color: #EDEAE3; }
 
-  .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; padding: 0 16px; }
+  .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 0 16px; }
   .empty-state { color: #8A919C; padding: 40px 0; text-align: center; font-size: 14px; }
   .item-row { border-bottom: 1px solid #2A313A; padding: 12px 0; }
   .item-row:last-child { border-bottom: none; }
@@ -83,7 +95,7 @@
   .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 12px; }
   .edit-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
   .edit-input.grow { flex: 1; }
-  .edit-input.amt { width: 96px; }
+  .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
 
   .footer-row { border-top: 1px solid #2A313A; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
@@ -97,7 +109,7 @@
 
   <div id="authScreen">
     <header style="margin-bottom:24px;">
-      <h1 class="serif" style="color:#EDEAE3;font-size:28px;margin:0 0 8px;">Dashboard</h1>
+      <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
     </header>
     <div class="card">
@@ -114,6 +126,10 @@
   </div>
 
   <div id="dashboardScreen" style="display:none;">
+    <div class="hero-band">
+      <div class="hero-eyebrow" id="heroEyebrow">Hi there,</div>
+      <div class="hero-name" id="heroName"></div>
+    </div>
     <div style="text-align:right;margin-bottom:12px;">
       <button class="link-btn" id="signOutBtn" style="color:#8A919C;">Sign out</button>
     </div>
@@ -126,12 +142,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ---------------- Supabase config ----------------
-   Replace these two values with your own project's URL and anon/public key.
-   Find them in your Supabase project: Settings -> API.
-   Both are meant to be public/embedded in client code (security comes from
-   Row Level Security policies on the table, not from hiding this key). */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+   Replace these two values with your own project's URL and publishable key.
+   Find them in your Supabase project: Settings -> API. */
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+/* Change this to update the greeting name shown at the top. */
+var USER_DISPLAY_NAME = "Donovan";
 
 var supabaseClient = null;
 var currentUserId = null;
@@ -173,7 +190,7 @@ var WORKOUT_CATEGORIES = [
 
 var ROUTINE_COLORS = ["#E8643A", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
 
-var BUDGET_IMPORT_BILLS = null; // scrubbed of real data for the public repo
+var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
 
 /* ---------------- helpers ---------------- */
 
@@ -212,6 +229,14 @@ function categoryById(list, id) {
   for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   return list[list.length - 1];
 }
+function numLabel(i) { return "#" + String(i + 1).padStart(2, "0"); }
+function getTimeGreeting() {
+  var hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 async function loadTabData(key, defaultData) {
   try {
     var result = await supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle();
@@ -237,9 +262,16 @@ function showAuthScreen() {
   document.getElementById("authScreen").style.display = "block";
   document.getElementById("dashboardScreen").style.display = "none";
 }
+function renderGreeting() {
+  var eyebrow = document.getElementById("heroEyebrow");
+  var name = document.getElementById("heroName");
+  if (eyebrow) eyebrow.textContent = getTimeGreeting() + ",";
+  if (name) name.textContent = USER_DISPLAY_NAME;
+}
 function showDashboardScreen() {
   document.getElementById("authScreen").style.display = "none";
   document.getElementById("dashboardScreen").style.display = "block";
+  renderGreeting();
   renderTabNav();
   renderActiveTab();
 }
@@ -281,6 +313,7 @@ function bootAuth() {
   document.getElementById("signOutBtn").addEventListener("click", function () { supabaseClient.auth.signOut(); });
 
   supabaseClient.auth.onAuthStateChange(function (event, session) {
+    if (event === "TOKEN_REFRESHED") return;
     if (session) {
       currentUserId = session.user.id;
       showDashboardScreen();
@@ -313,22 +346,11 @@ function renderTabNav() {
 }
 
 function renderActiveTab() {
+  if (window._countdownInterval) { clearInterval(window._countdownInterval); window._countdownInterval = null; }
   var root = document.getElementById("tabroot");
   root.innerHTML = "";
   if (currentTab === "travel") {
-    renderSpendTab(root, {
-      storageKey: "dashboard-travel-data",
-      defaultTitle: "New Trip",
-      categories: TRAVEL_CATEGORIES,
-      goalLabel: "Trip budget",
-      amountLabel: "Cost",
-      showDateRange: true,
-      emptyText: "Your ledger is empty. Add a flight, a stay, an activity \u2014 anything with a price.",
-      accent: "#E8643A",
-      importPreset: null,
-      importLabel: null,
-      enableSelection: false
-    });
+    renderTravelTab(root);
   } else if (currentTab === "budget") {
     renderSpendTab(root, {
       storageKey: "dashboard-budget-data",
@@ -336,12 +358,11 @@ function renderActiveTab() {
       categories: BUDGET_CATEGORIES,
       goalLabel: "Monthly budget",
       amountLabel: "Amount",
-      showDateRange: false,
       emptyText: "No expenses logged yet. Add your first one below.",
       accent: "#5BAE7A",
-      importPreset: null,
-      importLabel: null,
-      enableSelection: true
+      enableSelection: true,
+      showSavingsGoal: true,
+      eyebrow: "BUDGET PLANNER"
     });
   } else if (currentTab === "workouts") {
     renderWorkoutsTab(root);
@@ -350,32 +371,39 @@ function renderActiveTab() {
   }
 }
 
-/* ---------------- spend tracker (Travel + Budget) ---------------- */
+/* ---------------- budget tab ---------------- */
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [] });
   var sortBy = "date";
   var editRowId = null;
   var editRowForm = {};
   var editRowError = "";
-  var formError = "";
   var confirmReset = false;
   var showBudgetInput = false;
   var budgetDraft = "";
-  var imported = false;
+  var showSavingsInput = false;
+  var savingsDraft = "";
+  var activeCat = cfg.categories[0].id;
 
   function save() { saveTabData(cfg.storageKey, data); }
 
   root.innerHTML =
-    '<header style="margin-bottom:24px;">' +
+    '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
+    '<header style="margin-bottom:20px;">' +
       '<input id="stTitle" class="name-input serif" aria-label="Title" />' +
-      (cfg.showDateRange ? '<div class="date-row"><label>Dates <input type="date" id="stStart" /></label><span>\u2013</span><input type="date" id="stEnd" /><span class="mono" id="stNights"></span></div>' : "") +
     "</header>" +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
     "</div>" +
+    (cfg.showSavingsGoal ?
+      '<div class="card">' +
+        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS GOAL</span><span class="mono" id="svGaugeAmount" style="color:#D9A441;"></span></div>' +
+        '<div id="svGaugeBody"></div>' +
+      "</div>"
+    : "") +
     '<div class="chips" id="stChips"></div>' +
     '<div class="card">' +
       '<div class="pills" id="stPills"></div>' +
@@ -397,26 +425,10 @@ async function renderSpendTab(root, cfg) {
     '<div class="list-card" id="stList"></div>' +
     '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="stFooterTotal"></span></div>' +
     '<div class="bottom-row">' +
-      (cfg.importPreset ? '<button class="link-btn" id="stImportBtn" style="color:' + cfg.accent + ';">' + escapeHtml(cfg.importLabel) + "</button>" : "") +
       '<button class="link-btn" id="stResetBtn" style="color:#8A919C;">Clear this tab</button>' +
     "</div>";
 
   document.getElementById("stTitle").value = data.title;
-  if (cfg.showDateRange) {
-    document.getElementById("stStart").value = data.startDate;
-    document.getElementById("stEnd").value = data.endDate;
-  }
-
-  function renderNights() {
-    if (!cfg.showDateRange) return;
-    var el = document.getElementById("stNights");
-    if (data.startDate && data.endDate) {
-      var diff = Math.round((new Date(data.endDate + "T00:00:00") - new Date(data.startDate + "T00:00:00")) / 86400000);
-      el.textContent = diff > 0 ? diff + " nights" : "";
-    } else {
-      el.textContent = "";
-    }
-  }
 
   function renderGauge() {
     var totalSpent = data.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
@@ -448,31 +460,54 @@ async function renderSpendTab(root, cfg) {
   }
   function commitBudget() { data.budget = budgetDraft; showBudgetInput = false; save(); renderGauge(); }
 
+  function renderSavingsGauge() {
+    if (!cfg.showSavingsGoal) return;
+    var saved = data.items.filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var goalNum = Number(data.savingsGoal) || 0;
+    var amountEl = document.getElementById("svGaugeAmount");
+    var bodyEl = document.getElementById("svGaugeBody");
+    if (!amountEl || !bodyEl) return;
+    if (goalNum > 0) {
+      var pct = Math.min(100, (saved / goalNum) * 100);
+      amountEl.textContent = formatCurrency(saved) + " of " + formatCurrency(goalNum);
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div>';
+    } else {
+      amountEl.textContent = formatCurrency(saved);
+      if (showSavingsInput) {
+        bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button></div>';
+        var gd = document.getElementById("svGoalDraft");
+        gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
+        gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); });
+        gd.focus();
+        document.getElementById("svSetGoal").addEventListener("click", commitSavingsGoal);
+      } else {
+        bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:#8A919C;">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
+        document.getElementById("svShowGoal").addEventListener("click", function () { showSavingsInput = true; renderSavingsGauge(); });
+      }
+    }
+  }
+  function commitSavingsGoal() { data.savingsGoal = savingsDraft; showSavingsInput = false; save(); renderSavingsGauge(); }
+
   function renderChips() {
-    var totals = cfg.categories.map(function (cat) {
+    var totals = cfg.categories.map(function (cat, i) {
       var total = data.items.filter(function (it) { return it.category === cat.id; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
-      return Object.assign({}, cat, { total: total });
+      return Object.assign({}, cat, { total: total, idx: i });
     }).filter(function (c) { return c.total > 0; });
     document.getElementById("stChips").innerHTML = totals.map(function (cat) {
-      return '<span class="chip"><span class="dot" style="background:' + cat.color + ';"></span>' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(cat.total) + "</span></span>";
+      return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(cat.total) + "</span></span>";
     }).join("");
   }
 
-  function renderPillsForAddForm() {
-    var activeCat = renderPillsForAddForm._active || cfg.categories[0].id;
+  function renderPills() {
     document.getElementById("stPills").innerHTML = cfg.categories.map(function (cat) {
       var active = cat.id === activeCat;
       return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
     }).join("");
     var pills = document.getElementById("stPills").querySelectorAll(".pill");
     for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) {
-        renderPillsForAddForm._active = e.currentTarget.getAttribute("data-cat");
-        renderPillsForAddForm();
-      });
+      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
     }
   }
-  renderPillsForAddForm._active = cfg.categories[0].id;
 
   function getSortedItems() {
     var copy = data.items.slice();
@@ -566,6 +601,7 @@ async function renderSpendTab(root, cfg) {
 
   function renderDynamic() {
     renderGauge();
+    renderSavingsGauge();
     renderChips();
     renderSelectBar();
     renderList();
@@ -589,7 +625,7 @@ async function renderSpendTab(root, cfg) {
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: renderPillsForAddForm._active, name: name, date: dateVal, amount: Number(amountVal), notes: notesVal });
+    data.items.push({ id: uid(), category: activeCat, name: name, date: dateVal, amount: Number(amountVal), notes: notesVal });
     save();
     resetForm();
     renderDynamic();
@@ -623,17 +659,6 @@ async function renderSpendTab(root, cfg) {
     if (editRowId === id) editRowId = null;
     renderDynamic();
   }
-  function handleImport() {
-    if (!cfg.importPreset) return;
-    cfg.importPreset.forEach(function (p) {
-      data.items.push({ id: uid(), category: p.category, name: p.name, date: p.date || "", amount: Number(p.amount) || 0, notes: p.notes || "" });
-    });
-    save();
-    imported = true;
-    var btn = document.getElementById("stImportBtn");
-    if (btn) btn.textContent = "Imported \u2713 (click to import again)";
-    renderDynamic();
-  }
   function handleResetAll() {
     var btn = document.getElementById("stResetBtn");
     if (!confirmReset) {
@@ -643,21 +668,16 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, startDate: "", endDate: "", budget: "", items: [], selectedIds: [] };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [] };
     save();
     editRowId = null;
     confirmReset = false;
     document.getElementById("stTitle").value = data.title;
-    if (cfg.showDateRange) { document.getElementById("stStart").value = ""; document.getElementById("stEnd").value = ""; renderNights(); }
     resetForm();
     renderDynamic();
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
-  if (cfg.showDateRange) {
-    document.getElementById("stStart").addEventListener("input", function (e) { data.startDate = e.target.value; save(); renderNights(); });
-    document.getElementById("stEnd").addEventListener("input", function (e) { data.endDate = e.target.value; save(); renderNights(); });
-  }
   document.getElementById("stAddBtn").addEventListener("click", handleAdd);
   ["stName", "stAmount", "stNotes"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
@@ -699,12 +719,448 @@ async function renderSpendTab(root, cfg) {
     if (e.key === "Enter") saveRowEdit();
     if (e.key === "Escape") cancelRowEdit();
   });
-  if (cfg.importPreset) document.getElementById("stImportBtn").addEventListener("click", handleImport);
   document.getElementById("stResetBtn").addEventListener("click", handleResetAll);
 
-  renderNights();
-  renderPillsForAddForm();
+  renderPills();
   renderDynamic();
+}
+
+/* ---------------- travel tab (multi-trip) ---------------- */
+
+async function renderTravelTab(root) {
+  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  var raw = await loadTabData("dashboard-travel-data", { trips: [], activeTripId: null });
+
+  if (!raw.trips || raw.trips.length === 0) {
+    if (raw.title || raw.startDate || raw.endDate || (raw.items && raw.items.length > 0) || raw.budget) {
+      var migrated = {
+        id: uid(),
+        title: raw.title || "New Trip",
+        startDate: raw.startDate || "",
+        endDate: raw.endDate || "",
+        tripDate: raw.tripDate || "",
+        budget: raw.budget || "",
+        items: raw.items || [],
+        selectedIds: raw.selectedIds || []
+      };
+      raw = { trips: [migrated], activeTripId: migrated.id };
+    } else {
+      var fresh = { id: uid(), title: "New Trip", startDate: "", endDate: "", tripDate: "", budget: "", items: [], selectedIds: [] };
+      raw = { trips: [fresh], activeTripId: fresh.id };
+    }
+    await saveTabData("dashboard-travel-data", raw);
+  }
+  if (!raw.activeTripId || !raw.trips.some(function (t) { return t.id === raw.activeTripId; })) {
+    raw.activeTripId = raw.trips[0].id;
+  }
+
+  var sortBy = "date";
+  var editRowId = null;
+  var editRowForm = {};
+  var editRowError = "";
+  var confirmReset = false;
+  var showBudgetInput = false;
+  var budgetDraft = "";
+  var confirmDeleteTrip = false;
+  var countdownInterval = null;
+  var activeCat = TRAVEL_CATEGORIES[0].id;
+
+  function save() { saveTabData("dashboard-travel-data", raw); }
+  function getActiveTrip() { return raw.trips.find(function (t) { return t.id === raw.activeTripId; }); }
+
+  root.innerHTML =
+    '<div class="tab-eyebrow">TRAVEL TRACKER</div>' +
+    '<div class="trip-switcher" id="tripSwitcher"></div>' +
+    '<div id="tripDetailRoot"></div>';
+
+  function renderTripSwitcher() {
+    var sw = document.getElementById("tripSwitcher");
+    sw.innerHTML = raw.trips.map(function (t) {
+      var active = t.id === raw.activeTripId;
+      var style = active ? "background:#E8643A;border-color:#E8643A;color:#12151A;" : "";
+      return '<button class="trip-pill" data-trip="' + t.id + '" style="' + style + '">' + escapeHtml(t.title || "Untitled trip") + "</button>";
+    }).join("") + '<button class="trip-pill" id="newTripBtn" style="color:#E8643A;border-color:#E8643A;">+ New trip</button>';
+
+    var pills = sw.querySelectorAll("[data-trip]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) {
+        raw.activeTripId = e.currentTarget.getAttribute("data-trip");
+        save();
+        renderTripSwitcher();
+        renderTripDetail();
+      });
+    }
+    document.getElementById("newTripBtn").addEventListener("click", function () {
+      var t = { id: uid(), title: "New Trip", startDate: "", endDate: "", tripDate: "", budget: "", items: [], selectedIds: [] };
+      raw.trips.push(t);
+      raw.activeTripId = t.id;
+      save();
+      renderTripSwitcher();
+      renderTripDetail();
+    });
+  }
+
+  function renderTripDetail() {
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+    editRowId = null;
+    confirmReset = false;
+    confirmDeleteTrip = false;
+    showBudgetInput = false;
+    activeCat = TRAVEL_CATEGORIES[0].id;
+    var trip = getActiveTrip();
+    var detailRoot = document.getElementById("tripDetailRoot");
+
+    detailRoot.innerHTML =
+      '<header style="margin-bottom:16px;">' +
+        '<input id="ttTitle" class="name-input serif" aria-label="Trip name" />' +
+        '<div class="date-row"><label>Dates <input type="date" id="ttStart" /></label><span>\u2013</span><input type="date" id="ttEnd" /><span class="mono" id="ttNights"></span></div>' +
+        '<div class="date-row" style="margin-top:8px;"><label style="display:flex;align-items:center;gap:6px;">Trip date <input type="date" id="ttTripDate" /></label></div>' +
+      "</header>" +
+      '<div id="ttCountdownWrap"></div>' +
+      '<div class="card">' +
+        '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="ttGaugeAmount"></span></div>' +
+        '<div id="ttGaugeBody"></div>' +
+      "</div>" +
+      '<div class="chips" id="ttChips"></div>' +
+      '<div class="card">' +
+        '<div class="pills" id="ttPills"></div>' +
+        '<div class="form-row">' +
+          '<input class="form-input" id="ttName" placeholder="What is it?" />' +
+          '<div class="form-row-split">' +
+            '<input class="form-input" type="date" id="ttDate" />' +
+            '<input class="form-input" type="number" min="0" step="0.01" id="ttAmount" placeholder="Cost" />' +
+          "</div>" +
+        "</div>" +
+        '<input class="form-input" id="ttNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+        '<div class="form-actions"><span class="error-text" id="ttFormError"></span><button class="add-btn" id="ttAddBtn" style="background:#E8643A;">+ Add</button></div>' +
+      "</div>" +
+      '<div class="sort-row">' +
+        '<span class="entry-count mono" id="ttEntryCount"></span>' +
+        '<div class="sort-toggle"><button class="sort-btn active" id="ttSortDate">By date</button><button class="sort-btn" id="ttSortCat">By category</button></div>' +
+      "</div>" +
+      '<div class="list-card" id="ttList"></div>' +
+      '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="ttFooterTotal"></span></div>' +
+      '<div class="bottom-row">' +
+        '<button class="link-btn" id="ttDeleteTripBtn" style="color:#8A919C;">Delete this trip</button>' +
+        '<button class="link-btn" id="ttResetBtn" style="color:#8A919C;">Clear this trip\u2019s entries</button>' +
+      "</div>";
+
+    document.getElementById("ttTitle").value = trip.title;
+    document.getElementById("ttStart").value = trip.startDate;
+    document.getElementById("ttEnd").value = trip.endDate;
+    document.getElementById("ttTripDate").value = trip.tripDate || "";
+
+    function renderNights() {
+      var el = document.getElementById("ttNights");
+      if (!el) return;
+      if (trip.startDate && trip.endDate) {
+        var diff = Math.round((new Date(trip.endDate + "T00:00:00") - new Date(trip.startDate + "T00:00:00")) / 86400000);
+        el.textContent = diff > 0 ? diff + " nights" : "";
+      } else {
+        el.textContent = "";
+      }
+    }
+
+    function renderCountdown() {
+      var wrap = document.getElementById("ttCountdownWrap");
+      if (!wrap) return;
+      var tripDate = trip.tripDate;
+      if (!tripDate) { wrap.innerHTML = ""; return; }
+      var target = new Date(tripDate + "T00:00:00");
+      if (isNaN(target.getTime())) { wrap.innerHTML = ""; return; }
+
+      function pad(n) { return n < 10 ? "0" + n : String(n); }
+      function unit(val, label) {
+        return '<div style="flex:1;text-align:center;background:#12151A;border-radius:8px;padding:10px 4px;">' +
+          '<div class="mono" style="color:#E8643A;font-size:22px;font-weight:700;">' + (label === "days" ? val : pad(val)) + "</div>" +
+          '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
+        "</div>";
+      }
+      function tick() {
+        var w2 = document.getElementById("ttCountdownWrap");
+        if (!w2) { clearInterval(countdownInterval); return; }
+        var diff = target - new Date();
+        if (diff <= 0) {
+          w2.innerHTML = '<div class="card" style="margin-bottom:16px;text-align:center;">' +
+            '<div class="gauge-label mono" style="margin-bottom:6px;">TRIP DAY</div>' +
+            '<div class="serif" style="color:#E8643A;font-size:28px;">It\u2019s time! \u2708</div>' +
+          "</div>";
+          clearInterval(countdownInterval);
+          return;
+        }
+        var days = Math.floor(diff / 86400000);
+        var hours = Math.floor((diff % 86400000) / 3600000);
+        var minutes = Math.floor((diff % 3600000) / 60000);
+        var seconds = Math.floor((diff % 60000) / 1000);
+        w2.innerHTML = '<div class="card" style="margin-bottom:16px;">' +
+          '<div class="gauge-top"><span class="gauge-label mono">COUNTDOWN TO ' + escapeHtml(tripDate) + "</span></div>" +
+          '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
+            unit(days, "days") + unit(hours, "hrs") + unit(minutes, "min") + unit(seconds, "sec") +
+          "</div>" +
+        "</div>";
+      }
+      tick();
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(tick, 1000);
+      window._countdownInterval = countdownInterval;
+    }
+
+    function renderGauge() {
+      var totalSpent = trip.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+      var budgetNum = Number(trip.budget) || 0;
+      var amountEl = document.getElementById("ttGaugeAmount");
+      var bodyEl = document.getElementById("ttGaugeBody");
+      if (budgetNum > 0) {
+        var pct = Math.min(100, (totalSpent / budgetNum) * 100);
+        var over = totalSpent > budgetNum;
+        amountEl.style.color = over ? "#FF8A5C" : "#E8643A";
+        amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
+        var grad = over ? "linear-gradient(90deg,#8a2e18,#E8643A)" : "linear-gradient(90deg,#E8643A,#FF8A5Ccc)";
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px #E8643A55;"></div></div>';
+      } else {
+        amountEl.style.color = "#E8643A";
+        amountEl.textContent = formatCurrency(totalSpent);
+        if (showBudgetInput) {
+          bodyEl.innerHTML = '<div class="row-gap"><input id="ttBudgetDraft" class="small-input" type="number" min="0" placeholder="Trip budget" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="ttSetBudget" style="background:#E8643A;">Set</button></div>';
+          var bd = document.getElementById("ttBudgetDraft");
+          bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
+          bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); });
+          bd.focus();
+          document.getElementById("ttSetBudget").addEventListener("click", commitBudget);
+        } else {
+          bodyEl.innerHTML = '<button class="link-btn" id="ttShowBudget" style="color:#8A919C;">Set a trip budget to track against</button>';
+          document.getElementById("ttShowBudget").addEventListener("click", function () { showBudgetInput = true; renderGauge(); });
+        }
+      }
+    }
+    function commitBudget() { trip.budget = budgetDraft; showBudgetInput = false; save(); renderGauge(); }
+
+    function renderChips() {
+      var totals = TRAVEL_CATEGORIES.map(function (cat, i) {
+        var total = trip.items.filter(function (it) { return it.category === cat.id; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+        return Object.assign({}, cat, { total: total, idx: i });
+      }).filter(function (c) { return c.total > 0; });
+      document.getElementById("ttChips").innerHTML = totals.map(function (cat) {
+        return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:#E8643A;">' + formatCurrency(cat.total) + "</span></span>";
+      }).join("");
+    }
+
+    function renderPills() {
+      document.getElementById("ttPills").innerHTML = TRAVEL_CATEGORIES.map(function (cat) {
+        var active = cat.id === activeCat;
+        return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
+      }).join("");
+      var pills = document.getElementById("ttPills").querySelectorAll(".pill");
+      for (var i = 0; i < pills.length; i++) {
+        pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
+      }
+    }
+
+    function getSortedItems() {
+      var copy = trip.items.slice();
+      if (sortBy === "date") {
+        copy.sort(function (a, b) { return (a.date || "9999").localeCompare(b.date || "9999"); });
+      } else {
+        var order = TRAVEL_CATEGORIES.map(function (c) { return c.id; });
+        copy.sort(function (a, b) {
+          var d = order.indexOf(a.category) - order.indexOf(b.category);
+          if (d !== 0) return d;
+          return (a.date || "9999").localeCompare(b.date || "9999");
+        });
+      }
+      return copy;
+    }
+
+    function renderList() {
+      var sorted = getSortedItems();
+      document.getElementById("ttEntryCount").textContent = trip.items.length + (trip.items.length === 1 ? " entry" : " entries");
+      var listEl = document.getElementById("ttList");
+      if (sorted.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">Your ledger is empty. Add a flight, a stay, an activity \u2014 anything with a price.</div>';
+        return;
+      }
+      listEl.innerHTML = sorted.map(function (item) {
+        var cat = categoryById(TRAVEL_CATEGORIES, item.category);
+        if (item.id === editRowId) {
+          var f = editRowForm;
+          return '<div class="item-row"><div class="item-edit">' +
+            '<div class="edit-line">' +
+            '<select class="edit-select" data-edit="category">' + TRAVEL_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+            '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+            '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+            "</div>" +
+            '<div class="edit-line">' +
+            '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="Cost" value="' + escapeHtml(f.amount) + '" />' +
+            '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+            (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+            '<button class="icon-btn" data-action="save-row" style="color:#E8643A;">\u2713</button>' +
+            '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
+            "</div></div></div>";
+        }
+        return '<div class="item-row"><div class="item-display">' +
+          '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+          '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+          '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+          '<div class="item-sub">' + formatDateShort(item.date) + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+          '<div class="item-amount mono" style="color:#E8643A;">' + formatCurrency(item.amount) + "</div>" +
+          '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+          '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+          "</div></div>";
+      }).join("");
+    }
+
+    function renderFooter() {
+      var totalSpent = trip.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+      document.getElementById("ttFooterTotal").textContent = formatCurrency(totalSpent);
+    }
+
+    function renderDynamic() {
+      renderGauge();
+      renderChips();
+      renderList();
+      renderFooter();
+      renderCountdown();
+    }
+
+    function resetForm() {
+      document.getElementById("ttName").value = "";
+      document.getElementById("ttDate").value = "";
+      document.getElementById("ttAmount").value = "";
+      document.getElementById("ttNotes").value = "";
+      document.getElementById("ttFormError").textContent = "";
+    }
+
+    function handleAdd() {
+      var name = document.getElementById("ttName").value.trim();
+      var dateVal = document.getElementById("ttDate").value;
+      var amountVal = document.getElementById("ttAmount").value;
+      var notesVal = document.getElementById("ttNotes").value;
+      var errEl = document.getElementById("ttFormError");
+      if (!name) { errEl.textContent = "Give it a name first."; return; }
+      if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add a cost."; return; }
+      errEl.textContent = "";
+      trip.items.push({ id: uid(), category: activeCat, name: name, date: dateVal, amount: Number(amountVal), notes: notesVal });
+      save();
+      resetForm();
+      renderDynamic();
+    }
+
+    function startRowEdit(id) {
+      var item = trip.items.find(function (it) { return it.id === id; });
+      if (!item) return;
+      editRowId = id;
+      editRowForm = { category: item.category, name: item.name, date: item.date, amount: String(item.amount), notes: item.notes || "" };
+      editRowError = "";
+      renderList();
+    }
+    function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
+    function saveRowEdit() {
+      if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
+      if (editRowForm.amount === "" || isNaN(Number(editRowForm.amount))) { editRowError = "Needs a cost."; renderList(); return; }
+      trip.items = trip.items.map(function (it) {
+        if (it.id !== editRowId) return it;
+        return Object.assign({}, it, editRowForm, { amount: Number(editRowForm.amount) });
+      });
+      save();
+      editRowId = null;
+      editRowError = "";
+      renderDynamic();
+    }
+    function handleDelete(id) {
+      trip.items = trip.items.filter(function (it) { return it.id !== id; });
+      save();
+      if (editRowId === id) editRowId = null;
+      renderDynamic();
+    }
+    function handleResetAll() {
+      var btn = document.getElementById("ttResetBtn");
+      if (!confirmReset) {
+        confirmReset = true;
+        btn.textContent = "Click again to clear everything";
+        btn.style.color = "#FF8A5C";
+        setTimeout(function () { confirmReset = false; if (document.getElementById("ttResetBtn")) { btn.textContent = "Clear this trip\u2019s entries"; btn.style.color = "#8A919C"; } }, 4000);
+        return;
+      }
+      trip.items = [];
+      trip.budget = "";
+      save();
+      editRowId = null;
+      confirmReset = false;
+      renderDynamic();
+    }
+    function handleDeleteTrip() {
+      var btn = document.getElementById("ttDeleteTripBtn");
+      if (!confirmDeleteTrip) {
+        confirmDeleteTrip = true;
+        btn.textContent = "Click again to delete this trip";
+        btn.style.color = "#FF8A5C";
+        setTimeout(function () { confirmDeleteTrip = false; if (document.getElementById("ttDeleteTripBtn")) { btn.textContent = "Delete this trip"; btn.style.color = "#8A919C"; } }, 4000);
+        return;
+      }
+      raw.trips = raw.trips.filter(function (t) { return t.id !== trip.id; });
+      if (raw.trips.length === 0) {
+        var fresh2 = { id: uid(), title: "New Trip", startDate: "", endDate: "", tripDate: "", budget: "", items: [], selectedIds: [] };
+        raw.trips.push(fresh2);
+      }
+      raw.activeTripId = raw.trips[0].id;
+      save();
+      renderTripSwitcher();
+      renderTripDetail();
+    }
+
+    document.getElementById("ttTitle").addEventListener("input", function (e) { trip.title = e.target.value; save(); renderTripSwitcher(); });
+    document.getElementById("ttStart").addEventListener("input", function (e) { trip.startDate = e.target.value; save(); renderNights(); });
+    document.getElementById("ttEnd").addEventListener("input", function (e) { trip.endDate = e.target.value; save(); renderNights(); });
+    document.getElementById("ttTripDate").addEventListener("input", function (e) { trip.tripDate = e.target.value; save(); renderCountdown(); });
+    document.getElementById("ttAddBtn").addEventListener("click", handleAdd);
+    ["ttName", "ttAmount", "ttNotes"].forEach(function (id) {
+      document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
+    });
+    document.getElementById("ttSortDate").addEventListener("click", function () {
+      sortBy = "date";
+      document.getElementById("ttSortDate").classList.add("active");
+      document.getElementById("ttSortCat").classList.remove("active");
+      renderList();
+    });
+    document.getElementById("ttSortCat").addEventListener("click", function () {
+      sortBy = "category";
+      document.getElementById("ttSortCat").classList.add("active");
+      document.getElementById("ttSortDate").classList.remove("active");
+      renderList();
+    });
+    document.getElementById("ttList").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "edit") startRowEdit(id);
+      else if (action === "delete") handleDelete(id);
+      else if (action === "save-row") saveRowEdit();
+      else if (action === "cancel-row") cancelRowEdit();
+    });
+    document.getElementById("ttList").addEventListener("input", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+      if (field) editRowForm[field] = e.target.value;
+    });
+    document.getElementById("ttList").addEventListener("change", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+      if (field) editRowForm[field] = e.target.value;
+    });
+    document.getElementById("ttList").addEventListener("keydown", function (e) {
+      if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
+      if (e.key === "Enter") saveRowEdit();
+      if (e.key === "Escape") cancelRowEdit();
+    });
+    document.getElementById("ttResetBtn").addEventListener("click", handleResetAll);
+    document.getElementById("ttDeleteTripBtn").addEventListener("click", handleDeleteTrip);
+
+    renderNights();
+    renderPills();
+    renderDynamic();
+  }
+
+  renderTripSwitcher();
+  renderTripDetail();
 }
 
 /* ---------------- workouts tab ---------------- */
@@ -712,14 +1168,13 @@ async function renderSpendTab(root, cfg) {
 async function renderWorkoutsTab(root) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
   var accent = "#3DBFC4";
-  var defaultData = { weeklyGoal: "", items: [] };
+  var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [] };
   var data = await loadTabData("dashboard-workouts-data", defaultData);
   var sortBy = "date";
   var activeCat = "strength";
   var editRowId = null;
   var editRowForm = {};
   var editRowError = "";
-  var formError = "";
   var confirmReset = false;
   var showGoalInput = false;
   var goalDraft = "";
@@ -727,7 +1182,14 @@ async function renderWorkoutsTab(root) {
   function save() { saveTabData("dashboard-workouts-data", data); }
 
   root.innerHTML =
-    '<header style="margin-bottom:24px;"><h2 class="serif" style="color:#EDEAE3;font-size:26px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="tab-eyebrow">WORKOUT PLANNER</div>' +
+    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="card">' +
+      '<div class="weight-row"><span class="gauge-label mono">CURRENT WEIGHT</span></div>' +
+      '<div class="weight-current mono" id="wkCurrentWeight" style="color:' + accent + ';"></div>' +
+      '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
+      '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
+    "</div>" +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span class="mono" id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
     '<div class="chips" id="wkChips"></div>' +
     '<div class="card">' +
@@ -735,6 +1197,11 @@ async function renderWorkoutsTab(root) {
       '<div class="form-row">' +
         '<input class="form-input" id="wkName" placeholder="What did you do?" />' +
         '<div class="form-row-split"><input class="form-input" type="date" id="wkDate" /><input class="form-input" type="number" min="0" id="wkDuration" placeholder="Minutes (optional)" /></div>' +
+      "</div>" +
+      '<div class="form-row-split" id="wkStrengthFields" style="margin-bottom:8px;">' +
+        '<input class="form-input" type="number" min="0" step="0.5" id="wkWeightLifted" placeholder="Weight lifted (lbs)" />' +
+        '<input class="form-input" type="number" min="0" id="wkSets" placeholder="Sets" />' +
+        '<input class="form-input" type="number" min="0" id="wkReps" placeholder="Reps" />' +
       "</div>" +
       '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
       '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
@@ -750,6 +1217,32 @@ async function renderWorkoutsTab(root) {
     var dateSet = new Set(data.items.filter(function (it) { return it.date; }).map(function (it) { return it.date; }));
     var streak = computeStreak(dateSet);
     document.getElementById("wkStreak").textContent = streak > 0 ? streak + " day streak" : "";
+  }
+
+  function renderWeight() {
+    var sorted = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+    var current = sorted[0];
+    document.getElementById("wkCurrentWeight").textContent = current ? current.weight + " lbs" : "Not logged yet";
+    var logEl = document.getElementById("wkWeightLog");
+    if (sorted.length === 0) { logEl.innerHTML = ""; return; }
+    logEl.innerHTML = sorted.slice(0, 5).map(function (w) {
+      return '<div class="weight-log-row"><span style="color:#8A919C;">' + formatDateShort(w.date) + '</span><span class="mono" style="color:' + accent + ';">' + w.weight + " lbs</span><button class=\"icon-btn\" data-action=\"delete-weight\" data-id=\"" + w.id + "\">\u2715</button></div>";
+    }).join("");
+  }
+
+  function handleLogWeight() {
+    var val = document.getElementById("wkWeightDraft").value;
+    if (val === "" || isNaN(Number(val))) return;
+    if (!data.bodyWeightLog) data.bodyWeightLog = [];
+    data.bodyWeightLog.push({ id: uid(), date: todayISO(), weight: Number(val) });
+    save();
+    document.getElementById("wkWeightDraft").value = "";
+    renderWeight();
+  }
+  function handleDeleteWeight(id) {
+    data.bodyWeightLog = (data.bodyWeightLog || []).filter(function (w) { return w.id !== id; });
+    save();
+    renderWeight();
   }
 
   function renderGauge() {
@@ -781,12 +1274,17 @@ async function renderWorkoutsTab(root) {
   function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
 
   function renderChips() {
-    var counts = WORKOUT_CATEGORIES.map(function (cat) {
-      return Object.assign({}, cat, { count: data.items.filter(function (it) { return it.category === cat.id; }).length });
+    var counts = WORKOUT_CATEGORIES.map(function (cat, i) {
+      return Object.assign({}, cat, { count: data.items.filter(function (it) { return it.category === cat.id; }).length, idx: i });
     }).filter(function (c) { return c.count > 0; });
     document.getElementById("wkChips").innerHTML = counts.map(function (cat) {
-      return '<span class="chip"><span class="dot" style="background:' + cat.color + ';"></span>' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + accent + ';">\u00D7 ' + cat.count + "</span></span>";
+      return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + accent + ';">\u00D7 ' + cat.count + "</span></span>";
     }).join("");
+  }
+
+  function updateStrengthFieldsVisibility() {
+    var el = document.getElementById("wkStrengthFields");
+    if (el) el.style.display = activeCat === "strength" ? "flex" : "none";
   }
 
   function renderPills() {
@@ -796,7 +1294,7 @@ async function renderWorkoutsTab(root) {
     }).join("");
     var pills = document.getElementById("wkPills").querySelectorAll(".pill");
     for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
+      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); updateStrengthFieldsVisibility(); });
     }
   }
 
@@ -835,17 +1333,27 @@ async function renderWorkoutsTab(root) {
           "</div>" +
           '<div class="edit-line">' +
           '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" step="0.5" data-edit="liftWeight" placeholder="Lbs" value="' + escapeHtml(f.liftWeight) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" data-edit="sets" placeholder="Sets" value="' + escapeHtml(f.sets) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" data-edit="reps" placeholder="Reps" value="' + escapeHtml(f.reps) + '" />' +
+          "</div>" +
+          '<div class="edit-line">' +
           '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
           (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
           '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
           "</div></div></div>";
       }
+      var liftBits = [];
+      if (item.liftWeight !== "" && item.liftWeight != null) liftBits.push(item.liftWeight + " lbs");
+      if (item.sets !== "" && item.sets != null) liftBits.push(item.sets + " sets");
+      if (item.reps !== "" && item.reps != null) liftBits.push(item.reps + " reps");
+      var liftText = liftBits.length ? " \u00B7 " + liftBits.join(" \u00D7 ") : "";
       return '<div class="item-row"><div class="item-display">' +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
         '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
-        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + liftText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
         '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
         "</div></div>";
@@ -857,12 +1365,15 @@ async function renderWorkoutsTab(root) {
     document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "");
   }
 
-  function renderDynamic() { renderStreak(); renderGauge(); renderChips(); renderList(); renderFooter(); }
+  function renderDynamic() { renderStreak(); renderWeight(); renderGauge(); renderChips(); renderList(); renderFooter(); }
 
   function resetForm() {
     document.getElementById("wkName").value = "";
     document.getElementById("wkDate").value = todayISO();
     document.getElementById("wkDuration").value = "";
+    document.getElementById("wkWeightLifted").value = "";
+    document.getElementById("wkSets").value = "";
+    document.getElementById("wkReps").value = "";
     document.getElementById("wkNotes").value = "";
     document.getElementById("wkFormError").textContent = "";
   }
@@ -871,11 +1382,21 @@ async function renderWorkoutsTab(root) {
     var name = document.getElementById("wkName").value.trim();
     var dateVal = document.getElementById("wkDate").value;
     var durationVal = document.getElementById("wkDuration").value;
+    var weightVal = document.getElementById("wkWeightLifted").value;
+    var setsVal = document.getElementById("wkSets").value;
+    var repsVal = document.getElementById("wkReps").value;
     var notesVal = document.getElementById("wkNotes").value;
     var errEl = document.getElementById("wkFormError");
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: activeCat, name: name, date: dateVal, duration: durationVal === "" ? "" : Number(durationVal), notes: notesVal });
+    data.items.push({
+      id: uid(), category: activeCat, name: name, date: dateVal,
+      duration: durationVal === "" ? "" : Number(durationVal),
+      liftWeight: weightVal === "" ? "" : Number(weightVal),
+      sets: setsVal === "" ? "" : Number(setsVal),
+      reps: repsVal === "" ? "" : Number(repsVal),
+      notes: notesVal
+    });
     save();
     resetForm();
     renderDynamic();
@@ -885,7 +1406,14 @@ async function renderWorkoutsTab(root) {
     var item = data.items.find(function (it) { return it.id === id; });
     if (!item) return;
     editRowId = id;
-    editRowForm = { category: item.category, name: item.name, date: item.date, duration: item.duration === "" ? "" : String(item.duration), notes: item.notes || "" };
+    editRowForm = {
+      category: item.category, name: item.name, date: item.date,
+      duration: item.duration === "" || item.duration == null ? "" : String(item.duration),
+      liftWeight: item.liftWeight === "" || item.liftWeight == null ? "" : String(item.liftWeight),
+      sets: item.sets === "" || item.sets == null ? "" : String(item.sets),
+      reps: item.reps === "" || item.reps == null ? "" : String(item.reps),
+      notes: item.notes || ""
+    };
     editRowError = "";
     renderList();
   }
@@ -894,7 +1422,12 @@ async function renderWorkoutsTab(root) {
     if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
     data.items = data.items.map(function (it) {
       if (it.id !== editRowId) return it;
-      return Object.assign({}, it, editRowForm, { duration: editRowForm.duration === "" ? "" : Number(editRowForm.duration) });
+      return Object.assign({}, it, editRowForm, {
+        duration: editRowForm.duration === "" ? "" : Number(editRowForm.duration),
+        liftWeight: editRowForm.liftWeight === "" ? "" : Number(editRowForm.liftWeight),
+        sets: editRowForm.sets === "" ? "" : Number(editRowForm.sets),
+        reps: editRowForm.reps === "" ? "" : Number(editRowForm.reps)
+      });
     });
     save();
     editRowId = null;
@@ -916,7 +1449,7 @@ async function renderWorkoutsTab(root) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("wkResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { weeklyGoal: "", items: [] };
+    data = { weeklyGoal: "", items: [], bodyWeightLog: [] };
     save();
     editRowId = null;
     confirmReset = false;
@@ -924,8 +1457,14 @@ async function renderWorkoutsTab(root) {
     renderDynamic();
   }
 
+  document.getElementById("wkLogWeightBtn").addEventListener("click", handleLogWeight);
+  document.getElementById("wkWeightDraft").addEventListener("keydown", function (e) { if (e.key === "Enter") handleLogWeight(); });
+  document.getElementById("wkWeightLog").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-action='delete-weight']");
+    if (btn) handleDeleteWeight(btn.getAttribute("data-id"));
+  });
   document.getElementById("wkAddBtn").addEventListener("click", handleAdd);
-  ["wkName", "wkDuration", "wkNotes"].forEach(function (id) {
+  ["wkName", "wkDuration", "wkWeightLifted", "wkSets", "wkReps", "wkNotes"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
   });
   document.getElementById("wkSortDate").addEventListener("click", function () {
@@ -967,6 +1506,7 @@ async function renderWorkoutsTab(root) {
 
   document.getElementById("wkDate").value = todayISO();
   renderPills();
+  updateStrengthFieldsVisibility();
   renderDynamic();
 }
 
@@ -982,7 +1522,8 @@ async function renderRoutinesTab(root) {
   function save() { saveTabData("dashboard-routines-data", data); }
 
   root.innerHTML =
-    '<header style="margin-bottom:24px;"><h2 class="serif" style="color:#EDEAE3;font-size:26px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="tab-eyebrow">DAILY ROUTINES</div>' +
+    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div></div>' +
     '<div class="card"><div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div></div>' +
     '<div class="list-card" id="rtList"></div>' +
