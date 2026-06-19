@@ -414,7 +414,7 @@ async function renderSpendTab(root, cfg) {
           '<input class="form-input" type="number" min="0" step="0.01" id="stAmount" placeholder="' + escapeHtml(cfg.amountLabel) + '" />' +
         "</div>" +
       "</div>" +
-      '<input class="form-input" id="stNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+      '<textarea class="form-input" id="stNotes" placeholder="Notes (optional)" rows="2" style="margin-bottom:12px;resize:vertical;"></textarea>' +
       '<div class="form-actions"><span class="error-text" id="stFormError"></span><button class="add-btn" id="stAddBtn" style="background:' + cfg.accent + ';">+ Add</button></div>' +
     "</div>" +
     (cfg.enableSelection ? '<div class="card select-bar" id="stSelectBar"></div>' : "") +
@@ -575,7 +575,7 @@ async function renderSpendTab(root, cfg) {
           "</div>" +
           '<div class="edit-line">' +
           '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="' + escapeHtml(cfg.amountLabel) + '" value="' + escapeHtml(f.amount) + '" />' +
-          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+         '<textarea class="edit-input grow" data-edit="notes" placeholder="Notes" rows="2" style="resize:vertical;">' + escapeHtml(f.notes) + '</textarea>' +
           (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
           '<button class="icon-btn" data-action="save-row" style="color:' + cfg.accent + ';">\u2713</button>' +
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
@@ -679,7 +679,7 @@ async function renderSpendTab(root, cfg) {
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
   document.getElementById("stAddBtn").addEventListener("click", handleAdd);
-  ["stName", "stAmount", "stNotes"].forEach(function (id) {
+ ["stName", "stAmount"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
   });
   document.getElementById("stSortDate").addEventListener("click", function () {
@@ -831,7 +831,7 @@ async function renderTravelTab(root) {
             '<input class="form-input" type="number" min="0" step="0.01" id="ttAmount" placeholder="Cost" />' +
           "</div>" +
         "</div>" +
-        '<input class="form-input" id="ttNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+      '<textarea class="form-input" id="ttNotes" placeholder="Notes (optional)" rows="2" style="margin-bottom:12px;resize:vertical;"></textarea>' +
         '<div class="form-actions"><span class="error-text" id="ttFormError"></span><button class="add-btn" id="ttAddBtn" style="background:#E8643A;">+ Add</button></div>' +
       "</div>" +
       '<div class="sort-row">' +
@@ -991,7 +991,7 @@ async function renderTravelTab(root) {
             "</div>" +
             '<div class="edit-line">' +
             '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="Cost" value="' + escapeHtml(f.amount) + '" />' +
-            '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+            '<textarea class="edit-input grow" data-edit="notes" placeholder="Notes" rows="2" style="resize:vertical;">' + escapeHtml(f.notes) + '</textarea>' +
             (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
             '<button class="icon-btn" data-action="save-row" style="color:#E8643A;">\u2713</button>' +
             '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
@@ -1113,7 +1113,7 @@ async function renderTravelTab(root) {
     document.getElementById("ttEnd").addEventListener("input", function (e) { trip.endDate = e.target.value; save(); renderNights(); });
     document.getElementById("ttTripDate").addEventListener("input", function (e) { trip.tripDate = e.target.value; save(); renderCountdown(); });
     document.getElementById("ttAddBtn").addEventListener("click", handleAdd);
-    ["ttName", "ttAmount", "ttNotes"].forEach(function (id) {
+    ["ttName", "ttAmount"].forEach(function (id) {
       document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
     });
     document.getElementById("ttSortDate").addEventListener("click", function () {
@@ -1203,7 +1203,7 @@ async function renderWorkoutsTab(root) {
         '<input class="form-input" type="number" min="0" id="wkSets" placeholder="Sets" />' +
         '<input class="form-input" type="number" min="0" id="wkReps" placeholder="Reps" />' +
       "</div>" +
-      '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+      '<textarea class="form-input" id="wkNotes" placeholder="Notes (optional)" rows="2" style="margin-bottom:12px;resize:vertical;"></textarea>' +
       '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
     "</div>" +
     '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div class="sort-toggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div></div>' +
@@ -1338,7 +1338,7 @@ async function renderWorkoutsTab(root) {
           '<input class="edit-input amt" type="number" min="0" data-edit="reps" placeholder="Reps" value="' + escapeHtml(f.reps) + '" />' +
           "</div>" +
           '<div class="edit-line">' +
-          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          '<textarea class="edit-input grow" data-edit="notes" placeholder="Notes" rows="2" style="resize:vertical;">' + escapeHtml(f.notes) + '</textarea>' +
           (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
           '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
@@ -1464,7 +1464,7 @@ async function renderWorkoutsTab(root) {
     if (btn) handleDeleteWeight(btn.getAttribute("data-id"));
   });
   document.getElementById("wkAddBtn").addEventListener("click", handleAdd);
-  ["wkName", "wkDuration", "wkWeightLifted", "wkSets", "wkReps", "wkNotes"].forEach(function (id) {
+ ["wkName", "wkDuration", "wkWeightLifted", "wkSets", "wkReps"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
   });
   document.getElementById("wkSortDate").addEventListener("click", function () {
