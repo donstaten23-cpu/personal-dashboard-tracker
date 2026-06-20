@@ -112,17 +112,17 @@
       <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
     </header>
-    <div class="card">
+    <form id="authForm" class="card" style="margin:0;">
       <div class="form-row">
-        <input class="form-input" type="email" id="authEmail" placeholder="Email" autocomplete="email" />
-        <input class="form-input" type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
+        <input class="form-input" type="email" id="authEmail" name="email" placeholder="Email" autocomplete="username" required />
+        <input class="form-input" type="password" id="authPassword" name="password" placeholder="Password" autocomplete="current-password" required />
       </div>
       <div class="form-actions">
         <span class="error-text" id="authError"></span>
-        <button class="link-btn" id="authSignUpBtn" style="color:#8A919C;">Create account</button>
-        <button class="add-btn" id="authSignInBtn" style="background:#E8643A;">Sign in</button>
+        <button type="button" class="link-btn" id="authSignUpBtn" style="color:#8A919C;">Create account</button>
+        <button type="submit" class="add-btn" id="authSignInBtn" style="background:#E8643A;">Sign in</button>
       </div>
-    </div>
+    </form>
   </div>
 
   <div id="dashboardScreen" style="display:none;">
@@ -144,8 +144,8 @@
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
    Find them in your Supabase project: Settings -> API. */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
 /* Change this to update the greeting name shown at the top. */
 var USER_DISPLAY_NAME = "Donovan";
@@ -305,11 +305,11 @@ function bootAuth() {
   if (!window.supabase) { document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection."; return; }
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  document.getElementById("authSignInBtn").addEventListener("click", handleSignIn);
-  document.getElementById("authSignUpBtn").addEventListener("click", handleSignUp);
-  ["authEmail", "authPassword"].forEach(function (id) {
-    document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleSignIn(); });
+  document.getElementById("authForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    handleSignIn();
   });
+  document.getElementById("authSignUpBtn").addEventListener("click", handleSignUp);
   document.getElementById("signOutBtn").addEventListener("click", function () { supabaseClient.auth.signOut(); });
 
   supabaseClient.auth.onAuthStateChange(function (event, session) {
@@ -397,6 +397,7 @@ async function renderSpendTab(root, cfg) {
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
+      (cfg.showSavingsGoal ? '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' : "") +
     "</div>" +
     (cfg.showSavingsGoal ?
       '<div class="card">' +
@@ -431,7 +432,7 @@ async function renderSpendTab(root, cfg) {
   document.getElementById("stTitle").value = data.title;
 
   function renderGauge() {
-    var totalSpent = data.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var totalSpent = data.items.filter(function (it) { return it.category !== "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
     var budgetNum = Number(data.budget) || 0;
     var amountEl = document.getElementById("stGaugeAmount");
     var bodyEl = document.getElementById("stGaugeBody");
@@ -595,7 +596,7 @@ async function renderSpendTab(root, cfg) {
   }
 
   function renderFooter() {
-    var totalSpent = data.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var totalSpent = data.items.filter(function (it) { return it.category !== "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
     document.getElementById("stFooterTotal").textContent = formatCurrency(totalSpent);
   }
 
@@ -1240,6 +1241,9 @@ async function renderWorkoutsTab(root) {
   var showGoalInput = false;
   var goalDraft = "";
   var expandedIds = new Set();
+  var editingLiftItemId = null;
+  var editingLiftId = null;
+  var editingLiftForm = {};
 
   function save() { saveTabData("dashboard-workouts-data", data); }
   if (migratedAny) save();
@@ -1369,11 +1373,26 @@ async function renderWorkoutsTab(root) {
   function renderLiftsBlock(item) {
     var lifts = item.lifts || [];
     var liftRows = lifts.map(function (l) {
+      if (editingLiftItemId === item.id && editingLiftId === l.id) {
+        var ef = editingLiftForm;
+        return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
+          '<input class="edit-input grow" style="min-width:80px;" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" step="0.5" data-lift-edit="weight" placeholder="Lbs" value="' + escapeHtml(ef.weight) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" data-lift-edit="sets" placeholder="Sets" value="' + escapeHtml(ef.sets) + '" />' +
+          '<input class="edit-input amt" type="number" min="0" data-lift-edit="reps" placeholder="Reps" value="' + escapeHtml(ef.reps) + '" />' +
+          '<button class="icon-btn" data-action="save-lift" style="color:' + accent + ';">\u2713</button>' +
+          '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
+        "</div>";
+      }
       var bits = [];
       if (l.weight !== "" && l.weight != null) bits.push(l.weight + " lbs");
       if (l.sets !== "" && l.sets != null) bits.push(l.sets + " sets");
       if (l.reps !== "" && l.reps != null) bits.push(l.reps + " reps");
-      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(l.name) + '</span><span class="mono" style="color:' + accent + ';">' + bits.join(" \u00D7 ") + '</span><button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button></div>';
+      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(l.name) + '</span><span class="mono" style="color:' + accent + ';">' + bits.join(" \u00D7 ") + '</span>' +
+        '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+        '<button class="icon-btn" data-action="edit-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
+        '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
+        "</span></div>";
     }).join("");
     return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
       (liftRows || '<div style="color:#8A919C;font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
@@ -1386,6 +1405,7 @@ async function renderWorkoutsTab(root) {
       "</div>" +
     "</div>";
   }
+
 
   function renderList() {
     var sorted = getSortedItems();
@@ -1463,7 +1483,12 @@ async function renderWorkoutsTab(root) {
   }
 
   function toggleExpand(id) {
-    if (expandedIds.has(id)) expandedIds.delete(id); else expandedIds.add(id);
+    if (expandedIds.has(id)) {
+      expandedIds.delete(id);
+      if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
+    } else {
+      expandedIds.add(id);
+    }
     renderList();
   }
 
@@ -1492,13 +1517,54 @@ async function renderWorkoutsTab(root) {
     var item = data.items.find(function (it) { return it.id === itemId; });
     if (!item) return;
     item.lifts = (item.lifts || []).filter(function (l) { return l.id !== liftId; });
+    if (editingLiftItemId === itemId && editingLiftId === liftId) { editingLiftItemId = null; editingLiftId = null; }
     save();
+    renderList();
+  }
+
+  function startLiftEdit(itemId, liftId) {
+    var item = data.items.find(function (it) { return it.id === itemId; });
+    if (!item) return;
+    var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+    if (!lift) return;
+    editingLiftItemId = itemId;
+    editingLiftId = liftId;
+    editingLiftForm = {
+      name: lift.name,
+      weight: lift.weight === "" || lift.weight == null ? "" : String(lift.weight),
+      sets: lift.sets === "" || lift.sets == null ? "" : String(lift.sets),
+      reps: lift.reps === "" || lift.reps == null ? "" : String(lift.reps)
+    };
+    renderList();
+  }
+  function cancelLiftEdit() {
+    editingLiftItemId = null;
+    editingLiftId = null;
+    renderList();
+  }
+  function saveLiftEdit() {
+    var item = data.items.find(function (it) { return it.id === editingLiftItemId; });
+    if (!item || !editingLiftForm.name || !editingLiftForm.name.trim()) { cancelLiftEdit(); return; }
+    item.lifts = (item.lifts || []).map(function (l) {
+      if (l.id !== editingLiftId) return l;
+      return {
+        id: l.id,
+        name: editingLiftForm.name,
+        weight: editingLiftForm.weight === "" ? "" : Number(editingLiftForm.weight),
+        sets: editingLiftForm.sets === "" ? "" : Number(editingLiftForm.sets),
+        reps: editingLiftForm.reps === "" ? "" : Number(editingLiftForm.reps)
+      };
+    });
+    save();
+    editingLiftItemId = null;
+    editingLiftId = null;
     renderList();
   }
 
   function startRowEdit(id) {
     var item = data.items.find(function (it) { return it.id === id; });
     if (!item) return;
+    if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
     editRowId = id;
     editRowForm = {
       category: item.category, name: item.name, date: item.date,
@@ -1525,6 +1591,7 @@ async function renderWorkoutsTab(root) {
   function handleDelete(id) {
     data.items = data.items.filter(function (it) { return it.id !== id; });
     expandedIds.delete(id);
+    if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
     save();
     if (editRowId === id) editRowId = null;
     renderDynamic();
@@ -1542,6 +1609,8 @@ async function renderWorkoutsTab(root) {
     save();
     editRowId = null;
     expandedIds.clear();
+    editingLiftItemId = null;
+    editingLiftId = null;
     confirmReset = false;
     resetForm();
     renderDynamic();
@@ -1581,10 +1650,15 @@ async function renderWorkoutsTab(root) {
     else if (action === "toggle-expand") toggleExpand(id);
     else if (action === "add-lift") handleAddLift(btn.getAttribute("data-item"));
     else if (action === "delete-lift") handleDeleteLift(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
+    else if (action === "edit-lift") startLiftEdit(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
+    else if (action === "save-lift") saveLiftEdit();
+    else if (action === "cancel-lift-edit") cancelLiftEdit();
   });
   document.getElementById("wkList").addEventListener("input", function (e) {
     var field = e.target.getAttribute && e.target.getAttribute("data-edit");
     if (field) editRowForm[field] = e.target.value;
+    var liftField = e.target.getAttribute && e.target.getAttribute("data-lift-edit");
+    if (liftField) editingLiftForm[liftField] = e.target.value;
   });
   document.getElementById("wkList").addEventListener("change", function (e) {
     var field = e.target.getAttribute && e.target.getAttribute("data-edit");
@@ -1593,6 +1667,11 @@ async function renderWorkoutsTab(root) {
   document.getElementById("wkList").addEventListener("keydown", function (e) {
     if (e.target.getAttribute && e.target.getAttribute("data-lift-field") === "name" && e.key === "Enter") {
       handleAddLift(e.target.getAttribute("data-item"));
+      return;
+    }
+    if (e.target.getAttribute && e.target.getAttribute("data-lift-edit")) {
+      if (e.key === "Enter") saveLiftEdit();
+      if (e.key === "Escape") cancelLiftEdit();
       return;
     }
     if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
