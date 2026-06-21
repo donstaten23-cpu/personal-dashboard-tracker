@@ -112,7 +112,7 @@
       <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
     </header>
-    <form id="authForm" class="card" style="margin:0;">
+    <form id="authForm" class="card" style="margin:0;" method="post" action="#">
       <div class="form-row">
         <input class="form-input" type="email" id="authEmail" name="email" placeholder="Email" autocomplete="username" required />
         <input class="form-input" type="password" id="authPassword" name="password" placeholder="Password" autocomplete="current-password" required />
@@ -131,8 +131,19 @@
       <div class="hero-name" id="heroName"></div>
     </div>
     <div style="text-align:right;margin-bottom:12px;">
+      <button class="link-btn" id="changePasswordBtn" style="color:#8A919C;margin-right:16px;">Change password</button>
       <button class="link-btn" id="signOutBtn" style="color:#8A919C;">Sign out</button>
     </div>
+    <form id="changePasswordForm" class="card" method="post" action="#" style="display:none;margin-bottom:16px;">
+      <div class="form-row">
+        <input class="form-input" type="password" id="newPasswordInput" name="new-password" placeholder="New password" autocomplete="new-password" />
+        <input class="form-input" type="password" id="confirmPasswordInput" name="confirm-password" placeholder="Confirm new password" autocomplete="new-password" />
+      </div>
+      <div class="form-actions">
+        <span class="error-text" id="changePasswordError"></span>
+        <button type="submit" class="add-btn" id="updatePasswordBtn" style="background:#E8643A;">Update password</button>
+      </div>
+    </form>
     <div class="tabnav" id="tabnav"></div>
     <div id="tabroot"></div>
   </div>
@@ -144,8 +155,8 @@
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
    Find them in your Supabase project: Settings -> API. */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
 /* Change this to update the greeting name shown at the top. */
 var USER_DISPLAY_NAME = "Don";
@@ -315,14 +326,45 @@ async function handleSignUp() {
 }
 
 function bootAuth() {
-  if (!window.supabase) { document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection."; return; }
-  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
+  // These submit listeners are attached FIRST, unconditionally, before we
+  // even know whether the Supabase library loaded. This is deliberate: a
+  // <form> with no JS listener attached falls back to the browser's native
+  // GET submission, which would put the password straight into the URL.
+  // Attaching this immediately closes that gap no matter how slow (or how
+  // broken) the Supabase CDN load turns out to be.
   document.getElementById("authForm").addEventListener("submit", function (e) {
     e.preventDefault();
+    if (!supabaseClient) { document.getElementById("authError").textContent = "Still connecting \u2014 try again in a moment."; return; }
     handleSignIn();
   });
-  document.getElementById("authSignUpBtn").addEventListener("click", handleSignUp);
+  document.getElementById("authSignUpBtn").addEventListener("click", function () {
+    if (!supabaseClient) { document.getElementById("authError").textContent = "Still connecting \u2014 try again in a moment."; return; }
+    handleSignUp();
+  });
+  document.getElementById("changePasswordForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!supabaseClient) { document.getElementById("changePasswordError").textContent = "Still connecting \u2014 try again in a moment."; return; }
+    handleUpdatePassword();
+  });
+  var showChangePassword = false;
+  document.getElementById("changePasswordBtn").addEventListener("click", function () {
+    showChangePassword = !showChangePassword;
+    document.getElementById("changePasswordForm").style.display = showChangePassword ? "block" : "none";
+    document.getElementById("changePasswordError").textContent = "";
+    if (!showChangePassword) {
+      document.getElementById("newPasswordInput").value = "";
+      document.getElementById("confirmPasswordInput").value = "";
+    }
+  });
+
+  if (!window.supabase) { document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection."; return; }
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    document.getElementById("authError").textContent = "Supabase isn't set up yet \u2014 check SUPABASE_URL and SUPABASE_ANON_KEY near the top of the file.";
+    return;
+  }
+
   document.getElementById("signOutBtn").addEventListener("click", function () { supabaseClient.auth.signOut(); });
 
   supabaseClient.auth.onAuthStateChange(function (event, session) {
@@ -335,6 +377,27 @@ function bootAuth() {
       showAuthScreen();
     }
   });
+}
+
+async function handleUpdatePassword() {
+  var newPw = document.getElementById("newPasswordInput").value;
+  var confirmPw = document.getElementById("confirmPasswordInput").value;
+  var errEl = document.getElementById("changePasswordError");
+  errEl.style.color = "#FF8A5C";
+  if (!newPw || newPw.length < 6) { errEl.textContent = "Password must be at least 6 characters."; return; }
+  if (newPw !== confirmPw) { errEl.textContent = "Passwords don\u2019t match."; return; }
+  errEl.style.color = "#8A919C";
+  errEl.textContent = "Updating\u2026";
+  var result = await supabaseClient.auth.updateUser({ password: newPw });
+  if (result.error) {
+    errEl.style.color = "#FF8A5C";
+    errEl.textContent = result.error.message;
+    return;
+  }
+  errEl.style.color = "#7FA37A";
+  errEl.textContent = "Password updated.";
+  document.getElementById("newPasswordInput").value = "";
+  document.getElementById("confirmPasswordInput").value = "";
 }
 
 /* ---------------- tab nav ---------------- */
