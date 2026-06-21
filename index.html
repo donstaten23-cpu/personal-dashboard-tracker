@@ -144,8 +144,8 @@
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
    Find them in your Supabase project: Settings -> API. */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
 /* Change this to update the greeting name shown at the top. */
 var USER_DISPLAY_NAME = "Don";
@@ -430,13 +430,14 @@ async function renderSpendTab(root, cfg) {
     "</header>" +
     (cfg.showSavingsGoal ?
       '<div class="card" id="beforePayCard">' +
-        '<div class="gauge-label mono" style="margin-bottom:6px;">BEFORE YOUR NEXT PAYCHECK</div>' +
+        '<div class="gauge-label mono" id="beforePayLabel" style="margin-bottom:6px;">BEFORE YOUR NEXT PAYCHECK</div>' +
         '<div id="beforePayContent"></div>' +
       "</div>"
     : "") +
     (cfg.showSavingsGoal ?
       '<div class="card">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">PAY SCHEDULE</div>' +
+        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Pick a name to add their paycheck \u2014 it also switches whose payday the summary above is measured against.</div>' +
         '<div class="pills" id="payPersonPills"></div>' +
         '<div class="row-gap" style="margin-bottom:10px;">' +
           '<input class="small-input" type="number" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
@@ -553,7 +554,11 @@ async function renderSpendTab(root, cfg) {
     }).join("");
     var pills = el.querySelectorAll("[data-person]");
     for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) { payPersonChoice = e.currentTarget.getAttribute("data-person"); renderPayPersonPills(); });
+      pills[i].addEventListener("click", function (e) {
+        payPersonChoice = e.currentTarget.getAttribute("data-person");
+        renderPayPersonPills();
+        renderBeforePay();
+      });
     }
   }
 
@@ -592,10 +597,13 @@ async function renderSpendTab(root, cfg) {
 
   function renderBeforePay() {
     var contentEl = document.getElementById("beforePayContent");
+    var labelEl = document.getElementById("beforePayLabel");
     if (!contentEl) return;
-    var periods = data.payPeriods || [];
+    if (labelEl) labelEl.textContent = "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
+
+    var periods = (data.payPeriods || []).filter(function (p) { return p.person === payPersonChoice; });
     if (periods.length === 0) {
-      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">Add a pay schedule below to see what\u2019s due before your next paycheck.</div>';
+      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(payPersonChoice)) + ' yet \u2014 add one below.</div>';
       return;
     }
     var todayDay = new Date().getDate();
@@ -604,9 +612,9 @@ async function renderSpendTab(root, cfg) {
       var d = Number(p.day);
       if (!d) return;
       var daysAway = d >= todayDay ? d - todayDay : (31 - todayDay) + d;
-      if (!best || daysAway < best.daysAway) best = { day: d, person: p.person, daysAway: daysAway };
+      if (!best || daysAway < best.daysAway) best = { day: d, daysAway: daysAway };
     });
-    if (!best) { contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">Add a pay schedule below to see what\u2019s due before your next paycheck.</div>'; return; }
+    if (!best) { contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(payPersonChoice)) + ' yet \u2014 add one below.</div>'; return; }
 
     var dueBills = data.items.filter(function (it) {
       return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && isDueBeforePay(Number(it.dueDay), todayDay, best.day);
@@ -614,12 +622,12 @@ async function renderSpendTab(root, cfg) {
     var total = dueBills.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
 
     if (dueBills.length === 0) {
-      contentEl.innerHTML = '<div style="color:' + cfg.accent + ';font-size:14px;">Nothing due before ' + escapeHtml(personLabel(best.person)) + '\u2019s paycheck on the ' + ordinalDay(best.day) + '. \u2728</div>';
+      contentEl.innerHTML = '<div style="color:' + cfg.accent + ';font-size:14px;">Nothing due before the ' + ordinalDay(best.day) + '. \u2728</div>';
       return;
     }
     contentEl.innerHTML =
       '<div class="mono" style="color:#FF8A5C;font-size:18px;font-weight:700;margin-bottom:4px;">' + formatCurrency(total) + '</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before ' + escapeHtml(personLabel(best.person)) + '\u2019s paycheck on the ' + ordinalDay(best.day) + '</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before the ' + ordinalDay(best.day) + '</div>' +
       '<div style="color:#EDEAE3;font-size:13px;">' + dueBills.map(function (it) { return escapeHtml(it.name); }).join(", ") + '</div>';
   }
 
