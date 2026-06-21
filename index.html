@@ -759,36 +759,50 @@ async function renderSpendTab(root, cfg) {
     var contentEl = document.getElementById("beforePayContent");
     var labelEl = document.getElementById("beforePayLabel");
     if (!contentEl) return;
-    if (labelEl) labelEl.textContent = "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
 
-    var periods = (data.payPeriods || []).filter(function (p) { return p.person === payPersonChoice; });
+    var periods = (data.payPeriods || []).filter(function (p) { return p.person === payPersonChoice && Number(p.day); });
     if (periods.length === 0) {
+      if (labelEl) labelEl.textContent = "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
       contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(payPersonChoice)) + ' yet \u2014 add one below.</div>';
       return;
     }
+    if (labelEl) labelEl.textContent = periods.length > 1 ? "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S UPCOMING PAYCHECKS" : "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
+
     var todayDay = new Date().getDate();
-    var best = null;
-    periods.forEach(function (p) {
-      var d = Number(p.day);
-      if (!d) return;
-      var daysAway = d >= todayDay ? d - todayDay : (31 - todayDay) + d;
-      if (!best || daysAway < best.daysAway) best = { day: d, daysAway: daysAway };
-    });
-    if (!best) { contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(payPersonChoice)) + ' yet \u2014 add one below.</div>'; return; }
+    function daysAwayFor(day) { return day >= todayDay ? day - todayDay : (31 - todayDay) + day; }
 
-    var dueBills = data.items.filter(function (it) {
-      return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && isDueBeforePay(Number(it.dueDay), todayDay, best.day);
-    });
-    var total = dueBills.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var sortedPeriods = periods.slice().sort(function (a, b) { return daysAwayFor(Number(a.day)) - daysAwayFor(Number(b.day)); });
 
-    if (dueBills.length === 0) {
-      contentEl.innerHTML = '<div style="color:' + cfg.accent + ';font-size:14px;">Nothing due before the ' + ordinalDay(best.day) + '. \u2728</div>';
-      return;
-    }
-    contentEl.innerHTML =
-      '<div class="mono" style="color:#FF8A5C;font-size:18px;font-weight:700;margin-bottom:4px;">' + formatCurrency(total) + '</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before the ' + ordinalDay(best.day) + '</div>' +
-      '<div style="color:#EDEAE3;font-size:13px;">' + dueBills.map(function (it) { return escapeHtml(it.name); }).join(", ") + '</div>';
+    // Only bills explicitly assigned to this person count here -- unassigned
+    // or other-person bills are left out, since the point is "what's on
+    // *your* plate before *your* next check(s)."
+    var ownedBills = data.items.filter(function (it) {
+      return it.category !== "savings" && it.owner === payPersonChoice && it.dueDay !== "" && it.dueDay != null;
+    }).map(function (it) {
+      return Object.assign({}, it, { daysAway: daysAwayFor(Number(it.dueDay)) });
+    });
+
+    var prevCutoff = -1;
+    var blocks = sortedPeriods.map(function (p, idx) {
+      var dayNum = Number(p.day);
+      var cutoff = daysAwayFor(dayNum);
+      var dueBills = ownedBills.filter(function (b) { return b.daysAway > prevCutoff && b.daysAway <= cutoff; });
+      prevCutoff = cutoff;
+      var total = dueBills.reduce(function (s, b) { return s + (Number(b.amount) || 0); }, 0);
+      var inner;
+      if (dueBills.length === 0) {
+        inner = '<div style="color:' + cfg.accent + ';font-size:14px;">Nothing due before the ' + ordinalDay(dayNum) + '. \u2728</div>';
+      } else {
+        inner =
+          '<div class="mono" style="color:#FF8A5C;font-size:18px;font-weight:700;margin-bottom:4px;">' + formatCurrency(total) + '</div>' +
+          '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before the ' + ordinalDay(dayNum) + '</div>' +
+          '<div style="color:#EDEAE3;font-size:13px;">' + dueBills.map(function (b) { return escapeHtml(b.name); }).join(", ") + '</div>';
+      }
+      var isLast = idx === sortedPeriods.length - 1;
+      var wrap = !isLast ? 'margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #2A313A;' : '';
+      return '<div style="' + wrap + '">' + inner + '</div>';
+    });
+    contentEl.innerHTML = blocks.join("");
   }
 
   function renderChips() {
