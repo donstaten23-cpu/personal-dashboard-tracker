@@ -144,11 +144,13 @@
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
    Find them in your Supabase project: Settings -> API. */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
 /* Change this to update the greeting name shown at the top. */
 var USER_DISPLAY_NAME = "Donovan";
+/* Used to label the two people in the Budget tab's pay schedule. */
+var PARTNER_DISPLAY_NAME = "Nauja";
 
 var supabaseClient = null;
 var currentUserId = null;
@@ -209,6 +211,17 @@ function formatDateShort(iso) {
   var d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return "no date yet";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function ordinalDay(n) {
+  n = Number(n);
+  if (!n || n < 1) return "";
+  var s = ["th", "st", "nd", "rd"];
+  var v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+function isDueBeforePay(billDay, todayDay, payDay) {
+  if (payDay >= todayDay) return billDay >= todayDay && billDay <= payDay;
+  return billDay >= todayDay || billDay <= payDay;
 }
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -375,7 +388,26 @@ function renderActiveTab() {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [] });
+  if (!data.payPeriods) data.payPeriods = [];
+
+  // migrate any old-shape items (a literal calendar `date`) into the new
+  // recurring `dueDay` (day-of-month) shape this tab now uses.
+  var migratedAny = false;
+  data.items = (data.items || []).map(function (it) {
+    if (it.dueDay !== undefined) return it;
+    migratedAny = true;
+    var dueDay = "";
+    if (it.date) {
+      var parts = String(it.date).split("-");
+      if (parts.length === 3) {
+        var d = parseInt(parts[2], 10);
+        if (!isNaN(d)) dueDay = d;
+      }
+    }
+    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes };
+  });
+
   var sortBy = "date";
   var editRowId = null;
   var editRowForm = {};
@@ -386,14 +418,34 @@ async function renderSpendTab(root, cfg) {
   var showSavingsInput = false;
   var savingsDraft = "";
   var activeCat = cfg.categories[0].id;
+  var payPersonChoice = "me";
 
   function save() { saveTabData(cfg.storageKey, data); }
+  if (migratedAny) save();
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
     '<header style="margin-bottom:20px;">' +
       '<input id="stTitle" class="name-input serif" aria-label="Title" />' +
     "</header>" +
+    (cfg.showSavingsGoal ?
+      '<div class="card" id="beforePayCard">' +
+        '<div class="gauge-label mono" style="margin-bottom:6px;">BEFORE YOUR NEXT PAYCHECK</div>' +
+        '<div id="beforePayContent"></div>' +
+      "</div>"
+    : "") +
+    (cfg.showSavingsGoal ?
+      '<div class="card">' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">PAY SCHEDULE</div>' +
+        '<div class="pills" id="payPersonPills"></div>' +
+        '<div class="row-gap" style="margin-bottom:10px;">' +
+          '<input class="small-input" type="number" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
+          '<input class="small-input" type="number" min="0" step="0.01" id="payAmountInput" placeholder="Amount" />' +
+          '<button class="small-btn" id="addPayPeriodBtn" style="background:' + cfg.accent + ';">+ Add</button>' +
+        "</div>" +
+        '<div id="payPeriodsList"></div>' +
+      "</div>"
+    : "") +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
@@ -411,7 +463,7 @@ async function renderSpendTab(root, cfg) {
       '<div class="form-row">' +
         '<input class="form-input" id="stName" placeholder="What is it?" />' +
         '<div class="form-row-split">' +
-          '<input class="form-input" type="date" id="stDate" />' +
+          '<input class="form-input" type="number" min="1" max="31" id="stDueDay" placeholder="Due day (1\u201331, optional)" />' +
           '<input class="form-input" type="number" min="0" step="0.01" id="stAmount" placeholder="' + escapeHtml(cfg.amountLabel) + '" />' +
         "</div>" +
       "</div>" +
@@ -421,7 +473,7 @@ async function renderSpendTab(root, cfg) {
     (cfg.enableSelection ? '<div class="card select-bar" id="stSelectBar"></div>' : "") +
     '<div class="sort-row">' +
       '<span class="entry-count mono" id="stEntryCount"></span>' +
-      '<div class="sort-toggle"><button class="sort-btn active" id="stSortDate">By date</button><button class="sort-btn" id="stSortCat">By category</button></div>' +
+      '<div class="sort-toggle"><button class="sort-btn active" id="stSortDate">By due day</button><button class="sort-btn" id="stSortCat">By category</button></div>' +
     "</div>" +
     '<div class="list-card" id="stList"></div>' +
     '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="stFooterTotal"></span></div>' +
@@ -489,6 +541,88 @@ async function renderSpendTab(root, cfg) {
   }
   function commitSavingsGoal() { data.savingsGoal = savingsDraft; showSavingsInput = false; save(); renderSavingsGauge(); }
 
+  function personLabel(p) { return p === "partner" ? PARTNER_DISPLAY_NAME : USER_DISPLAY_NAME; }
+
+  function renderPayPersonPills() {
+    var el = document.getElementById("payPersonPills");
+    if (!el) return;
+    var options = [{ id: "me", label: USER_DISPLAY_NAME }, { id: "partner", label: PARTNER_DISPLAY_NAME }];
+    el.innerHTML = options.map(function (o) {
+      var active = o.id === payPersonChoice;
+      return '<button class="pill" data-person="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
+    }).join("");
+    var pills = el.querySelectorAll("[data-person]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { payPersonChoice = e.currentTarget.getAttribute("data-person"); renderPayPersonPills(); });
+    }
+  }
+
+  function renderPayPeriodsList() {
+    var el = document.getElementById("payPeriodsList");
+    if (!el) return;
+    var sorted = (data.payPeriods || []).slice().sort(function (a, b) { return (Number(a.day) || 0) - (Number(b.day) || 0); });
+    if (sorted.length === 0) {
+      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">No paychecks added yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '\u2019s below.</div>';
+      return;
+    }
+    el.innerHTML = sorted.map(function (p) {
+      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(personLabel(p.person)) + ' \u00B7 ' + ordinalDay(p.day) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-pay" data-id="' + p.id + '">\u2715</button></div>';
+    }).join("");
+  }
+
+  function handleAddPayPeriod() {
+    var dayEl = document.getElementById("payDayInput");
+    var amtEl = document.getElementById("payAmountInput");
+    var day = Number(dayEl.value);
+    var amt = amtEl.value === "" ? 0 : Number(amtEl.value);
+    if (!day || day < 1 || day > 31 || isNaN(day)) { dayEl.focus(); return; }
+    data.payPeriods.push({ id: uid(), person: payPersonChoice, day: day, amount: amt });
+    save();
+    dayEl.value = "";
+    amtEl.value = "";
+    renderPayPeriodsList();
+    renderBeforePay();
+  }
+  function handleDeletePayPeriod(id) {
+    data.payPeriods = (data.payPeriods || []).filter(function (p) { return p.id !== id; });
+    save();
+    renderPayPeriodsList();
+    renderBeforePay();
+  }
+
+  function renderBeforePay() {
+    var contentEl = document.getElementById("beforePayContent");
+    if (!contentEl) return;
+    var periods = data.payPeriods || [];
+    if (periods.length === 0) {
+      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">Add a pay schedule below to see what\u2019s due before your next paycheck.</div>';
+      return;
+    }
+    var todayDay = new Date().getDate();
+    var best = null;
+    periods.forEach(function (p) {
+      var d = Number(p.day);
+      if (!d) return;
+      var daysAway = d >= todayDay ? d - todayDay : (31 - todayDay) + d;
+      if (!best || daysAway < best.daysAway) best = { day: d, person: p.person, daysAway: daysAway };
+    });
+    if (!best) { contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">Add a pay schedule below to see what\u2019s due before your next paycheck.</div>'; return; }
+
+    var dueBills = data.items.filter(function (it) {
+      return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && isDueBeforePay(Number(it.dueDay), todayDay, best.day);
+    });
+    var total = dueBills.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+
+    if (dueBills.length === 0) {
+      contentEl.innerHTML = '<div style="color:' + cfg.accent + ';font-size:14px;">Nothing due before ' + escapeHtml(personLabel(best.person)) + '\u2019s paycheck on the ' + ordinalDay(best.day) + '. \u2728</div>';
+      return;
+    }
+    contentEl.innerHTML =
+      '<div class="mono" style="color:#FF8A5C;font-size:18px;font-weight:700;margin-bottom:4px;">' + formatCurrency(total) + '</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before ' + escapeHtml(personLabel(best.person)) + '\u2019s paycheck on the ' + ordinalDay(best.day) + '</div>' +
+      '<div style="color:#EDEAE3;font-size:13px;">' + dueBills.map(function (it) { return escapeHtml(it.name); }).join(", ") + '</div>';
+  }
+
   function renderChips() {
     var totals = cfg.categories.map(function (cat, i) {
       var total = data.items.filter(function (it) { return it.category === cat.id; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
@@ -513,13 +647,19 @@ async function renderSpendTab(root, cfg) {
   function getSortedItems() {
     var copy = data.items.slice();
     if (sortBy === "date") {
-      copy.sort(function (a, b) { return (a.date || "9999").localeCompare(b.date || "9999"); });
+      copy.sort(function (a, b) {
+        var da = a.dueDay === "" || a.dueDay == null ? 99 : Number(a.dueDay);
+        var db = b.dueDay === "" || b.dueDay == null ? 99 : Number(b.dueDay);
+        return da - db;
+      });
     } else {
       var order = cfg.categories.map(function (c) { return c.id; });
       copy.sort(function (a, b) {
         var d = order.indexOf(a.category) - order.indexOf(b.category);
         if (d !== 0) return d;
-        return (a.date || "9999").localeCompare(b.date || "9999");
+        var da = a.dueDay === "" || a.dueDay == null ? 99 : Number(a.dueDay);
+        var db = b.dueDay === "" || b.dueDay == null ? 99 : Number(b.dueDay);
+        return da - db;
       });
     }
     return copy;
@@ -572,7 +712,7 @@ async function renderSpendTab(root, cfg) {
           '<div class="edit-line">' +
           '<select class="edit-select" data-edit="category">' + cfg.categories.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
           '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
-          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+          '<input class="edit-input amt" type="number" min="1" max="31" data-edit="dueDay" placeholder="Due day" value="' + escapeHtml(f.dueDay) + '" />' +
           "</div>" +
           '<div class="edit-line">' +
           '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="' + escapeHtml(cfg.amountLabel) + '" value="' + escapeHtml(f.amount) + '" />' +
@@ -582,12 +722,13 @@ async function renderSpendTab(root, cfg) {
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
           "</div></div></div>";
       }
+      var dueDayText = item.dueDay !== "" && item.dueDay != null ? "Due " + ordinalDay(item.dueDay) : "no due day set";
       return '<div class="item-row"><div class="item-display">' +
         (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
         '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
-        '<div class="item-sub">' + formatDateShort(item.date) + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-sub">' + dueDayText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
         '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
         '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
@@ -603,6 +744,7 @@ async function renderSpendTab(root, cfg) {
   function renderDynamic() {
     renderGauge();
     renderSavingsGauge();
+    renderBeforePay();
     renderChips();
     renderSelectBar();
     renderList();
@@ -611,7 +753,7 @@ async function renderSpendTab(root, cfg) {
 
   function resetForm() {
     document.getElementById("stName").value = "";
-    document.getElementById("stDate").value = "";
+    document.getElementById("stDueDay").value = "";
     document.getElementById("stAmount").value = "";
     document.getElementById("stNotes").value = "";
     document.getElementById("stFormError").textContent = "";
@@ -619,14 +761,14 @@ async function renderSpendTab(root, cfg) {
 
   function handleAdd() {
     var name = document.getElementById("stName").value.trim();
-    var dateVal = document.getElementById("stDate").value;
+    var dueDayVal = document.getElementById("stDueDay").value;
     var amountVal = document.getElementById("stAmount").value;
     var notesVal = document.getElementById("stNotes").value;
     var errEl = document.getElementById("stFormError");
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: activeCat, name: name, date: dateVal, amount: Number(amountVal), notes: notesVal });
+    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal });
     save();
     resetForm();
     renderDynamic();
@@ -636,7 +778,7 @@ async function renderSpendTab(root, cfg) {
     var item = data.items.find(function (it) { return it.id === id; });
     if (!item) return;
     editRowId = id;
-    editRowForm = { category: item.category, name: item.name, date: item.date, amount: String(item.amount), notes: item.notes || "" };
+    editRowForm = { category: item.category, name: item.name, dueDay: item.dueDay === "" || item.dueDay == null ? "" : String(item.dueDay), amount: String(item.amount), notes: item.notes || "" };
     editRowError = "";
     renderList();
   }
@@ -646,7 +788,10 @@ async function renderSpendTab(root, cfg) {
     if (editRowForm.amount === "" || isNaN(Number(editRowForm.amount))) { editRowError = "Needs " + cfg.amountLabel.toLowerCase() + "."; renderList(); return; }
     data.items = data.items.map(function (it) {
       if (it.id !== editRowId) return it;
-      return Object.assign({}, it, editRowForm, { amount: Number(editRowForm.amount) });
+      return Object.assign({}, it, editRowForm, {
+        amount: Number(editRowForm.amount),
+        dueDay: editRowForm.dueDay === "" ? "" : Number(editRowForm.dueDay)
+      });
     });
     save();
     editRowId = null;
@@ -669,18 +814,19 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [] };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [] };
     save();
     editRowId = null;
     confirmReset = false;
     document.getElementById("stTitle").value = data.title;
     resetForm();
+    renderPayPeriodsList();
     renderDynamic();
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
   document.getElementById("stAddBtn").addEventListener("click", handleAdd);
-  ["stName", "stAmount", "stNotes"].forEach(function (id) {
+  ["stName", "stDueDay", "stAmount", "stNotes"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
   });
   document.getElementById("stSortDate").addEventListener("click", function () {
@@ -721,6 +867,19 @@ async function renderSpendTab(root, cfg) {
     if (e.key === "Escape") cancelRowEdit();
   });
   document.getElementById("stResetBtn").addEventListener("click", handleResetAll);
+
+  if (cfg.showSavingsGoal) {
+    document.getElementById("addPayPeriodBtn").addEventListener("click", handleAddPayPeriod);
+    ["payDayInput", "payAmountInput"].forEach(function (id) {
+      document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPayPeriod(); });
+    });
+    document.getElementById("payPeriodsList").addEventListener("click", function (e) {
+      var btn = e.target.closest('[data-action="delete-pay"]');
+      if (btn) handleDeletePayPeriod(btn.getAttribute("data-id"));
+    });
+    renderPayPersonPills();
+    renderPayPeriodsList();
+  }
 
   renderPills();
   renderDynamic();
