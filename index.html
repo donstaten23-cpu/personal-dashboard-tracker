@@ -155,8 +155,8 @@
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
    Find them in your Supabase project: Settings -> API. */
-var SUPABASE_URL = "https://rqlnwomkrmhxffzzngyi.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
 /* Change this to update the greeting name shown at the top. */
 var USER_DISPLAY_NAME = "Don";
@@ -246,6 +246,30 @@ function computeStreak(dateSet) {
   while (dateSet.has(cursor)) {
     count++;
     cursor = addDaysISO(cursor, -1);
+  }
+  return count;
+}
+function weekKeyForDate(iso) {
+  var d = new Date(iso + "T00:00:00");
+  var day = d.getDay();
+  var diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  return d.toISOString().slice(0, 10);
+}
+function todayWeekKey() { return weekKeyForDate(todayISO()); }
+function computeWeekStreak(weekKeySet) {
+  var count = 0;
+  var cursor = todayWeekKey();
+  if (!weekKeySet.has(cursor)) {
+    var d = new Date(cursor + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    cursor = d.toISOString().slice(0, 10);
+  }
+  while (weekKeySet.has(cursor)) {
+    count++;
+    var d2 = new Date(cursor + "T00:00:00");
+    d2.setDate(d2.getDate() - 7);
+    cursor = d2.toISOString().slice(0, 10);
   }
   return count;
 }
@@ -451,8 +475,9 @@ function renderActiveTab() {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [] });
   if (!data.payPeriods) data.payPeriods = [];
+  if (!data.plannedPurchases) data.plannedPurchases = [];
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
@@ -468,7 +493,7 @@ async function renderSpendTab(root, cfg) {
         if (!isNaN(d)) dueDay = d;
       }
     }
-    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes };
+    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes, owner: it.owner || "" };
   });
 
   var sortBy = "date";
@@ -481,6 +506,7 @@ async function renderSpendTab(root, cfg) {
   var showSavingsInput = false;
   var savingsDraft = "";
   var activeCat = cfg.categories[0].id;
+  var ownerChoice = "";
   var payPersonChoice = "me";
 
   function save() { saveTabData(cfg.storageKey, data); }
@@ -521,9 +547,25 @@ async function renderSpendTab(root, cfg) {
         '<div id="svGaugeBody"></div>' +
       "</div>"
     : "") +
+    (cfg.showSavingsGoal ?
+      '<div class="card">' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">PLANNED PURCHASES</div>' +
+        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Things you\u2019re thinking about buying \u2014 not counted against your budget yet.</div>' +
+        '<div class="row-gap" style="margin-bottom:10px;">' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="plannedNameInput" placeholder="Item" />' +
+          '<input class="small-input" type="number" min="0" step="0.01" id="plannedAmountInput" placeholder="Est. cost" />' +
+          '<button class="small-btn" id="addPlannedBtn" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
+        "</div>" +
+        '<div id="plannedList"></div>' +
+        '<div style="border-top:1px solid #2A313A;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;">' +
+          '<span style="color:#8A919C;font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
+        "</div>" +
+      "</div>"
+    : "") +
     '<div class="chips" id="stChips"></div>' +
     '<div class="card">' +
       '<div class="pills" id="stPills"></div>' +
+      (cfg.showSavingsGoal ? '<div class="pills" id="stOwnerPills" style="margin-top:-2px;"></div>' : "") +
       '<div class="form-row">' +
         '<input class="form-input" id="stName" placeholder="What is it?" />' +
         '<div class="form-row-split">' +
@@ -658,6 +700,61 @@ async function renderSpendTab(root, cfg) {
     renderBeforePay();
   }
 
+  function ownerLabel(o) {
+    if (o === "me") return "1 \u00B7 " + USER_DISPLAY_NAME;
+    if (o === "partner") return "2 \u00B7 " + PARTNER_DISPLAY_NAME;
+    return "";
+  }
+
+  function renderOwnerPills() {
+    var el = document.getElementById("stOwnerPills");
+    if (!el) return;
+    var options = [{ id: "", label: "Unassigned" }, { id: "me", label: "1 \u00B7 " + USER_DISPLAY_NAME }, { id: "partner", label: "2 \u00B7 " + PARTNER_DISPLAY_NAME }];
+    el.innerHTML = options.map(function (o) {
+      var active = o.id === ownerChoice;
+      var color = o.id === "" ? "#8A919C" : cfg.accent;
+      return '<button class="pill" data-owner="' + o.id + '" style="background:' + (active ? color : "transparent") + ";border-color:" + color + ";color:" + (active ? "#12151A" : color) + ';font-size:11px;padding:5px 10px;">' + escapeHtml(o.label) + "</button>";
+    }).join("");
+    var pills = el.querySelectorAll("[data-owner]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { ownerChoice = e.currentTarget.getAttribute("data-owner"); renderOwnerPills(); });
+    }
+  }
+
+  function renderPlannedList() {
+    var el = document.getElementById("plannedList");
+    var totalEl = document.getElementById("plannedTotal");
+    if (!el) return;
+    var list = data.plannedPurchases || [];
+    var total = list.reduce(function (s, p) { return s + (Number(p.amount) || 0); }, 0);
+    if (totalEl) totalEl.textContent = formatCurrency(total);
+    if (list.length === 0) {
+      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">Nothing planned yet.</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (p) {
+      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(p.name) + (p.notes ? ' <span style="color:#8A919C;">\u00B7 ' + escapeHtml(p.notes) + '</span>' : "") + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-planned" data-id="' + p.id + '">\u2715</button></div>';
+    }).join("");
+  }
+
+  function handleAddPlanned() {
+    var nameEl = document.getElementById("plannedNameInput");
+    var amtEl = document.getElementById("plannedAmountInput");
+    var name = nameEl.value.trim();
+    if (!name) { nameEl.focus(); return; }
+    var amt = amtEl.value === "" ? 0 : Number(amtEl.value);
+    data.plannedPurchases.push({ id: uid(), name: name, amount: amt, notes: "" });
+    save();
+    nameEl.value = "";
+    amtEl.value = "";
+    renderPlannedList();
+  }
+  function handleDeletePlanned(id) {
+    data.plannedPurchases = (data.plannedPurchases || []).filter(function (p) { return p.id !== id; });
+    save();
+    renderPlannedList();
+  }
+
   function renderBeforePay() {
     var contentEl = document.getElementById("beforePayContent");
     var labelEl = document.getElementById("beforePayLabel");
@@ -788,18 +885,23 @@ async function renderSpendTab(root, cfg) {
           '<div class="edit-line">' +
           '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="' + escapeHtml(cfg.amountLabel) + '" value="' + escapeHtml(f.amount) + '" />' +
           '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          (cfg.showSavingsGoal ?
+            '<select class="edit-select" data-edit="owner"><option value=""' + (f.owner === "" ? " selected" : "") + '>Unassigned</option><option value="me"' + (f.owner === "me" ? " selected" : "") + '>1 \u00B7 ' + escapeHtml(USER_DISPLAY_NAME) + '</option><option value="partner"' + (f.owner === "partner" ? " selected" : "") + '>2 \u00B7 ' + escapeHtml(PARTNER_DISPLAY_NAME) + '</option></select>'
+          : "") +
           (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
           '<button class="icon-btn" data-action="save-row" style="color:' + cfg.accent + ';">\u2713</button>' +
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
           "</div></div></div>";
       }
       var dueDayText = item.dueDay !== "" && item.dueDay != null ? "Due " + ordinalDay(item.dueDay) : "no due day set";
+      var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:#8A919C;font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
       return '<div class="item-row"><div class="item-display">' +
         (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
         '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
         '<div class="item-sub">' + dueDayText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        ownerBadge +
         '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
         '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
@@ -820,6 +922,7 @@ async function renderSpendTab(root, cfg) {
     renderSelectBar();
     renderList();
     renderFooter();
+    renderPlannedList();
   }
 
   function resetForm() {
@@ -828,6 +931,8 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("stAmount").value = "";
     document.getElementById("stNotes").value = "";
     document.getElementById("stFormError").textContent = "";
+    ownerChoice = "";
+    renderOwnerPills();
   }
 
   function handleAdd() {
@@ -839,7 +944,7 @@ async function renderSpendTab(root, cfg) {
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal });
+    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal, owner: ownerChoice });
     save();
     resetForm();
     renderDynamic();
@@ -849,7 +954,7 @@ async function renderSpendTab(root, cfg) {
     var item = data.items.find(function (it) { return it.id === id; });
     if (!item) return;
     editRowId = id;
-    editRowForm = { category: item.category, name: item.name, dueDay: item.dueDay === "" || item.dueDay == null ? "" : String(item.dueDay), amount: String(item.amount), notes: item.notes || "" };
+    editRowForm = { category: item.category, name: item.name, dueDay: item.dueDay === "" || item.dueDay == null ? "" : String(item.dueDay), amount: String(item.amount), notes: item.notes || "", owner: item.owner || "" };
     editRowError = "";
     renderList();
   }
@@ -885,7 +990,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [] };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [] };
     save();
     editRowId = null;
     confirmReset = false;
@@ -950,6 +1055,16 @@ async function renderSpendTab(root, cfg) {
     });
     renderPayPersonPills();
     renderPayPeriodsList();
+
+    document.getElementById("addPlannedBtn").addEventListener("click", handleAddPlanned);
+    ["plannedNameInput", "plannedAmountInput"].forEach(function (id) {
+      document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPlanned(); });
+    });
+    document.getElementById("plannedList").addEventListener("click", function (e) {
+      var btn = e.target.closest('[data-action="delete-planned"]');
+      if (btn) handleDeletePlanned(btn.getAttribute("data-id"));
+    });
+    renderOwnerPills();
   }
 
   renderPills();
@@ -1923,55 +2038,222 @@ async function renderRoutinesTab(root) {
   var defaultData = { routines: [] };
   var data = await loadTabData("dashboard-routines-data", defaultData);
   var confirmReset = false;
+  var expandedIds = new Set();
+  var newRoutineFreq = "daily";
+  var editingNoteRoutineId = null;
+  var editingNoteKey = null;
+  var editingNoteText = "";
+
+  // migrate: old routines stored completions as plain date strings with no
+  // frequency. Wrap each into { date, note: "" } and default to daily.
+  var migratedAny = false;
+  data.routines = (data.routines || []).map(function (r) {
+    if (r.frequency && r.completions.length > 0 && typeof r.completions[0] === "object") return r;
+    if (r.frequency && r.completions.length === 0) return Object.assign({}, r, { frequency: r.frequency || "daily" });
+    migratedAny = true;
+    var freq = r.frequency || "daily";
+    var completions = (r.completions || []).map(function (c) {
+      if (typeof c === "object") return c;
+      return freq === "weekly" ? { week: weekKeyForDate(c), note: "" } : { date: c, note: "" };
+    });
+    return { id: r.id, name: r.name, color: r.color, frequency: freq, completions: completions };
+  });
 
   function save() { saveTabData("dashboard-routines-data", data); }
+  if (migratedAny) save();
 
   root.innerHTML =
     '<div class="tab-eyebrow">DAILY ROUTINES</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div></div>' +
-    '<div class="card"><div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div></div>' +
+    '<div class="card">' +
+      '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
+      '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
+    "</div>" +
     '<div class="list-card" id="rtList"></div>' +
     '<div class="bottom-row"><button class="link-btn" id="rtResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
 
+  function renderFreqPills() {
+    var el = document.getElementById("rtFreqPills");
+    var options = [{ id: "daily", label: "Daily" }, { id: "weekly", label: "Weekly" }];
+    el.innerHTML = options.map(function (o) {
+      var active = o.id === newRoutineFreq;
+      return '<button class="pill" data-freq="' + o.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + o.label + "</button>";
+    }).join("");
+    var pills = el.querySelectorAll("[data-freq]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { newRoutineFreq = e.currentTarget.getAttribute("data-freq"); renderFreqPills(); });
+    }
+  }
+
+  function isDoneInCurrentPeriod(r) {
+    if (r.frequency === "weekly") {
+      var wk = todayWeekKey();
+      return r.completions.some(function (c) { return c.week === wk; });
+    }
+    var d = todayISO();
+    return r.completions.some(function (c) { return c.date === d; });
+  }
+
+  function streakFor(r) {
+    if (r.frequency === "weekly") {
+      var weekSet = new Set(r.completions.map(function (c) { return c.week; }));
+      return computeWeekStreak(weekSet);
+    }
+    var dateSet = new Set(r.completions.map(function (c) { return c.date; }));
+    return computeStreak(dateSet);
+  }
+
   function renderTop() {
-    var today = todayISO();
-    var doneToday = data.routines.filter(function (r) { return r.completions.indexOf(today) !== -1; }).length;
-    var total = data.routines.length;
+    var dailyRoutines = data.routines.filter(function (r) { return r.frequency !== "weekly"; });
+    var doneToday = dailyRoutines.filter(isDoneInCurrentPeriod).length;
+    var total = dailyRoutines.length;
     var pct = total > 0 ? (doneToday / total) * 100 : 0;
-    document.getElementById("rtTodayAmount").textContent = total > 0 ? doneToday + " of " + total + " done" : "no routines yet";
+    document.getElementById("rtTodayAmount").textContent = total > 0 ? doneToday + " of " + total + " done" : (data.routines.length > 0 ? "no daily routines yet" : "no routines yet");
     document.getElementById("rtGaugeFill").style.width = pct + "%";
-    var longest = data.routines.reduce(function (max, r) { var s = computeStreak(new Set(r.completions)); return s > max ? s : max; }, 0);
+    var longest = dailyRoutines.reduce(function (max, r) { var s = streakFor(r); return s > max ? s : max; }, 0);
     document.getElementById("rtLongest").textContent = longest > 0 ? "Longest streak: " + longest + " days" : "";
   }
 
+  function renderNotesPanel(r) {
+    var sorted = r.completions.slice().sort(function (a, b) {
+      var ka = a.date || a.week, kb = b.date || b.week;
+      return (kb || "").localeCompare(ka || "");
+    });
+    var rows = sorted.map(function (c) {
+      var key = c.date || c.week;
+      var label = r.frequency === "weekly" ? "Week of " + formatDateShort(c.week) : formatDateShort(c.date);
+      if (editingNoteRoutineId === r.id && editingNoteKey === key) {
+        return '<div class="weight-log-row" style="flex-wrap:wrap;align-items:flex-start;">' +
+          '<div style="flex:1;min-width:140px;">' +
+            '<div style="color:#8A919C;font-size:11px;margin-bottom:4px;">' + label + '</div>' +
+            '<textarea class="form-input" id="rtNoteTextarea" rows="2" placeholder="What did you do?" style="resize:vertical;">' + escapeHtml(editingNoteText) + '</textarea>' +
+          "</div>" +
+          '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+            '<button class="icon-btn" data-action="save-note" style="color:' + accent + ';">\u2713</button>' +
+            '<button class="icon-btn" data-action="cancel-note">\u2715</button>' +
+          "</div>" +
+        "</div>";
+      }
+      return '<div class="weight-log-row" style="align-items:flex-start;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="color:#8A919C;font-size:11px;">' + label + '</div>' +
+          '<div style="color:#EDEAE3;font-size:13px;white-space:pre-wrap;">' + (c.note ? escapeHtml(c.note) : '<span style="color:#5A6168;">No note</span>') + "</div>" +
+        "</div>" +
+        '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+          '<button class="icon-btn" data-action="edit-note" data-id="' + r.id + '" data-key="' + escapeHtml(key) + '">\u270E</button>' +
+          '<button class="icon-btn" data-action="delete-entry" data-id="' + r.id + '" data-key="' + escapeHtml(key) + '">\u2715</button>' +
+        "</div>" +
+      "</div>";
+    }).join("");
+    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
+      (rows || '<div style="color:#8A919C;font-size:12px;">Nothing logged yet.</div>') +
+    "</div>";
+  }
+
   function renderList() {
-    var today = todayISO();
     var listEl = document.getElementById("rtList");
     if (data.routines.length === 0) {
       listEl.innerHTML = '<div class="empty-state">No routines yet. Add the first habit you want to keep showing up for.</div>';
       return;
     }
     listEl.innerHTML = data.routines.map(function (r) {
-      var doneTodayFlag = r.completions.indexOf(today) !== -1;
-      var streak = computeStreak(new Set(r.completions));
-      return '<div class="item-row"><div class="item-display">' +
+      var doneFlag = isDoneInCurrentPeriod(r);
+      var streak = streakFor(r);
+      var streakLabel = r.frequency === "weekly" ? (streak > 0 ? streak + " week streak" : "no streak yet") : (streak > 0 ? streak + " day streak" : "no streak yet");
+      var doneLabel = r.frequency === "weekly" ? "Done this week \u2713" : "Done today \u2713";
+      var markLabel = r.frequency === "weekly" ? "Mark done" : "Mark done";
+      var expanded = expandedIds.has(r.id);
+      var displayRow = '<div class="item-display">' +
         '<span class="item-bar" style="background:' + r.color + ';"></span>' +
-        '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + '</div><div class="item-sub mono">' + (streak > 0 ? streak + " day streak" : "no streak yet") + "</div></div>" +
-        '<button class="pill" data-action="toggle" data-id="' + r.id + '" style="background:' + (doneTodayFlag ? r.color : "transparent") + ";border-color:" + r.color + ";color:" + (doneTodayFlag ? "#12151A" : r.color) + ';flex-shrink:0;">' + (doneTodayFlag ? "Done today \u2713" : "Mark done") + "</button>" +
+        '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + (r.frequency === "weekly" ? ' <span style="color:#8A919C;font-size:11px;font-weight:400;">(weekly)</span>' : "") + '</div><div class="item-sub mono">' + streakLabel + "</div></div>" +
+        '<button class="pill" data-action="toggle" data-id="' + r.id + '" style="background:' + (doneFlag ? r.color : "transparent") + ";border-color:" + r.color + ";color:" + (doneFlag ? "#12151A" : r.color) + ';flex-shrink:0;">' + (doneFlag ? doneLabel : markLabel) + "</button>" +
+        '<button class="icon-btn" data-action="toggle-expand" data-id="' + r.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>" +
         '<button class="icon-btn" data-action="delete" data-id="' + r.id + '">\u2715</button>' +
-        "</div></div>";
+        "</div>";
+      var notesBlock = expanded ? renderNotesPanel(r) : "";
+      return '<div class="item-row">' + displayRow + notesBlock + "</div>";
     }).join("");
   }
 
   function renderDynamic() { renderTop(); renderList(); }
+
+  function handleToggleDone(id) {
+    var r = data.routines.find(function (r) { return r.id === id; });
+    if (!r) return;
+    var already = isDoneInCurrentPeriod(r);
+    if (!already) {
+      var key = r.frequency === "weekly" ? todayWeekKey() : todayISO();
+      var entry = r.frequency === "weekly" ? { week: key, note: "" } : { date: key, note: "" };
+      r.completions.push(entry);
+      save();
+      expandedIds.add(id);
+      editingNoteRoutineId = id;
+      editingNoteKey = key;
+      editingNoteText = "";
+    } else {
+      expandedIds.add(id);
+    }
+    renderDynamic();
+  }
+
+  function handleToggleExpand(id) {
+    if (expandedIds.has(id)) { expandedIds.delete(id); if (editingNoteRoutineId === id) { editingNoteRoutineId = null; editingNoteKey = null; } }
+    else expandedIds.add(id);
+    renderList();
+  }
+
+  function handleEditNote(id, key) {
+    var r = data.routines.find(function (r) { return r.id === id; });
+    if (!r) return;
+    var entry = r.completions.find(function (c) { return (c.date || c.week) === key; });
+    if (!entry) return;
+    editingNoteRoutineId = id;
+    editingNoteKey = key;
+    editingNoteText = entry.note || "";
+    renderList();
+  }
+  function handleCancelNote() {
+    editingNoteRoutineId = null;
+    editingNoteKey = null;
+    renderList();
+  }
+  function handleSaveNote() {
+    var r = data.routines.find(function (r) { return r.id === editingNoteRoutineId; });
+    if (!r) { handleCancelNote(); return; }
+    r.completions = r.completions.map(function (c) {
+      if ((c.date || c.week) !== editingNoteKey) return c;
+      return Object.assign({}, c, { note: editingNoteText });
+    });
+    save();
+    editingNoteRoutineId = null;
+    editingNoteKey = null;
+    renderList();
+  }
+  function handleDeleteEntry(id, key) {
+    var r = data.routines.find(function (r) { return r.id === id; });
+    if (!r) return;
+    r.completions = r.completions.filter(function (c) { return (c.date || c.week) !== key; });
+    if (editingNoteRoutineId === id && editingNoteKey === key) { editingNoteRoutineId = null; editingNoteKey = null; }
+    save();
+    renderDynamic();
+  }
+  function handleDeleteRoutine(id) {
+    data.routines = data.routines.filter(function (r) { return r.id !== id; });
+    expandedIds.delete(id);
+    if (editingNoteRoutineId === id) { editingNoteRoutineId = null; editingNoteKey = null; }
+    save();
+    renderDynamic();
+  }
+
+  renderFreqPills();
 
   document.getElementById("rtAddBtn").addEventListener("click", function () {
     var input = document.getElementById("rtNewName");
     var name = input.value.trim();
     if (!name) return;
     var color = ROUTINE_COLORS[data.routines.length % ROUTINE_COLORS.length];
-    data.routines.push({ id: uid(), name: name, color: color, completions: [] });
+    data.routines.push({ id: uid(), name: name, color: color, frequency: newRoutineFreq, completions: [] });
     save();
     input.value = "";
     renderDynamic();
@@ -1984,20 +2266,20 @@ async function renderRoutinesTab(root) {
     if (!btn) return;
     var action = btn.getAttribute("data-action");
     var id = btn.getAttribute("data-id");
-    var today = todayISO();
-    if (action === "toggle") {
-      data.routines = data.routines.map(function (r) {
-        if (r.id !== id) return r;
-        var has = r.completions.indexOf(today) !== -1;
-        return Object.assign({}, r, { completions: has ? r.completions.filter(function (c) { return c !== today; }) : r.completions.concat([today]) });
-      });
-      save();
-      renderDynamic();
-    } else if (action === "delete") {
-      data.routines = data.routines.filter(function (r) { return r.id !== id; });
-      save();
-      renderDynamic();
-    }
+    var key = btn.getAttribute("data-key");
+    if (action === "toggle") handleToggleDone(id);
+    else if (action === "toggle-expand") handleToggleExpand(id);
+    else if (action === "delete") handleDeleteRoutine(id);
+    else if (action === "edit-note") handleEditNote(id, key);
+    else if (action === "delete-entry") handleDeleteEntry(id, key);
+    else if (action === "save-note") handleSaveNote();
+    else if (action === "cancel-note") handleCancelNote();
+  });
+  document.getElementById("rtList").addEventListener("input", function (e) {
+    if (e.target.id === "rtNoteTextarea") editingNoteText = e.target.value;
+  });
+  document.getElementById("rtList").addEventListener("keydown", function (e) {
+    if (e.target.id === "rtNoteTextarea" && e.key === "Escape") handleCancelNote();
   });
   document.getElementById("rtResetBtn").addEventListener("click", function () {
     var btn = document.getElementById("rtResetBtn");
@@ -2010,6 +2292,9 @@ async function renderRoutinesTab(root) {
     }
     data = { routines: [] };
     save();
+    expandedIds.clear();
+    editingNoteRoutineId = null;
+    editingNoteKey = null;
     confirmReset = false;
     renderDynamic();
   });
