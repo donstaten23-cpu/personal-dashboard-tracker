@@ -234,6 +234,17 @@ function isDueBeforePay(billDay, todayDay, payDay) {
   if (payDay >= todayDay) return billDay >= todayDay && billDay <= payDay;
   return billDay >= todayDay || billDay <= payDay;
 }
+function isCurrentlyPaid(item) {
+  if (!item.paidOn || item.dueDay === "" || item.dueDay == null) return false;
+  var today = new Date();
+  var dueDayNum = Number(item.dueDay);
+  var mostRecentDue = new Date(today.getFullYear(), today.getMonth(), dueDayNum);
+  if (dueDayNum > today.getDate()) {
+    mostRecentDue = new Date(today.getFullYear(), today.getMonth() - 1, dueDayNum);
+  }
+  var paidDate = new Date(item.paidOn + "T00:00:00");
+  return paidDate >= mostRecentDue;
+}
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -493,7 +504,7 @@ async function renderSpendTab(root, cfg) {
         if (!isNaN(d)) dueDay = d;
       }
     }
-    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes, owner: it.owner || "" };
+    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes, owner: it.owner || "", paidOn: it.paidOn || "" };
   });
 
   var sortBy = "date";
@@ -777,7 +788,7 @@ async function renderSpendTab(root, cfg) {
     // or other-person bills are left out, since the point is "what's on
     // *your* plate before *your* next check(s)."
     var ownedBills = data.items.filter(function (it) {
-      return it.category !== "savings" && it.owner === payPersonChoice && it.dueDay !== "" && it.dueDay != null;
+      return it.category !== "savings" && it.owner === payPersonChoice && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it);
     }).map(function (it) {
       return Object.assign({}, it, { daysAway: daysAwayFor(Number(it.dueDay)) });
     });
@@ -909,15 +920,17 @@ async function renderSpendTab(root, cfg) {
       }
       var dueDayText = item.dueDay !== "" && item.dueDay != null ? "Due " + ordinalDay(item.dueDay) : "no due day set";
       var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:#8A919C;font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
-      return '<div class="item-row"><div class="item-display">' +
+      var paid = cfg.showSavingsGoal && isCurrentlyPaid(item);
+      var paidBtn = cfg.showSavingsGoal ? '<button class="icon-btn" data-action="toggle-paid" data-id="' + item.id + '" title="' + (paid ? "Paid \u2014 click to undo" : "Mark as paid") + '" style="color:' + (paid ? "#7FA37A" : "#8A919C") + ';">' + (paid ? "\u2713" : "\u25CB") + '</button>' : "";
+      return '<div class="item-row"><div class="item-display" style="' + (paid ? "opacity:0.55;" : "") + '">' +
         (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
-        '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+        '<div class="item-main"><div class="item-name" style="' + (paid ? "text-decoration:line-through;" : "") + '">' + escapeHtml(item.name) + "</div>" +
         '<div class="item-sub">' + dueDayText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
         ownerBadge +
         '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
-        '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+        '<div class="item-actions">' + paidBtn + '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
         "</div></div>";
     }).join("");
@@ -958,7 +971,7 @@ async function renderSpendTab(root, cfg) {
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal, owner: ownerChoice });
+    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal, owner: ownerChoice, paidOn: "" });
     save();
     resetForm();
     renderDynamic();
@@ -993,6 +1006,13 @@ async function renderSpendTab(root, cfg) {
     data.selectedIds = (data.selectedIds || []).filter(function (sid) { return sid !== id; });
     save();
     if (editRowId === id) editRowId = null;
+    renderDynamic();
+  }
+  function handleTogglePaid(id) {
+    var item = data.items.find(function (it) { return it.id === id; });
+    if (!item) return;
+    item.paidOn = isCurrentlyPaid(item) ? "" : todayISO();
+    save();
     renderDynamic();
   }
   function handleResetAll() {
@@ -1040,6 +1060,7 @@ async function renderSpendTab(root, cfg) {
       else if (action === "delete") handleDelete(id);
       else if (action === "save-row") saveRowEdit();
       else if (action === "cancel-row") cancelRowEdit();
+      else if (action === "toggle-paid") handleTogglePaid(id);
     }
   });
   document.getElementById("stList").addEventListener("change", function (e) {
