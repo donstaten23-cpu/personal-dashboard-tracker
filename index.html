@@ -1367,12 +1367,23 @@ async function renderTravelTab(root) {
       if (isNaN(target.getTime())) { wrap.innerHTML = ""; return; }
 
       function pad(n) { return n < 10 ? "0" + n : String(n); }
-      function unit(val, label) {
-        return '<div style="flex:1;text-align:center;background:#12151A;border-radius:8px;padding:10px 4px;">' +
-          '<div class="mono" style="color:#E8643A;font-size:22px;font-weight:700;">' + (label === "days" ? val : pad(val)) + "</div>" +
-          '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
+
+      // Build the card shell once — tick() only updates the text nodes inside,
+      // so the .card element never gets removed/re-added and the animation
+      // never replays.
+      wrap.innerHTML =
+        '<div class="card" style="margin-bottom:16px;">' +
+          '<div class="gauge-top"><span class="gauge-label mono">COUNTDOWN TO ' + escapeHtml(tripDate) + "</span></div>" +
+          '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
+            ['days','hrs','min','sec'].map(function (label) {
+              return '<div style="flex:1;text-align:center;background:#12151A;border-radius:8px;padding:10px 4px;">' +
+                '<div class="mono cd-' + label + '" style="color:#E8643A;font-size:22px;font-weight:700;">--</div>' +
+                '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
+              "</div>";
+            }).join("") +
+          "</div>" +
         "</div>";
-      }
+
       function tick() {
         var w2 = document.getElementById("ttCountdownWrap");
         if (!w2) { clearInterval(countdownInterval); return; }
@@ -1385,17 +1396,20 @@ async function renderTravelTab(root) {
           clearInterval(countdownInterval);
           return;
         }
-        var days = Math.floor(diff / 86400000);
-        var hours = Math.floor((diff % 86400000) / 3600000);
+        var days    = Math.floor(diff / 86400000);
+        var hours   = Math.floor((diff % 86400000) / 3600000);
         var minutes = Math.floor((diff % 3600000) / 60000);
         var seconds = Math.floor((diff % 60000) / 1000);
-        w2.innerHTML = '<div class="card" style="margin-bottom:16px;">' +
-          '<div class="gauge-top"><span class="gauge-label mono">COUNTDOWN TO ' + escapeHtml(tripDate) + "</span></div>" +
-          '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
-            unit(days, "days") + unit(hours, "hrs") + unit(minutes, "min") + unit(seconds, "sec") +
-          "</div>" +
-        "</div>";
+        var dEl = w2.querySelector(".cd-days");
+        var hEl = w2.querySelector(".cd-hrs");
+        var mEl = w2.querySelector(".cd-min");
+        var sEl = w2.querySelector(".cd-sec");
+        if (dEl) dEl.textContent = String(days);
+        if (hEl) hEl.textContent = pad(hours);
+        if (mEl) mEl.textContent = pad(minutes);
+        if (sEl) sEl.textContent = pad(seconds);
       }
+
       tick();
       if (countdownInterval) clearInterval(countdownInterval);
       countdownInterval = setInterval(tick, 1000);
