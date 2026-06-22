@@ -102,6 +102,92 @@
   .footer-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
   .footer-total { color: #EDEAE3; font-size: 18px; font-weight: 600; }
   .bottom-row { margin-top: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---- animations ---- */
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* hero band slides down from above */
+  .hero-band {
+    animation: slideDown 0.45s cubic-bezier(0.22,1,0.36,1) both;
+  }
+
+  /* tab nav fades in */
+  .tabnav {
+    animation: fadeIn 0.35s ease 0.15s both;
+  }
+
+  /* every card stacks up with a short stagger */
+  .card {
+    animation: slideUp 0.45s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .card:nth-child(1)  { animation-delay: 0.08s; }
+  .card:nth-child(2)  { animation-delay: 0.14s; }
+  .card:nth-child(3)  { animation-delay: 0.20s; }
+  .card:nth-child(4)  { animation-delay: 0.26s; }
+  .card:nth-child(5)  { animation-delay: 0.32s; }
+  .card:nth-child(6)  { animation-delay: 0.38s; }
+
+  /* list card and its rows */
+  .list-card {
+    animation: slideUp 0.45s cubic-bezier(0.22,1,0.36,1) 0.35s both;
+  }
+  .item-row {
+    animation: slideRight 0.35s cubic-bezier(0.22,1,0.36,1) both;
+  }
+  .item-row:nth-child(1)  { animation-delay: 0.38s; }
+  .item-row:nth-child(2)  { animation-delay: 0.44s; }
+  .item-row:nth-child(3)  { animation-delay: 0.50s; }
+  .item-row:nth-child(4)  { animation-delay: 0.56s; }
+  .item-row:nth-child(5)  { animation-delay: 0.62s; }
+  .item-row:nth-child(6)  { animation-delay: 0.68s; }
+  .item-row:nth-child(7)  { animation-delay: 0.72s; }
+  .item-row:nth-child(8)  { animation-delay: 0.76s; }
+  .item-row:nth-child(9)  { animation-delay: 0.80s; }
+  .item-row:nth-child(n+10) { animation-delay: 0.84s; }
+
+  /* category chips */
+  .chips { animation: fadeIn 0.35s ease 0.25s both; }
+
+  /* tab eyebrow label */
+  .tab-eyebrow { animation: fadeIn 0.3s ease 0.05s both; }
+
+  /* trip switcher pills */
+  .trip-switcher { animation: slideDown 0.35s cubic-bezier(0.22,1,0.36,1) 0.1s both; }
+
+  /* footer row */
+  .footer-row { animation: fadeIn 0.35s ease 0.4s both; }
+
+  /* gauge fill bar — grow from left on load */
+  .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
+
+  /* tab content container gets a fresh slide-up whenever tabs switch */
+  #tabroot { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) both; }
+
+  /* pill buttons entrance */
+  .pills { animation: fadeIn 0.3s ease 0.2s both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -459,6 +545,9 @@ function renderTabNav() {
 function renderActiveTab() {
   if (window._countdownInterval) { clearInterval(window._countdownInterval); window._countdownInterval = null; }
   var root = document.getElementById("tabroot");
+  root.style.animation = "none";
+  root.offsetHeight; // force reflow so the reset takes effect
+  root.style.animation = "";
   root.innerHTML = "";
   if (currentTab === "travel") {
     renderTravelTab(root);
@@ -1348,26 +1437,33 @@ async function renderTravelTab(root) {
       var amountEl = document.getElementById("ttSavingsAmount");
       var bodyEl = document.getElementById("ttSavingsBody");
       if (!amountEl || !bodyEl) return;
-      if (goalNum > 0) {
+      if (showTripSavingsInput) {
+        amountEl.textContent = goalNum > 0 ? formatCurrency(totalSaved) + " of " + formatCurrency(goalNum) : formatCurrency(totalSaved);
+        bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="ttCancelSavings" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+        var sd = document.getElementById("ttSavingsDraft");
+        sd.addEventListener("input", function (e) { tripSavingsDraft = e.target.value; });
+        sd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitTripSavings(); if (e.key === "Escape") { showTripSavingsInput = false; renderSavingsGauge(); } });
+        sd.focus();
+        document.getElementById("ttSetSavings").addEventListener("click", commitTripSavings);
+        if (goalNum > 0) document.getElementById("ttCancelSavings").addEventListener("click", function () { showTripSavingsInput = false; renderSavingsGauge(); });
+      } else if (goalNum > 0) {
         var pct = Math.min(100, (totalSaved / goalNum) * 100);
         amountEl.textContent = formatCurrency(totalSaved) + " of " + formatCurrency(goalNum);
-        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div>';
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="ttEditSavings" style="color:#8A919C;margin-top:6px;">Edit savings goal</button>';
+        document.getElementById("ttEditSavings").addEventListener("click", function () { tripSavingsDraft = String(goalNum); showTripSavingsInput = true; renderSavingsGauge(); });
       } else {
         amountEl.textContent = formatCurrency(totalSaved);
-        if (showTripSavingsInput) {
-          bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button></div>';
-          var sd = document.getElementById("ttSavingsDraft");
-          sd.addEventListener("input", function (e) { tripSavingsDraft = e.target.value; });
-          sd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitTripSavings(); });
-          sd.focus();
-          document.getElementById("ttSetSavings").addEventListener("click", commitTripSavings);
-        } else {
-          bodyEl.innerHTML = '<button class="link-btn" id="ttShowSavings" style="color:#8A919C;">Set a savings goal for this trip</button>';
-          document.getElementById("ttShowSavings").addEventListener("click", function () { showTripSavingsInput = true; renderSavingsGauge(); });
-        }
+        bodyEl.innerHTML = '<button class="link-btn" id="ttShowSavings" style="color:#8A919C;">Set a savings goal for this trip</button>';
+        document.getElementById("ttShowSavings").addEventListener("click", function () { tripSavingsDraft = ""; showTripSavingsInput = true; renderSavingsGauge(); });
       }
     }
-    function commitTripSavings() { trip.savingsGoal = tripSavingsDraft; showTripSavingsInput = false; save(); renderSavingsGauge(); }
+    function commitTripSavings() {
+      if (tripSavingsDraft === "" || isNaN(Number(tripSavingsDraft))) { showTripSavingsInput = false; renderSavingsGauge(); return; }
+      trip.savingsGoal = tripSavingsDraft;
+      showTripSavingsInput = false;
+      save();
+      renderSavingsGauge();
+    }
 
     function renderChips() {
       var totals = TRAVEL_CATEGORIES.map(function (cat, i) {
