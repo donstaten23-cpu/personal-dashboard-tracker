@@ -22,11 +22,39 @@
   .hero-band { background: linear-gradient(135deg, #FF8A5C 0%, #E8643A 45%, #B23A1C 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
   .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
   .hero-name { color: #fff; font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
-  .tab-eyebrow { color: #E8643A; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+  .tab-eyebrow { color: #E8643A; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
 
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
-  .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 500; }
+  .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
   .tabbtn.active { color: #12151A; }
+
+  /* gauge amount spans — the "$X of $Y" dollar figures next to the label */
+  #stGaugeAmount, #svGaugeAmount, #ttGaugeAmount, #ttSavingsAmount,
+  #wkGaugeAmount, #rtTodayAmount { font-size: 16px !important; font-weight: 600; }
+
+  /* before-payday total */
+  #beforePayContent .mono { font-size: 22px !important; }
+
+  /* streak counters */
+  #wkStreak, #rtLongest { font-size: 14px !important; }
+
+  /* footer total */
+  .footer-total { color: #EDEAE3; font-size: 20px; font-weight: 700; }
+  .footer-label { color: #8A919C; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* chips & pills slightly bigger */
+  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 13px; font-size: 13px; }
+  .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 500; background: transparent; }
+
+  /* countdown unit numbers */
+  .cd-days, .cd-hrs, .cd-min, .cd-sec { font-size: 26px !important; }
+
+  /* weight current display */
+  .weight-current { font-size: 32px; font-weight: 800; }
+
+  /* entry count + sort buttons */
+  .entry-count { color: #8A919C; font-size: 13px; }
+  .sort-toggle { background: #1B2027; display: flex; gap: 4px; border-radius: 999px; padding: 4px; font-size: 13px; }
 
   .name-input { color: #EDEAE3; background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 30px; padding: 4px 0; }
   .name-input:focus { outline: none; border-bottom: 1px solid #2A313A; }
@@ -34,22 +62,20 @@
   .date-row label { display: flex; align-items: center; gap: 6px; }
   .date-row input { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; }
 
-  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-  .gauge-top { margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; }
-  .gauge-label { color: #8A919C; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .gauge-track { background: #2A313A; position: relative; height: 14px; width: 100%; overflow: hidden; border-radius: 999px; }
+  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+  .gauge-top { margin-bottom: 10px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+  .gauge-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
+  .gauge-track { background: #2A313A; position: relative; height: 16px; width: 100%; overflow: hidden; border-radius: 999px; }
   .gauge-fill { height: 100%; border-radius: 999px; }
-  .link-btn { background: none; border: none; text-decoration: underline; font-size: 12px; padding: 0; }
+  .link-btn { background: none; border: none; text-decoration: underline; font-size: 13px; padding: 0; }
   .row-gap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .small-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
-  .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+  .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 
   .chips { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 12px; font-size: 12px; }
   .chip-num { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; margin-right: 2px; }
 
   .pills { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 500; background: transparent; }
 
   .trip-switcher { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .trip-pill { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -70,8 +96,6 @@
   .select-bar-actions { display: flex; align-items: center; gap: 12px; }
 
   .sort-row { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-  .entry-count { color: #8A919C; font-size: 12px; }
-  .sort-toggle { background: #1B2027; display: flex; gap: 4px; border-radius: 999px; padding: 4px; font-size: 12px; }
   .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; }
   .sort-btn.active { background: #2A313A; color: #EDEAE3; }
 
@@ -81,26 +105,24 @@
   .item-row:last-child { border-bottom: none; }
   .item-display { display: flex; align-items: center; gap: 12px; }
   .item-bar { height: 32px; width: 4px; flex-shrink: 0; border-radius: 999px; }
-  .item-glyph { flex-shrink: 0; font-size: 16px; width: 18px; text-align: center; }
+  .item-glyph { flex-shrink: 0; font-size: 18px; width: 20px; text-align: center; }
   .item-main { min-width: 0; flex: 1; }
-  .item-name { color: #EDEAE3; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item-sub { color: #8A919C; font-size: 12px; }
-  .item-amount { flex-shrink: 0; font-size: 14px; }
+  .item-name { color: #EDEAE3; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { color: #8A919C; font-size: 13px; }
+  .item-amount { flex-shrink: 0; font-size: 15px; }
   .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
-  .icon-btn { color: #8A919C; background: none; border: none; font-size: 14px; padding: 4px; }
-  .checkbox { flex-shrink: 0; height: 16px; width: 16px; }
+  .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 4px; }
+  .checkbox { flex-shrink: 0; height: 17px; width: 17px; }
 
   .item-edit { display: flex; flex-direction: column; gap: 8px; }
   .edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 12px; }
+  .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
   .edit-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
   .edit-input.grow { flex: 1; }
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
 
   .footer-row { border-top: 1px solid #2A313A; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
-  .footer-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
-  .footer-total { color: #EDEAE3; font-size: 18px; font-weight: 600; }
   .bottom-row { margin-top: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 
   /* ---- animations ---- */
