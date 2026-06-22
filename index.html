@@ -5,11 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Dashboard</title>
 <style>
+  @font-face {
+    font-family: 'Asap';
+    src: url('./Asap-VariableFont_wdth,wght.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: #12151A;
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Asap', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
   .serif { font-family: inherit; font-style: normal; font-weight: 800; letter-spacing: -0.01em; }
   .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
@@ -150,10 +157,6 @@
   /* gauge fill bar */
   .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
 
-  /* drag-to-reorder */
-  .reorder-handle { cursor: grab; color: #8A919C; font-size: 20px; padding: 0 8px 0 0; flex-shrink: 0; user-select: none; touch-action: none; }
-  .reorder-handle:active { cursor: grabbing; color: #E8643A; }
-  .is-dragging { opacity: 0.45; background: #24313A; border-radius: 8px; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -579,8 +582,6 @@ async function renderSpendTab(root, cfg) {
   var activeCat = cfg.categories[0].id;
   var ownerChoice = "";
   var payPersonChoice = "me";
-  var reorderMode = false;
-
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
 
@@ -652,8 +653,6 @@ async function renderSpendTab(root, cfg) {
     '<div class="sort-row">' +
       '<span class="entry-count mono" id="stEntryCount"></span>' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
-        '<div class="sort-toggle" id="stSortToggle"><button class="sort-btn active" id="stSortDate">By due day</button><button class="sort-btn" id="stSortCat">By category</button></div>' +
-        '<button class="link-btn" id="stReorderBtn" style="color:' + cfg.accent + ';">⇅ Rearrange</button>' +
       '</div>' +
     "</div>" +
     '<div class="list-card" id="stList"></div>' +
@@ -968,19 +967,14 @@ async function renderSpendTab(root, cfg) {
   }
 
   function renderList() {
-    var sorted = reorderMode ? data.items.slice() : getSortedItems();
     document.getElementById("stEntryCount").textContent = data.items.length + (data.items.length === 1 ? " entry" : " entries");
-    var sortToggle = document.getElementById("stSortToggle");
-    if (sortToggle) sortToggle.style.display = reorderMode ? "none" : "";
-    var reorderBtn = document.getElementById("stReorderBtn");
-    if (reorderBtn) { reorderBtn.textContent = reorderMode ? "✓ Done" : "⇅ Rearrange"; reorderBtn.style.color = reorderMode ? "#7FA37A" : cfg.accent; }
     var listEl = document.getElementById("stList");
     if (sorted.length === 0) {
       listEl.innerHTML = '<div class="empty-state">' + escapeHtml(cfg.emptyText) + "</div>";
       return;
     }
     var sel = new Set(data.selectedIds || []);
-    listEl.innerHTML = sorted.map(function (item, idx) {
+    listEl.innerHTML = sorted.map(function (item) {
       var cat = categoryById(cfg.categories, item.category);
       if (item.id === editRowId) {
         var f = editRowForm;
@@ -1005,8 +999,6 @@ async function renderSpendTab(root, cfg) {
       var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:#8A919C;font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
       var paid = cfg.showSavingsGoal && isCurrentlyPaid(item);
       var paidBtn = cfg.showSavingsGoal ? '<button class="icon-btn" data-action="toggle-paid" data-id="' + item.id + '" title="' + (paid ? "Paid \u2014 click to undo" : "Mark as paid") + '" style="color:' + (paid ? "#7FA37A" : "#8A919C") + ';">' + (paid ? "\u2713" : "\u25CB") + '</button>' : "";
-      var handle = reorderMode ? '<span class="reorder-handle" data-reorder-handle>\u2630</span>' : "";
-      return '<div class="item-row" data-ri="' + idx + '"' + (reorderMode ? ' draggable="true"' : '') + '><div class="item-display" style="' + (paid ? "opacity:0.55;" : "") + '">' + handle +
         (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
@@ -1190,13 +1182,6 @@ async function renderSpendTab(root, cfg) {
   renderDynamic();
   initScrollAnims();
 
-  document.getElementById("stReorderBtn").addEventListener("click", function() {
-    reorderMode = !reorderMode;
-    renderList();
-    if (reorderMode) bindReorder(document.getElementById("stList"), data.items, renderList, save);
-  });
-
-  bindReorder(document.getElementById("stList"), data.items, renderList, save);
 }
 
 /* ---------------- travel tab (multi-trip) ---------------- */
@@ -1293,7 +1278,6 @@ async function renderTravelTab(root) {
     showBudgetInput = false;
     showTripSavingsInput = false;
     activeCat = TRAVEL_CATEGORIES[0].id;
-    var reorderMode = false;
     var trip = getActiveTrip();
     var detailRoot = document.getElementById("tripDetailRoot");
 
@@ -1329,8 +1313,6 @@ async function renderTravelTab(root) {
       '<div class="sort-row">' +
         '<span class="entry-count mono" id="ttEntryCount"></span>' +
         '<div style="display:flex;align-items:center;gap:8px;">' +
-          '<div class="sort-toggle" id="ttSortToggle"><button class="sort-btn active" id="ttSortDate">By date</button><button class="sort-btn" id="ttSortCat">By category</button></div>' +
-          '<button class="link-btn" id="ttReorderBtn" style="color:#E8643A;">⇅ Rearrange</button>' +
         '</div>' +
       "</div>" +
       '<div class="list-card" id="ttList"></div>' +
@@ -1515,18 +1497,13 @@ async function renderTravelTab(root) {
     }
 
     function renderList() {
-      var sorted = reorderMode ? trip.items.slice() : getSortedItems();
       document.getElementById("ttEntryCount").textContent = trip.items.length + (trip.items.length === 1 ? " entry" : " entries");
-      var sortToggle = document.getElementById("ttSortToggle");
-      if (sortToggle) sortToggle.style.display = reorderMode ? "none" : "";
-      var reorderBtn = document.getElementById("ttReorderBtn");
-      if (reorderBtn) { reorderBtn.textContent = reorderMode ? "✓ Done" : "⇅ Rearrange"; reorderBtn.style.color = reorderMode ? "#7FA37A" : "#E8643A"; }
       var listEl = document.getElementById("ttList");
       if (sorted.length === 0) {
         listEl.innerHTML = '<div class="empty-state">Your ledger is empty. Add a flight, a stay, an activity \u2014 anything with a price.</div>';
         return;
       }
-      listEl.innerHTML = sorted.map(function (item, idx) {
+      listEl.innerHTML = sorted.map(function (item) {
         var cat = categoryById(TRAVEL_CATEGORIES, item.category);
         if (item.id === editRowId) {
           var f = editRowForm;
@@ -1544,8 +1521,6 @@ async function renderTravelTab(root) {
             '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
             "</div></div></div>";
         }
-        var handle = reorderMode ? '<span class="reorder-handle" data-reorder-handle>\u2630</span>' : "";
-        return '<div class="item-row" data-ri="' + idx + '"' + (reorderMode ? ' draggable="true"' : '') + '><div class="item-display">' + handle +
           '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
           '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
           '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
@@ -1709,13 +1684,6 @@ async function renderTravelTab(root) {
     renderDynamic();
     initScrollAnims();
 
-    document.getElementById("ttReorderBtn").addEventListener("click", function() {
-      reorderMode = !reorderMode;
-      renderList();
-      if (reorderMode) bindReorder(document.getElementById("ttList"), trip.items, renderList, save);
-    });
-
-    bindReorder(document.getElementById("ttList"), trip.items, renderList, save);
   }
 
   renderTripSwitcher();
@@ -1759,7 +1727,6 @@ async function renderWorkoutsTab(root) {
   var showGoalInput = false;
   var goalDraft = "";
   var expandedIds = new Set();
-  var reorderMode = false;
   var editingLiftItemId = null;
   var editingLiftId = null;
   var editingLiftForm = {};
@@ -1787,7 +1754,6 @@ async function renderWorkoutsTab(root) {
       '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
       '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
     "</div>" +
-    '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div style="display:flex;align-items:center;gap:8px;"><div class="sort-toggle" id="wkSortToggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div><button class="link-btn" id="wkReorderBtn" style="color:' + accent + ';">⇅ Rearrange</button></div></div>' +
     '<div class="list-card" id="wkList"></div>' +
     '<div class="footer-row"><span class="footer-label">Total logged</span><span class="footer-total mono" id="wkFooterTotal"></span></div>' +
     '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
@@ -1927,18 +1893,13 @@ async function renderWorkoutsTab(root) {
 
 
   function renderList() {
-    var sorted = reorderMode ? data.items.slice() : getSortedItems();
     document.getElementById("wkEntryCount").textContent = data.items.length + (data.items.length === 1 ? " workout" : " workouts");
-    var sortToggle = document.getElementById("wkSortToggle");
-    if (sortToggle) sortToggle.style.display = reorderMode ? "none" : "";
-    var reorderBtn = document.getElementById("wkReorderBtn");
-    if (reorderBtn) { reorderBtn.textContent = reorderMode ? "✓ Done" : "⇅ Rearrange"; reorderBtn.style.color = reorderMode ? "#7FA37A" : accent; }
     var listEl = document.getElementById("wkList");
     if (sorted.length === 0) {
       listEl.innerHTML = '<div class="empty-state">Nothing logged yet. Add your first workout below and start a streak.</div>';
       return;
     }
-    listEl.innerHTML = sorted.map(function (item, idx) {
+    listEl.innerHTML = sorted.map(function (item) {
       var cat = categoryById(WORKOUT_CATEGORIES, item.category);
       if (item.id === editRowId) {
         var f = editRowForm;
@@ -1959,19 +1920,15 @@ async function renderWorkoutsTab(root) {
       var expanded = expandedIds.has(item.id);
       var lifts = item.lifts || [];
       var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
-      var handle = reorderMode ? '<span class="reorder-handle" data-reorder-handle>\u2630</span>' : "";
       var displayRow = '<div class="item-display">' + handle +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
         '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
         '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
         '<div class="item-actions">' +
-        (reorderMode ? '' : '<button class="icon-btn" data-action="toggle-expand" data-id="' + item.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>") +
         '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
         "</div>";
-      var liftsBlock = (!reorderMode && expanded) ? renderLiftsBlock(item) : "";
-      return '<div class="item-row" data-ri="' + idx + '"' + (reorderMode ? ' draggable="true"' : '') + '>' + displayRow + liftsBlock + "</div>";
     }).join("");
   }
 
@@ -2209,14 +2166,6 @@ async function renderWorkoutsTab(root) {
   renderDynamic();
   initScrollAnims();
 
-  document.getElementById("wkReorderBtn").addEventListener("click", function() {
-    reorderMode = !reorderMode;
-    expandedIds.clear();
-    renderList();
-    if (reorderMode) bindReorder(document.getElementById("wkList"), data.items, renderList, save);
-  });
-
-  bindReorder(document.getElementById("wkList"), data.items, renderList, save);
 }
 
 /* ---------------- routines tab ---------------- */
@@ -2229,7 +2178,6 @@ async function renderRoutinesTab(root) {
   var confirmReset = false;
   var expandedIds = new Set();
   var newRoutineFreq = "daily";
-  var reorderMode = false;
   var editingNoteRoutineId = null;
   var editingNoteKey = null;
   var editingNoteText = "";
@@ -2260,7 +2208,6 @@ async function renderRoutinesTab(root) {
       '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
       '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
     "</div>" +
-    '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><button class="link-btn" id="rtReorderBtn" style="color:' + accent + ';">⇅ Rearrange</button></div>' +
     '<div class="list-card" id="rtList"></div>' +
     '<div class="bottom-row"><button class="link-btn" id="rtResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
 
@@ -2344,29 +2291,22 @@ async function renderRoutinesTab(root) {
 
   function renderList() {
     var listEl = document.getElementById("rtList");
-    var reorderBtn = document.getElementById("rtReorderBtn");
-    if (reorderBtn) { reorderBtn.textContent = reorderMode ? "✓ Done" : "⇅ Rearrange"; reorderBtn.style.color = reorderMode ? "#7FA37A" : accent; }
     if (data.routines.length === 0) {
       listEl.innerHTML = '<div class="empty-state">No routines yet. Add the first habit you want to keep showing up for.</div>';
       return;
     }
-    listEl.innerHTML = data.routines.map(function (r, idx) {
+    listEl.innerHTML = data.routines.map(function (r) {
       var doneFlag = isDoneInCurrentPeriod(r);
       var streak = streakFor(r);
       var streakLabel = r.frequency === "weekly" ? (streak > 0 ? streak + " week streak" : "no streak yet") : (streak > 0 ? streak + " day streak" : "no streak yet");
       var doneLabel = r.frequency === "weekly" ? "Done this week \u2713" : "Done today \u2713";
       var markLabel = r.frequency === "weekly" ? "Mark done" : "Mark done";
       var expanded = expandedIds.has(r.id);
-      var handle = reorderMode ? '<span class="reorder-handle" data-reorder-handle>\u2630</span>' : "";
       var displayRow = '<div class="item-display">' + handle +
         '<span class="item-bar" style="background:' + r.color + ';"></span>' +
         '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + (r.frequency === "weekly" ? ' <span style="color:#8A919C;font-size:11px;font-weight:400;">(weekly)</span>' : "") + '</div><div class="item-sub mono">' + streakLabel + "</div></div>" +
-        (reorderMode ? '' : '<button class="pill" data-action="toggle" data-id="' + r.id + '" style="background:' + (doneFlag ? r.color : "transparent") + ";border-color:" + r.color + ";color:" + (doneFlag ? "#12151A" : r.color) + ';flex-shrink:0;">' + (doneFlag ? doneLabel : markLabel) + "</button>") +
-        (reorderMode ? '' : '<button class="icon-btn" data-action="toggle-expand" data-id="' + r.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>") +
         '<button class="icon-btn" data-action="delete" data-id="' + r.id + '">\u2715</button>' +
         "</div>";
-      var notesBlock = (!reorderMode && expanded) ? renderNotesPanel(r) : "";
-      return '<div class="item-row" data-ri="' + idx + '"' + (reorderMode ? ' draggable="true"' : '') + '>' + displayRow + notesBlock + "</div>";
     }).join("");
   }
 
@@ -2442,15 +2382,6 @@ async function renderRoutinesTab(root) {
 
   renderFreqPills();
 
-  document.getElementById("rtReorderBtn").addEventListener("click", function() {
-    reorderMode = !reorderMode;
-    expandedIds.clear();
-    renderList();
-    if (reorderMode) bindReorder(document.getElementById("rtList"), data.routines, renderList, save);
-  });
-
-  bindReorder(document.getElementById("rtList"), data.routines, renderList, save);
-
   document.getElementById("rtAddBtn").addEventListener("click", function () {
     var input = document.getElementById("rtNewName");
     var name = input.value.trim();
@@ -2505,66 +2436,6 @@ async function renderRoutinesTab(root) {
   renderDynamic();
 }
 
-/* ---------------- drag-to-reorder helper ---------------- */
-
-function bindReorder(listEl, arr, onRender, onSave) {
-  if (listEl._reorderBound) return;
-  listEl._reorderBound = true;
-  var dIdx = null, tIdx = null;
-  function swap(from, to) {
-    if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return false;
-    var item = arr.splice(from, 1)[0];
-    arr.splice(to, 0, item);
-    onRender();
-    return true;
-  }
-  listEl.addEventListener('dragstart', function(e) {
-    var row = e.target.closest('[data-ri]');
-    if (!row) { e.preventDefault(); return; }
-    dIdx = parseInt(row.getAttribute('data-ri'), 10);
-    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', ''); } catch(err) {}
-    row.classList.add('is-dragging');
-  });
-  listEl.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    if (dIdx === null) return;
-    var row = e.target.closest('[data-ri]');
-    if (!row) return;
-    var to = parseInt(row.getAttribute('data-ri'), 10);
-    if (swap(dIdx, to)) dIdx = to;
-  });
-  listEl.addEventListener('drop', function(e) { e.preventDefault(); });
-  listEl.addEventListener('dragend', function() {
-    dIdx = null;
-    listEl.querySelectorAll('.is-dragging').forEach(function(el) { el.classList.remove('is-dragging'); });
-    onSave();
-  });
-  listEl.addEventListener('touchstart', function(e) {
-    var h = e.target.closest('[data-reorder-handle]');
-    if (!h) return;
-    var row = h.closest('[data-ri]');
-    if (!row) return;
-    tIdx = parseInt(row.getAttribute('data-ri'), 10);
-    row.classList.add('is-dragging');
-    e.preventDefault();
-  }, { passive: false });
-  listEl.addEventListener('touchmove', function(e) {
-    if (tIdx === null) return;
-    e.preventDefault();
-    var t = e.touches[0];
-    var over = document.elementFromPoint(t.clientX, t.clientY);
-    var row = over && over.closest('[data-ri]');
-    if (!row) return;
-    var to = parseInt(row.getAttribute('data-ri'), 10);
-    if (swap(tIdx, to)) tIdx = to;
-  }, { passive: false });
-  listEl.addEventListener('touchend', function() {
-    if (tIdx === null) return;
-    tIdx = null;
-    listEl.querySelectorAll('.is-dragging').forEach(function(el) { el.classList.remove('is-dragging'); });
-    onSave();
-  });
-}
 
 /* ---------------- scroll-triggered animations ---------------- */
 
