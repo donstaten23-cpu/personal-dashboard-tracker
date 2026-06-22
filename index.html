@@ -362,13 +362,28 @@ function getTimeGreeting() {
 async function loadTabData(key, defaultData) {
   try {
     var result = await supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle();
-    if (result.error) { console.error(result.error); return JSON.parse(JSON.stringify(defaultData)); }
+    if (result.error) {
+      showDebugError("Load error [" + key + "]: " + JSON.stringify(result.error));
+      return JSON.parse(JSON.stringify(defaultData));
+    }
     if (result.data && result.data.data) return Object.assign({}, defaultData, result.data.data);
+    showDebugError("No data found for key: " + key + " (user: " + currentUserId + ")");
     return JSON.parse(JSON.stringify(defaultData));
   } catch (e) {
-    console.error(e);
+    showDebugError("Exception [" + key + "]: " + e.message);
     return JSON.parse(JSON.stringify(defaultData));
   }
+}
+function showDebugError(msg) {
+  var el = document.getElementById("debugPanel");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "debugPanel";
+    el.style.cssText = "background:#1B2027;border:1px solid #FF8A5C;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;font-family:monospace;color:#FF8A5C;word-break:break-all;";
+    var root = document.getElementById("tabroot");
+    if (root) root.insertAdjacentElement("beforebegin", el);
+  }
+  el.innerHTML += "<div style='margin-bottom:4px;'>" + msg + "</div>";
 }
 async function saveTabData(key, data) {
   try {
