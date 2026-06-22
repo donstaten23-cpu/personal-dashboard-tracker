@@ -605,30 +605,38 @@ async function renderSpendTab(root, cfg) {
     var budgetNum = Number(data.budget) || 0;
     var amountEl = document.getElementById("stGaugeAmount");
     var bodyEl = document.getElementById("stGaugeBody");
-    if (budgetNum > 0) {
+    if (showBudgetInput) {
+      amountEl.style.color = cfg.accent;
+      amountEl.textContent = budgetNum > 0 ? formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) : formatCurrency(totalSpent);
+      bodyEl.innerHTML = '<div class="row-gap"><input id="stBudgetDraft" class="small-input" type="number" min="0" placeholder="' + escapeHtml(cfg.goalLabel) + '" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="stSetBudget" style="background:' + cfg.accent + ';">Set</button>' + (budgetNum > 0 ? '<button class="link-btn" id="stCancelBudget" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+      var bd = document.getElementById("stBudgetDraft");
+      bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
+      bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); if (e.key === "Escape") { showBudgetInput = false; renderGauge(); } });
+      bd.focus();
+      document.getElementById("stSetBudget").addEventListener("click", commitBudget);
+      if (budgetNum > 0) document.getElementById("stCancelBudget").addEventListener("click", function () { showBudgetInput = false; renderGauge(); });
+    } else if (budgetNum > 0) {
       var pct = Math.min(100, (totalSpent / budgetNum) * 100);
       var over = totalSpent > budgetNum;
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
       amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
       var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + "," + cfg.accent + "cc)";
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px ' + cfg.accent + '55;"></div></div>';
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px ' + cfg.accent + '55;"></div></div><button class="link-btn" id="stEditBudget" style="color:#8A919C;margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
+      document.getElementById("stEditBudget").addEventListener("click", function () { budgetDraft = String(budgetNum); showBudgetInput = true; renderGauge(); });
     } else {
       amountEl.style.color = cfg.accent;
       amountEl.textContent = formatCurrency(totalSpent);
-      if (showBudgetInput) {
-        bodyEl.innerHTML = '<div class="row-gap"><input id="stBudgetDraft" class="small-input" type="number" min="0" placeholder="' + escapeHtml(cfg.goalLabel) + '" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="stSetBudget" style="background:' + cfg.accent + ';">Set</button></div>';
-        var bd = document.getElementById("stBudgetDraft");
-        bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
-        bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); });
-        bd.focus();
-        document.getElementById("stSetBudget").addEventListener("click", commitBudget);
-      } else {
-        bodyEl.innerHTML = '<button class="link-btn" id="stShowBudget" style="color:#8A919C;">Set a ' + escapeHtml(cfg.goalLabel.toLowerCase()) + " to track against</button>";
-        document.getElementById("stShowBudget").addEventListener("click", function () { showBudgetInput = true; renderGauge(); });
-      }
+      bodyEl.innerHTML = '<button class="link-btn" id="stShowBudget" style="color:#8A919C;">Set a ' + escapeHtml(cfg.goalLabel.toLowerCase()) + " to track against</button>";
+      document.getElementById("stShowBudget").addEventListener("click", function () { budgetDraft = ""; showBudgetInput = true; renderGauge(); });
     }
   }
-  function commitBudget() { data.budget = budgetDraft; showBudgetInput = false; save(); renderGauge(); }
+  function commitBudget() {
+    if (budgetDraft === "" || isNaN(Number(budgetDraft))) { showBudgetInput = false; renderGauge(); return; }
+    data.budget = budgetDraft;
+    showBudgetInput = false;
+    save();
+    renderGauge();
+  }
 
   function renderSavingsGauge() {
     if (!cfg.showSavingsGoal) return;
@@ -637,26 +645,33 @@ async function renderSpendTab(root, cfg) {
     var amountEl = document.getElementById("svGaugeAmount");
     var bodyEl = document.getElementById("svGaugeBody");
     if (!amountEl || !bodyEl) return;
-    if (goalNum > 0) {
+    if (showSavingsInput) {
+      amountEl.textContent = goalNum > 0 ? formatCurrency(saved) + " of " + formatCurrency(goalNum) : formatCurrency(saved);
+      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+      var gd = document.getElementById("svGoalDraft");
+      gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
+      gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
+      gd.focus();
+      document.getElementById("svSetGoal").addEventListener("click", commitSavingsGoal);
+      if (goalNum > 0) document.getElementById("svCancelGoal").addEventListener("click", function () { showSavingsInput = false; renderSavingsGauge(); });
+    } else if (goalNum > 0) {
       var pct = Math.min(100, (saved / goalNum) * 100);
       amountEl.textContent = formatCurrency(saved) + " of " + formatCurrency(goalNum);
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div>';
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:#8A919C;margin-top:6px;">Edit savings goal</button>';
+      document.getElementById("svEditGoal").addEventListener("click", function () { savingsDraft = String(goalNum); showSavingsInput = true; renderSavingsGauge(); });
     } else {
       amountEl.textContent = formatCurrency(saved);
-      if (showSavingsInput) {
-        bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button></div>';
-        var gd = document.getElementById("svGoalDraft");
-        gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
-        gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); });
-        gd.focus();
-        document.getElementById("svSetGoal").addEventListener("click", commitSavingsGoal);
-      } else {
-        bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:#8A919C;">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
-        document.getElementById("svShowGoal").addEventListener("click", function () { showSavingsInput = true; renderSavingsGauge(); });
-      }
+      bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:#8A919C;">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
+      document.getElementById("svShowGoal").addEventListener("click", function () { savingsDraft = ""; showSavingsInput = true; renderSavingsGauge(); });
     }
   }
-  function commitSavingsGoal() { data.savingsGoal = savingsDraft; showSavingsInput = false; save(); renderSavingsGauge(); }
+  function commitSavingsGoal() {
+    if (savingsDraft === "" || isNaN(Number(savingsDraft))) { showSavingsInput = false; renderSavingsGauge(); return; }
+    data.savingsGoal = savingsDraft;
+    showSavingsInput = false;
+    save();
+    renderSavingsGauge();
+  }
 
   function personLabel(p) { return p === "partner" ? PARTNER_DISPLAY_NAME : USER_DISPLAY_NAME; }
 
