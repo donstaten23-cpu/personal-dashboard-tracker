@@ -156,10 +156,14 @@
 
   /* art portfolio */
   .art-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
-  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; }
-  .art-cell:hover { border-color: #E8643A44; }
+  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
+  .art-cell:not(.locked):hover { border-color: #E8643A44; }
+  .art-cell.locked { cursor: default; }
   .art-cell-inner { text-align: center; padding: 16px; }
   .art-cell-icon { font-size: 32px; margin-bottom: 8px; }
+  .art-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .art-cell .ph-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3; border-radius: 12px; }
+  .art-cell:not(.locked):hover .ph-overlay { opacity: 1; }
 
   @media (max-width: 700px) {
     .sidebar { transform: translateX(-100%); }
@@ -405,7 +409,7 @@
           <div style="border-top:1px solid #1E2530;padding-top:14px;">
             <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
             <p style="color:#8A919C;font-size:14px;line-height:1.7;margin:0;">
-              A personal dashboard — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
+              A personal command center for Don and Wife — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
               Use the sidebar to navigate between your dashboard tabs, workouts log, and portfolio pages.
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
@@ -537,44 +541,53 @@
     <!-- Page: Art Portfolio -->
     <div class="page" id="page-art">
       <div class="page-inner">
-        <div class="port-hero">
-          <div class="port-eyebrow">Creative Work</div>
-          <div class="port-title">Art Portfolio</div>
-          <div class="port-subtitle">A collection of personal creative projects</div>
+
+        <!-- Edit bar -->
+        <div class="port-edit-bar">
+          <div class="port-hero" style="padding:0;border:none;margin:0;flex:1;">
+            <div class="port-eyebrow" data-art-key="art-eyebrow">Creative Work</div>
+            <div class="port-title" data-art-key="art-title">Art Portfolio</div>
+            <div class="port-subtitle" data-art-key="art-subtitle">A collection of personal creative projects</div>
+          </div>
+          <div style="flex-shrink:0;margin-left:16px;">
+            <button class="port-edit-btn locked" id="artEditBtn" onclick="toggleArtEdit()">
+              &#128274; Locked
+            </button>
+          </div>
         </div>
 
         <div class="port-section-label">Gallery</div>
         <div class="art-grid">
-          <div class="art-cell">
-            <div class="art-cell-inner">
-              <div class="art-cell-icon">&#127912;</div>
-              <div>Add artwork here</div>
-            </div>
+          <div class="art-cell locked" data-image-key="art-img-1" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell">
-            <div class="art-cell-inner">
-              <div class="art-cell-icon">&#127912;</div>
-              <div>Add artwork here</div>
-            </div>
+          <div class="art-cell locked" data-image-key="art-img-2" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell">
-            <div class="art-cell-inner">
-              <div class="art-cell-icon">&#127912;</div>
-              <div>Add artwork here</div>
-            </div>
+          <div class="art-cell locked" data-image-key="art-img-3" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell">
-            <div class="art-cell-inner">
-              <div class="art-cell-icon">&#127912;</div>
-              <div>Add artwork here</div>
-            </div>
+          <div class="art-cell locked" data-image-key="art-img-4" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-img-5" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-img-6" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
           </div>
         </div>
 
         <div class="port-card" style="margin-top:8px;">
-          <div class="port-tag">About This Page</div>
-          <h2>Coming Soon</h2>
-          <p>Replace the grid cells above with your artwork by editing the HTML &#8212; or let me know what you&#8217;d like to showcase and I can help build it out properly.</p>
+          <div class="port-tag" data-art-key="art-card-tag">About This Page</div>
+          <h2 data-art-key="art-card-title">Coming Soon</h2>
+          <p data-art-key="art-card-desc">Tap the lock to unlock, then click any cell to upload artwork from your phone or computer. Changes save automatically.</p>
         </div>
       </div>
     </div>
@@ -783,6 +796,7 @@ function showDashboardScreen() {
   initClock();
   loadPortfolioImages();
   loadPortfolioContent();
+  loadArtContent();
   // Pre-load workouts page
   var wkRoot = document.getElementById("workoutPageRoot");
   if (wkRoot && !wkRoot._loaded) {
@@ -1029,10 +1043,16 @@ function applyPortfolioImages() {
   });
 }
 
-function setPlaceholderImage(el, src) {
-  el.innerHTML =
-    '<img src="' + src + '" alt="Portfolio image" style="width:100%;border-radius:6px;display:block;" />' +
-    '<div class="ph-overlay">&#128247; Replace image</div>';
+function setPlaceholderImage(el, imgSrc) {
+  if (el.classList.contains("art-cell")) {
+    el.innerHTML =
+      '<img src="' + imgSrc + '" alt="Artwork" />' +
+      '<div class="ph-overlay">&#128247; Replace</div>';
+  } else {
+    el.innerHTML =
+      '<img src="' + imgSrc + '" alt="Portfolio image" style="width:100%;border-radius:6px;display:block;" />' +
+      '<div class="ph-overlay">&#128247; Replace image</div>';
+  }
 }
 
 function triggerImageUpload(el) {
@@ -3087,6 +3107,84 @@ function initScrollAnims() {
   document.querySelectorAll(
     '.card, .item-row, .list-card, .chips, .trip-switcher, .tab-eyebrow, .hero-band, .footer-row, .tabnav'
   ).forEach(function(el) { _animObs.observe(el); });
+}
+
+/* ---------------- art portfolio edit mode ---------------- */
+
+var _artEditing = false;
+var _artContent = {};
+
+function toggleArtEdit() {
+  _artEditing = !_artEditing;
+  var btn = document.getElementById("artEditBtn");
+
+  // Toggle text editability
+  var els = document.querySelectorAll("[data-art-key]");
+  for (var i = 0; i < els.length; i++) {
+    if (_artEditing) {
+      els[i].setAttribute("contenteditable", "true");
+    } else {
+      els[i].removeAttribute("contenteditable");
+    }
+  }
+
+  // Toggle image cells
+  var cells = document.querySelectorAll(".art-cell[data-image-key]");
+  for (var i = 0; i < cells.length; i++) {
+    if (_artEditing) {
+      cells[i].classList.remove("locked");
+      cells[i].onclick = function() { triggerImageUpload(this); };
+    } else {
+      cells[i].classList.add("locked");
+      cells[i].onclick = null;
+    }
+  }
+
+  if (_artEditing) {
+    btn.innerHTML = "&#128275; Save &amp; lock";
+    btn.classList.remove("locked");
+    btn.classList.add("editing");
+  } else {
+    btn.innerHTML = "&#128274; Locked";
+    btn.classList.remove("editing");
+    btn.classList.add("locked");
+    saveArtContent();
+  }
+}
+
+async function loadArtContent() {
+  if (!currentUserId) return;
+  try {
+    var result = await supabaseClient.from("dashboard_data")
+      .select("data").eq("user_id", currentUserId).eq("tab_key", "art-content").maybeSingle();
+    if (result.data && result.data.data) {
+      _artContent = result.data.data;
+      applyArtContent();
+    }
+  } catch(e) { console.error("Art content load error", e); }
+}
+
+function applyArtContent() {
+  Object.keys(_artContent).forEach(function(key) {
+    var el = document.querySelector('[data-art-key="' + key + '"]');
+    if (el) el.innerHTML = _artContent[key];
+  });
+}
+
+async function saveArtContent() {
+  if (!currentUserId) return;
+  var els = document.querySelectorAll("[data-art-key]");
+  for (var i = 0; i < els.length; i++) {
+    _artContent[els[i].getAttribute("data-art-key")] = els[i].innerHTML;
+  }
+  try {
+    await supabaseClient.from("dashboard_data").upsert({
+      user_id: currentUserId,
+      tab_key: "art-content",
+      data: _artContent,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error("Art content save error", e); }
 }
 
 /* ---------------- boot ---------------- */
