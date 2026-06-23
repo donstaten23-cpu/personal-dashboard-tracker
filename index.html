@@ -78,9 +78,11 @@
   .hamburger {
     display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
     background: #1B2027; border: 1px solid #2A313A;
-    border-radius: 8px; width: 40px; height: 40px;
+    border-radius: 8px; width: 44px; height: 44px;
     align-items: center; justify-content: center; cursor: pointer;
     font-size: 18px; color: #EDEAE3;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .sidebar-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
@@ -409,7 +411,7 @@
           <div style="border-top:1px solid #1E2530;padding-top:14px;">
             <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
             <p style="color:#8A919C;font-size:14px;line-height:1.7;margin:0;">
-              A personal dashboard — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
+              A personal command center for Don and Wife — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
               Use the sidebar to navigate between your dashboard tabs, workouts log, and portfolio pages.
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
@@ -965,10 +967,17 @@ function initSidebar() {
     });
   }
   // Hamburger
-  document.getElementById("hamburgerBtn").addEventListener("click", function() {
+  var _sidebarToggled = false;
+  function _toggleSidebar(e) {
+    e.preventDefault();
+    if (_sidebarToggled) return;
+    _sidebarToggled = true;
+    setTimeout(function() { _sidebarToggled = false; }, 400);
     document.getElementById("sidebar").classList.toggle("open");
     document.getElementById("sidebarOverlay").classList.toggle("open");
-  });
+  }
+  document.getElementById("hamburgerBtn").addEventListener("click", _toggleSidebar);
+  document.getElementById("hamburgerBtn").addEventListener("touchend", _toggleSidebar, { passive: false });
   document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
 }
 
