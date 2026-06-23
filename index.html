@@ -25,8 +25,122 @@
   input, button, select { font-family: inherit; }
   input::placeholder { color: #5A6168; }
   button { cursor: pointer; }
-  .wrap { min-height: 100vh; padding: 32px 16px; }
-  .inner { max-width: 720px; margin: 0 auto; }
+  /* ---- app shell ---- */
+  .app-shell { display: flex; min-height: 100vh; }
+
+  /* sidebar */
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #0E1117;
+    border-right: 1px solid #1E2530;
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  }
+  .sidebar-logo {
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid #1E2530;
+  }
+  .sidebar-clock {
+    font-size: 11px; color: #8A919C; font-family: ui-monospace,'SF Mono',monospace;
+    margin-top: 4px; letter-spacing: 0.04em;
+  }
+  .sidebar-date {
+    font-size: 12px; color: #5A6168; font-family: ui-monospace,'SF Mono',monospace;
+    margin-top: 2px;
+  }
+  .sidebar-nav { flex: 1; padding: 16px 0; overflow-y: auto; }
+  .sidebar-section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #5A6168; font-weight: 600; padding: 8px 20px 4px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 20px; font-size: 14px; font-weight: 500;
+    color: #8A919C; cursor: pointer; border: none; background: none;
+    width: 100%; text-align: left; border-radius: 0;
+    transition: background 0.15s, color 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .sidebar-item:hover { background: #1B2027; color: #EDEAE3; }
+  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: #E8643A; }
+  .sidebar-item .s-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+  .sidebar-footer {
+    padding: 16px 20px; border-top: 1px solid #1E2530;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .sidebar-footer button {
+    background: none; border: none; color: #5A6168; font-size: 12px;
+    padding: 0; text-align: left; cursor: pointer; text-decoration: underline;
+  }
+  .sidebar-footer button:hover { color: #8A919C; }
+
+  /* hamburger (mobile only) */
+  .hamburger {
+    display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
+    background: #1B2027; border: 1px solid #2A313A;
+    border-radius: 8px; width: 40px; height: 40px;
+    align-items: center; justify-content: center; cursor: pointer;
+    font-size: 18px; color: #EDEAE3;
+  }
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+  }
+
+  /* main content */
+  .main-content { margin-left: 220px; flex: 1; min-width: 0; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-inner { max-width: 720px; margin: 0 auto; padding: 32px 16px; }
+
+  /* portfolio page styles */
+  .port-hero { padding: 40px 0 28px; border-bottom: 1px solid #2A313A; margin-bottom: 28px; }
+  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-title { font-size: 36px; font-weight: 800; color: #EDEAE3; line-height: 1.1; margin-bottom: 6px; }
+  .port-subtitle { color: #8A919C; font-size: 14px; }
+  .port-intro { color: #EDEAE3; font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
+  .port-section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #5A6168;
+    font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 32px 0 20px;
+  }
+  .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
+  .port-card {
+    background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px;
+    margin-bottom: 20px; transition: border-color 0.2s;
+  }
+  .port-card:hover { border-color: #E8643A44; }
+  .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-card h2 { font-size: 22px; font-weight: 700; color: #EDEAE3; margin-bottom: 4px; }
+  .port-meta { color: #5A6168; font-size: 13px; margin-bottom: 14px; }
+  .port-card p { color: #8A919C; font-size: 15px; line-height: 1.65; margin-bottom: 12px; }
+  .port-card ul { margin: 0 0 14px 18px; }
+  .port-card li { color: #8A919C; font-size: 15px; margin-bottom: 6px; line-height: 1.5; }
+  .port-metrics { display: flex; gap: 24px; flex-wrap: wrap; margin: 18px 0; padding: 16px 0; border-top: 1px solid #2A313A; border-bottom: 1px solid #2A313A; }
+  .port-metric-num { font-size: 26px; font-weight: 800; color: #E8643A; display: block; line-height: 1; font-family: ui-monospace,'SF Mono',monospace; }
+  .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
+  .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .port-tool { background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
+  .port-placeholder { background: #12151A; border: 1px dashed #2A313A; border-radius: 8px; padding: 32px; text-align: center; font-size: 13px; color: #5A6168; margin-top: 16px; }
+
+  /* art portfolio */
+  .art-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; }
+  .art-cell:hover { border-color: #E8643A44; }
+  .art-cell-inner { text-align: center; padding: 16px; }
+  .art-cell-icon { font-size: 32px; margin-bottom: 8px; }
+
+  @media (max-width: 700px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open { display: block; }
+    .main-content { margin-left: 0; }
+    .hamburger { display: flex; }
+    .page-inner { padding: 64px 16px 32px; }
+    .art-grid { grid-template-columns: 1fr; }
+  }
+
+  /* legacy tab inner */
+  .wrap { min-height: 100vh; padding: 0; }
+  .inner { max-width: 720px; margin: 0 auto; padding: 0; }
 
   .hero-band { background: linear-gradient(135deg, #FF8A5C 0%, #E8643A 45%, #B23A1C 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
   .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
@@ -153,8 +267,8 @@
   }
 
   /* scroll-triggered animation classes - added/removed by IntersectionObserver */
-  .sa-up   { animation: slideUp   0.42s cubic-bezier(0.22,1,0.36,1) both; }
-  .sa-down { animation: slideDown 0.42s cubic-bezier(0.22,1,0.36,1) both; }
+  .sa-up   { animation: slideUp   0.75s cubic-bezier(0.22,1,0.36,1) both; }
+  .sa-down { animation: slideDown 0.75s cubic-bezier(0.22,1,0.36,1) both; }
 
   /* gauge fill bar */
   .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
@@ -170,9 +284,9 @@
 </style>
 </head>
 <body>
-<div class="wrap"><div class="inner">
-
-  <div id="authScreen">
+<!-- Auth Screen -->
+<div id="authScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="width:100%;max-width:400px;">
     <header style="margin-bottom:24px;">
       <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
@@ -189,31 +303,218 @@
       </div>
     </form>
   </div>
+</div>
 
-  <div id="dashboardScreen" style="display:none;">
-    <div class="hero-band">
-      <div class="hero-eyebrow" id="heroEyebrow">Hi there,</div>
-      <div class="hero-name" id="heroName"></div>
-    </div>
-    <div style="text-align:right;margin-bottom:12px;">
-      <button class="link-btn" id="changePasswordBtn" style="color:#8A919C;margin-right:16px;">Change password</button>
-      <button class="link-btn" id="signOutBtn" style="color:#8A919C;">Sign out</button>
-    </div>
-    <form id="changePasswordForm" class="card" method="post" action="#" style="display:none;margin-bottom:16px;">
-      <div class="form-row">
-        <input class="form-input" type="password" id="newPasswordInput" name="new-password" placeholder="New password" autocomplete="new-password" />
-        <input class="form-input" type="password" id="confirmPasswordInput" name="confirm-password" placeholder="Confirm new password" autocomplete="new-password" />
-      </div>
-      <div class="form-actions">
-        <span class="error-text" id="changePasswordError"></span>
-        <button type="submit" class="add-btn" id="updatePasswordBtn" style="background:#E8643A;">Update password</button>
-      </div>
-    </form>
-    <div class="tabnav" id="tabnav"></div>
-    <div id="tabroot"></div>
-  </div>
+<!-- App Shell -->
+<div id="dashboardScreen" style="display:none;">
 
-</div></div>
+  <!-- Hamburger (mobile) -->
+  <button class="hamburger" id="hamburgerBtn" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="serif" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
+      <div class="sidebar-clock" id="sidebarClock"></div>
+      <div class="sidebar-date" id="sidebarDate"></div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-section-label">Dashboard</div>
+      <button class="sidebar-item active" data-page="dashboard">
+        <span class="s-icon">&#9783;</span> Overview
+      </button>
+      <button class="sidebar-item" data-page="workouts">
+        <span class="s-icon">&#9651;</span> Workouts
+      </button>
+      <div class="sidebar-section-label" style="margin-top:8px;">Portfolio</div>
+      <button class="sidebar-item" data-page="portfolio">
+        <span class="s-icon">&#9632;</span> Work Portfolio
+      </button>
+      <button class="sidebar-item" data-page="art">
+        <span class="s-icon">&#9670;</span> Art Portfolio
+      </button>
+    </div>
+    <div class="sidebar-footer">
+      <form id="changePasswordForm" method="post" action="#" style="display:none;margin-bottom:12px;">
+        <div class="form-row" style="margin-bottom:8px;">
+          <input class="form-input" type="password" id="newPasswordInput" name="new-password" placeholder="New password" autocomplete="new-password" />
+          <input class="form-input" type="password" id="confirmPasswordInput" name="confirm-password" placeholder="Confirm" autocomplete="new-password" />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="error-text" id="changePasswordError" style="flex:1;font-size:11px;"></span>
+          <button type="submit" class="small-btn" id="updatePasswordBtn" style="background:#E8643A;">Update</button>
+        </div>
+      </form>
+      <button id="changePasswordBtn">Change password</button>
+      <button id="signOutBtn">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <!-- Page: Dashboard (Travel, Budget, Routines) -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-inner">
+        <div class="hero-band">
+          <div class="hero-eyebrow" id="heroEyebrow">Hi there,</div>
+          <div class="hero-name" id="heroName"></div>
+        </div>
+        <div class="tabnav" id="tabnav"></div>
+        <div id="tabroot"></div>
+      </div>
+    </div>
+
+    <!-- Page: Workouts -->
+    <div class="page" id="page-workouts">
+      <div class="page-inner">
+        <div id="workoutPageRoot"></div>
+      </div>
+    </div>
+
+    <!-- Page: Work Portfolio -->
+    <div class="page" id="page-portfolio">
+      <div class="page-inner">
+        <div class="port-hero">
+          <div class="port-eyebrow">Systems &amp; Implementation</div>
+          <div class="port-title">Work Portfolio</div>
+          <div class="port-subtitle">PMP-Certified Implementation &amp; Business Systems Professional</div>
+        </div>
+        <p class="port-intro">
+          A working record of the systems implementations, platform integrations, and process automation projects I&#8217;ve owned end-to-end &#8212; built to show <span style="color:#E8643A;">how</span> I approach problems, not just what&#8217;s on a resume line.
+        </p>
+
+        <div class="port-section-label">Featured Projects</div>
+
+        <div class="port-card">
+          <div class="port-tag">SaaS Marketplace Implementation</div>
+          <h2>Channel Engine Multi-Marketplace Integration</h2>
+          <div class="port-meta">Sylvane, Inc. &#8212; Project Lead &amp; Platform SME</div>
+          <p>Led the implementation and ongoing administration of Channel Engine, a SaaS marketplace integration platform connecting our Shopify storefront and NetSuite ERP to four major marketplaces. Owned data mapping, cross-functional coordination, and internal training.</p>
+          <ul>
+            <li>Data mapping across Shopify, NetSuite, and four marketplace schemas</li>
+            <li>Cross-functional coordination across operations, merchandising, and IT</li>
+            <li>Independently launched the Best Buy integration during a leadership absence</li>
+          </ul>
+          <div class="port-metrics">
+            <div><span class="port-metric-num">3,000+</span><span class="port-metric-label">SKUs Onboarded</span></div>
+            <div><span class="port-metric-num">4</span><span class="port-metric-label">Marketplaces</span></div>
+            <div><span class="port-metric-num">$60K+</span><span class="port-metric-label">New Channel Revenue</span></div>
+          </div>
+          <div class="port-tools">
+            <span class="port-tool">Channel Engine</span><span class="port-tool">Shopify</span><span class="port-tool">NetSuite</span><span class="port-tool">EDI</span>
+          </div>
+          <div class="port-placeholder">&#128247; Add a screenshot of the Channel Engine dashboard or mapping interface</div>
+        </div>
+
+        <div class="port-card">
+          <div class="port-tag">Custom Application Build</div>
+          <h2>Automated Inventory Re-Order System</h2>
+          <div class="port-meta">Sylvane, Inc. &#8212; Designer &amp; Builder</div>
+          <p>Designed and built a custom inventory reorder application in Google Sheets, integrating live data from our internal reporting tool and NetSuite. The system calculates weighted weeks-of-supply and suggested order quantities automatically.</p>
+          <ul>
+            <li>Live data integration via automated hourly refresh from reporting tool and NetSuite</li>
+            <li>Custom weighted sales algorithm for Weeks of Supply prioritizing recent trends</li>
+            <li>Google Apps Script automation for reorder worksheet and PO generation</li>
+          </ul>
+          <div class="port-tools">
+            <span class="port-tool">Google Sheets</span><span class="port-tool">Google Apps Script</span><span class="port-tool">NetSuite</span><span class="port-tool">Shopify</span>
+          </div>
+          <div class="port-placeholder">&#128247; Add a sanitized screenshot of the inventory tool interface</div>
+        </div>
+
+        <div class="port-card">
+          <div class="port-tag">Government Contract Systems</div>
+          <h2>GSA Contract Tracking &amp; Modification Workbook</h2>
+          <div class="port-meta">Sylvane, Inc. &#8212; Builder &amp; Administrator</div>
+          <p>Built and maintain an Excel-based tracking workbook for GSA Multiple Award Schedule contract modifications, used to coordinate compliance deadlines, pricing updates, and documentation across operations and merchandising.</p>
+          <div class="port-metrics">
+            <div><span class="port-metric-num">4+</span><span class="port-metric-label">Modifications / Year</span></div>
+          </div>
+          <div class="port-tools">
+            <span class="port-tool">Excel</span><span class="port-tool">SharePoint</span><span class="port-tool">OneDrive</span>
+          </div>
+          <div class="port-placeholder">&#128247; Add a sanitized screenshot of the workbook structure</div>
+        </div>
+
+        <div class="port-card">
+          <div class="port-tag">Platform Migration</div>
+          <h2>Shopify-to-NetSuite Systems Migration</h2>
+          <div class="port-meta">Sylvane, Inc. &#8212; Merchandising Systems Lead</div>
+          <p>Led the merchandising systems workstream of a company-wide Shopify-to-NetSuite platform migration, building the bulk import templates and documentation that became the team&#8217;s standard workflow for inventory and pricing updates.</p>
+          <div class="port-metrics">
+            <div><span class="port-metric-num">10+</span><span class="port-metric-label">NetSuite Templates Built</span></div>
+          </div>
+          <div class="port-tools">
+            <span class="port-tool">NetSuite</span><span class="port-tool">Shopify</span><span class="port-tool">Matrixify</span>
+          </div>
+          <div class="port-placeholder">&#128247; Add a sanitized screenshot of a CSV template structure</div>
+        </div>
+
+        <div class="port-card">
+          <div class="port-tag">Personal Project</div>
+          <h2>Personal Life Dashboard</h2>
+          <div class="port-meta">Self-built &#8212; Vanilla JS / Supabase / GitHub Pages</div>
+          <p>Designed and built this dashboard from scratch &#8212; a multi-tab personal finance and wellness tracker with real-time Supabase sync, multi-trip travel planning, budget forecasting against pay periods, and workout session logging with lift tracking.</p>
+          <div class="port-tools">
+            <span class="port-tool">HTML / CSS / JS</span><span class="port-tool">Supabase</span><span class="port-tool">GitHub Pages</span>
+          </div>
+        </div>
+
+        <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;">
+          Donovan Staten &#8212; <a href="mailto:donstaten23@gmail.com" style="color:#E8643A;text-decoration:none;">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href="https://linkedin.com/in/donovanstaten" style="color:#E8643A;text-decoration:none;" target="_blank">LinkedIn</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page: Art Portfolio -->
+    <div class="page" id="page-art">
+      <div class="page-inner">
+        <div class="port-hero">
+          <div class="port-eyebrow">Creative Work</div>
+          <div class="port-title">Art Portfolio</div>
+          <div class="port-subtitle">A collection of personal creative projects</div>
+        </div>
+
+        <div class="port-section-label">Gallery</div>
+        <div class="art-grid">
+          <div class="art-cell">
+            <div class="art-cell-inner">
+              <div class="art-cell-icon">&#127912;</div>
+              <div>Add artwork here</div>
+            </div>
+          </div>
+          <div class="art-cell">
+            <div class="art-cell-inner">
+              <div class="art-cell-icon">&#127912;</div>
+              <div>Add artwork here</div>
+            </div>
+          </div>
+          <div class="art-cell">
+            <div class="art-cell-inner">
+              <div class="art-cell-icon">&#127912;</div>
+              <div>Add artwork here</div>
+            </div>
+          </div>
+          <div class="art-cell">
+            <div class="art-cell-inner">
+              <div class="art-cell-icon">&#127912;</div>
+              <div>Add artwork here</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="port-card" style="margin-top:8px;">
+          <div class="port-tag">About This Page</div>
+          <h2>Coming Soon</h2>
+          <p>Replace the grid cells above with your artwork by editing the HTML &#8212; or let me know what you&#8217;d like to showcase and I can help build it out properly.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end .main-content -->
+</div><!-- end #dashboardScreen -->
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -236,7 +537,6 @@ var currentUserId = null;
 var TABS = [
   { id: "travel", label: "Travel", accent: "#E8643A" },
   { id: "budget", label: "Budget", accent: "#5BAE7A" },
-  { id: "workouts", label: "Workouts", accent: "#3DBFC4" },
   { id: "routines", label: "Routines", accent: "#D9A441" }
 ];
 
@@ -398,7 +698,7 @@ async function saveTabData(key, data) {
 /* ---------------- auth ---------------- */
 
 function showAuthScreen() {
-  document.getElementById("authScreen").style.display = "block";
+  document.getElementById("authScreen").style.display = "flex";
   document.getElementById("dashboardScreen").style.display = "none";
 }
 function renderGreeting() {
@@ -413,6 +713,14 @@ function showDashboardScreen() {
   renderGreeting();
   renderTabNav();
   renderActiveTab();
+  initSidebar();
+  initClock();
+  // Pre-load workouts page
+  var wkRoot = document.getElementById("workoutPageRoot");
+  if (wkRoot && !wkRoot._loaded) {
+    wkRoot._loaded = true;
+    renderWorkoutsTab(wkRoot);
+  }
 }
 
 async function handleSignIn() {
@@ -555,11 +863,79 @@ function renderActiveTab() {
       showSavingsGoal: true,
       eyebrow: "BUDGET PLANNER"
     });
-  } else if (currentTab === "workouts") {
-    renderWorkoutsTab(root);
   } else if (currentTab === "routines") {
     renderRoutinesTab(root);
   }
+}
+
+/* ---------------- sidebar + page nav ---------------- */
+
+var currentPage = "dashboard";
+
+function initSidebar() {
+  // Page nav
+  var items = document.querySelectorAll(".sidebar-item[data-page]");
+  for (var i = 0; i < items.length; i++) {
+    items[i].addEventListener("click", function(e) {
+      var page = e.currentTarget.getAttribute("data-page");
+      switchPage(page);
+      closeSidebar();
+    });
+  }
+  // Hamburger
+  document.getElementById("hamburgerBtn").addEventListener("click", function() {
+    document.getElementById("sidebar").classList.toggle("open");
+    document.getElementById("sidebarOverlay").classList.toggle("open");
+  });
+  document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+}
+
+function closeSidebar() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarOverlay").classList.remove("open");
+}
+
+function switchPage(page) {
+  currentPage = page;
+  // Toggle pages
+  var pages = document.querySelectorAll(".page");
+  for (var i = 0; i < pages.length; i++) {
+    pages[i].classList.toggle("active", pages[i].id === "page-" + page);
+  }
+  // Toggle sidebar items
+  var items = document.querySelectorAll(".sidebar-item[data-page]");
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle("active", items[i].getAttribute("data-page") === page);
+  }
+  // Lazy-load workouts page if first visit
+  if (page === "workouts") {
+    var wkRoot = document.getElementById("workoutPageRoot");
+    if (wkRoot && !wkRoot._loaded) {
+      wkRoot._loaded = true;
+      renderWorkoutsTab(wkRoot);
+    }
+  }
+  initScrollAnims();
+}
+
+function initClock() {
+  function updateClock() {
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    var ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    var pad = function(n) { return n < 10 ? "0" + n : String(n); };
+    var timeStr = h + ":" + pad(m) + ":" + pad(s) + " " + ampm;
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var dateStr = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate() + " " + now.getFullYear();
+    var clk = document.getElementById("sidebarClock");
+    var dt = document.getElementById("sidebarDate");
+    if (clk) clk.textContent = timeStr;
+    if (dt) dt.textContent = dateStr;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
 }
 
 /* ---------------- budget tab ---------------- */
