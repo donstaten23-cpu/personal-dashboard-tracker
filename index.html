@@ -108,6 +108,25 @@
     margin-bottom: 20px; transition: border-color 0.2s;
   }
   .port-card:hover { border-color: #E8643A44; }
+
+  /* edit mode */
+  .port-edit-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .port-edit-btn { border:1px solid #2A313A; background:#1B2027; color:#8A919C; border-radius:999px; padding:7px 16px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .port-edit-btn:hover { background:#2A313A; color:#EDEAE3; }
+  .port-edit-btn.editing { background:#E8643A; border-color:#E8643A; color:#12151A; }
+  [data-port-key][contenteditable="true"] {
+    outline: none;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    background: #12151A;
+    box-shadow: 0 0 0 1px #E8643A55;
+    cursor: text;
+  }
+  .port-edit-hint { color:#5A6168; font-size:12px; }
+  /* disable placeholder clicks when locked */
+  .port-placeholder.locked { pointer-events: none; cursor: default; }
+  .port-placeholder.locked .ph-overlay { display: none; }
   .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
   .port-card h2 { font-size: 22px; font-weight: 700; color: #EDEAE3; margin-bottom: 4px; }
   .port-meta { color: #5A6168; font-size: 13px; margin-bottom: 14px; }
@@ -119,7 +138,21 @@
   .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
   .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
   .port-tool { background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
-  .port-placeholder { background: #12151A; border: 1px dashed #2A313A; border-radius: 8px; padding: 32px; text-align: center; font-size: 13px; color: #5A6168; margin-top: 16px; }
+  .port-placeholder {
+    background: #12151A; border: 2px dashed #2A313A; border-radius: 8px;
+    padding: 32px; text-align: center; font-size: 13px; color: #5A6168;
+    margin-top: 16px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .port-placeholder:hover { border-color: #E8643A66; background: #1B2027; color: #8A919C; }
+  .port-placeholder img { width: 100%; border-radius: 6px; display: block; }
+  .port-placeholder .ph-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3;
+    border-radius: 6px;
+  }
+  .port-placeholder:hover .ph-overlay { opacity: 1; }
 
   /* art portfolio */
   .art-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
@@ -316,8 +349,6 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <div class="serif" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
-      <div class="sidebar-clock" id="sidebarClock"></div>
-      <div class="sidebar-date" id="sidebarDate"></div>
     </div>
     <div class="sidebar-nav">
       <div class="sidebar-section-label">Dashboard</div>
@@ -354,13 +385,38 @@
   <!-- Main Content -->
   <div class="main-content">
 
-    <!-- Page: Dashboard (Travel, Budget, Routines) -->
+    <!-- Page: Dashboard (Overview + Travel, Budget, Routines tabs) -->
     <div class="page active" id="page-dashboard">
       <div class="page-inner">
-        <div class="hero-band">
-          <div class="hero-eyebrow" id="heroEyebrow">Hi there,</div>
-          <div class="hero-name" id="heroName"></div>
+
+        <!-- Overview band: date/time + what this is -->
+        <div style="margin-bottom:20px;padding:24px;background:#0E1117;border:1px solid #1E2530;border-radius:20px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <div>
+              <div class="gauge-label mono" style="margin-bottom:4px;">RIGHT NOW</div>
+              <div id="overviewClock" class="mono" style="font-size:28px;font-weight:700;color:#EDEAE3;line-height:1;"></div>
+              <div id="overviewDate" class="mono" style="font-size:13px;color:#8A919C;margin-top:4px;"></div>
+            </div>
+            <div style="text-align:right;">
+              <div class="hero-eyebrow" id="heroEyebrow" style="color:#FF8A5C;margin-bottom:2px;text-align:right;">Hi there,</div>
+              <div id="heroName" class="serif" style="color:#EDEAE3;font-size:26px;"></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #1E2530;padding-top:14px;">
+            <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
+            <p style="color:#8A919C;font-size:14px;line-height:1.7;margin:0;">
+              A personal command center for Don and Wife — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
+              Use the sidebar to navigate between your dashboard tabs, workouts log, and portfolio pages.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#E8643A;">&#9783; Travel tracker</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#5BAE7A;">&#9650; Budget &amp; bills</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#D9A441;">&#9671; Daily routines</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#3DBFC4;">&#9651; Workouts</span>
+            </div>
+          </div>
         </div>
+
         <div class="tabnav" id="tabnav"></div>
         <div id="tabroot"></div>
       </div>
@@ -376,93 +432,103 @@
     <!-- Page: Work Portfolio -->
     <div class="page" id="page-portfolio">
       <div class="page-inner">
-        <div class="port-hero">
-          <div class="port-eyebrow">Systems &amp; Implementation</div>
-          <div class="port-title">Work Portfolio</div>
-          <div class="port-subtitle">PMP-Certified Implementation &amp; Business Systems Professional</div>
+
+        <!-- Edit bar -->
+        <div class="port-edit-bar">
+          <div class="port-hero" style="padding:0;border:none;margin:0;flex:1;">
+            <div class="port-eyebrow" data-port-key="port-eyebrow">Systems &amp; Implementation</div>
+            <div class="port-title" data-port-key="port-title">Work Portfolio</div>
+            <div class="port-subtitle" data-port-key="port-subtitle">PMP-Certified Implementation &amp; Business Systems Professional</div>
+          </div>
+          <div style="flex-shrink:0;margin-left:16px;">
+            <button class="port-edit-btn locked" id="portEditBtn" onclick="togglePortfolioEdit()">
+              &#128274; Locked
+            </button>
+          </div>
         </div>
-        <p class="port-intro">
+
+        <p class="port-intro" data-port-key="port-intro">
           A working record of the systems implementations, platform integrations, and process automation projects I&#8217;ve owned end-to-end &#8212; built to show <span style="color:#E8643A;">how</span> I approach problems, not just what&#8217;s on a resume line.
         </p>
 
         <div class="port-section-label">Featured Projects</div>
 
         <div class="port-card">
-          <div class="port-tag">SaaS Marketplace Implementation</div>
-          <h2>Channel Engine Multi-Marketplace Integration</h2>
-          <div class="port-meta">Sylvane, Inc. &#8212; Project Lead &amp; Platform SME</div>
-          <p>Led the implementation and ongoing administration of Channel Engine, a SaaS marketplace integration platform connecting our Shopify storefront and NetSuite ERP to four major marketplaces. Owned data mapping, cross-functional coordination, and internal training.</p>
-          <ul>
+          <div class="port-tag" data-port-key="c1-tag">SaaS Marketplace Implementation</div>
+          <h2 data-port-key="c1-title">Channel Engine Multi-Marketplace Integration</h2>
+          <div class="port-meta" data-port-key="c1-meta">Sylvane, Inc. &#8212; Project Lead &amp; Platform SME</div>
+          <p data-port-key="c1-desc">Led the implementation and ongoing administration of Channel Engine, a SaaS marketplace integration platform connecting our Shopify storefront and NetSuite ERP to four major marketplaces. Owned data mapping, cross-functional coordination, and internal training.</p>
+          <ul data-port-key="c1-bullets">
             <li>Data mapping across Shopify, NetSuite, and four marketplace schemas</li>
             <li>Cross-functional coordination across operations, merchandising, and IT</li>
             <li>Independently launched the Best Buy integration during a leadership absence</li>
           </ul>
           <div class="port-metrics">
-            <div><span class="port-metric-num">3,000+</span><span class="port-metric-label">SKUs Onboarded</span></div>
-            <div><span class="port-metric-num">4</span><span class="port-metric-label">Marketplaces</span></div>
-            <div><span class="port-metric-num">$60K+</span><span class="port-metric-label">New Channel Revenue</span></div>
+            <div><span class="port-metric-num" data-port-key="c1-m1-num">3,000+</span><span class="port-metric-label" data-port-key="c1-m1-lbl">SKUs Onboarded</span></div>
+            <div><span class="port-metric-num" data-port-key="c1-m2-num">4</span><span class="port-metric-label" data-port-key="c1-m2-lbl">Marketplaces</span></div>
+            <div><span class="port-metric-num" data-port-key="c1-m3-num">$60K+</span><span class="port-metric-label" data-port-key="c1-m3-lbl">New Channel Revenue</span></div>
           </div>
-          <div class="port-tools">
+          <div class="port-tools" data-port-key="c1-tools">
             <span class="port-tool">Channel Engine</span><span class="port-tool">Shopify</span><span class="port-tool">NetSuite</span><span class="port-tool">EDI</span>
           </div>
-          <div class="port-placeholder">&#128247; Add a screenshot of the Channel Engine dashboard or mapping interface</div>
+          <div class="port-placeholder locked" data-image-key="port-img-1"><div class="ph-content">&#128247; Click to upload a screenshot<br><span style="font-size:11px;opacity:0.6;margin-top:4px;display:block;">Channel Engine dashboard or mapping interface</span></div><div class="ph-overlay">&#128247; Replace image</div></div>
         </div>
 
         <div class="port-card">
-          <div class="port-tag">Custom Application Build</div>
-          <h2>Automated Inventory Re-Order System</h2>
-          <div class="port-meta">Sylvane, Inc. &#8212; Designer &amp; Builder</div>
-          <p>Designed and built a custom inventory reorder application in Google Sheets, integrating live data from our internal reporting tool and NetSuite. The system calculates weighted weeks-of-supply and suggested order quantities automatically.</p>
-          <ul>
+          <div class="port-tag" data-port-key="c2-tag">Custom Application Build</div>
+          <h2 data-port-key="c2-title">Automated Inventory Re-Order System</h2>
+          <div class="port-meta" data-port-key="c2-meta">Sylvane, Inc. &#8212; Designer &amp; Builder</div>
+          <p data-port-key="c2-desc">Designed and built a custom inventory reorder application in Google Sheets, integrating live data from our internal reporting tool and NetSuite. The system calculates weighted weeks-of-supply and suggested order quantities automatically.</p>
+          <ul data-port-key="c2-bullets">
             <li>Live data integration via automated hourly refresh from reporting tool and NetSuite</li>
             <li>Custom weighted sales algorithm for Weeks of Supply prioritizing recent trends</li>
             <li>Google Apps Script automation for reorder worksheet and PO generation</li>
           </ul>
-          <div class="port-tools">
+          <div class="port-tools" data-port-key="c2-tools">
             <span class="port-tool">Google Sheets</span><span class="port-tool">Google Apps Script</span><span class="port-tool">NetSuite</span><span class="port-tool">Shopify</span>
           </div>
-          <div class="port-placeholder">&#128247; Add a sanitized screenshot of the inventory tool interface</div>
+          <div class="port-placeholder locked" data-image-key="port-img-2"><div class="ph-content">&#128247; Click to upload a screenshot<br><span style="font-size:11px;opacity:0.6;margin-top:4px;display:block;">Inventory tool interface</span></div><div class="ph-overlay">&#128247; Replace image</div></div>
         </div>
 
         <div class="port-card">
-          <div class="port-tag">Government Contract Systems</div>
-          <h2>GSA Contract Tracking &amp; Modification Workbook</h2>
-          <div class="port-meta">Sylvane, Inc. &#8212; Builder &amp; Administrator</div>
-          <p>Built and maintain an Excel-based tracking workbook for GSA Multiple Award Schedule contract modifications, used to coordinate compliance deadlines, pricing updates, and documentation across operations and merchandising.</p>
+          <div class="port-tag" data-port-key="c3-tag">Government Contract Systems</div>
+          <h2 data-port-key="c3-title">GSA Contract Tracking &amp; Modification Workbook</h2>
+          <div class="port-meta" data-port-key="c3-meta">Sylvane, Inc. &#8212; Builder &amp; Administrator</div>
+          <p data-port-key="c3-desc">Built and maintain an Excel-based tracking workbook for GSA Multiple Award Schedule contract modifications, used to coordinate compliance deadlines, pricing updates, and documentation across operations and merchandising.</p>
           <div class="port-metrics">
-            <div><span class="port-metric-num">4+</span><span class="port-metric-label">Modifications / Year</span></div>
+            <div><span class="port-metric-num" data-port-key="c3-m1-num">4+</span><span class="port-metric-label" data-port-key="c3-m1-lbl">Modifications / Year</span></div>
           </div>
-          <div class="port-tools">
+          <div class="port-tools" data-port-key="c3-tools">
             <span class="port-tool">Excel</span><span class="port-tool">SharePoint</span><span class="port-tool">OneDrive</span>
           </div>
-          <div class="port-placeholder">&#128247; Add a sanitized screenshot of the workbook structure</div>
+          <div class="port-placeholder locked" data-image-key="port-img-3"><div class="ph-content">&#128247; Click to upload a screenshot<br><span style="font-size:11px;opacity:0.6;margin-top:4px;display:block;">GSA workbook structure</span></div><div class="ph-overlay">&#128247; Replace image</div></div>
         </div>
 
         <div class="port-card">
-          <div class="port-tag">Platform Migration</div>
-          <h2>Shopify-to-NetSuite Systems Migration</h2>
-          <div class="port-meta">Sylvane, Inc. &#8212; Merchandising Systems Lead</div>
-          <p>Led the merchandising systems workstream of a company-wide Shopify-to-NetSuite platform migration, building the bulk import templates and documentation that became the team&#8217;s standard workflow for inventory and pricing updates.</p>
+          <div class="port-tag" data-port-key="c4-tag">Platform Migration</div>
+          <h2 data-port-key="c4-title">Shopify-to-NetSuite Systems Migration</h2>
+          <div class="port-meta" data-port-key="c4-meta">Sylvane, Inc. &#8212; Merchandising Systems Lead</div>
+          <p data-port-key="c4-desc">Led the merchandising systems workstream of a company-wide Shopify-to-NetSuite platform migration, building the bulk import templates and documentation that became the team&#8217;s standard workflow for inventory and pricing updates.</p>
           <div class="port-metrics">
-            <div><span class="port-metric-num">10+</span><span class="port-metric-label">NetSuite Templates Built</span></div>
+            <div><span class="port-metric-num" data-port-key="c4-m1-num">10+</span><span class="port-metric-label" data-port-key="c4-m1-lbl">NetSuite Templates Built</span></div>
           </div>
-          <div class="port-tools">
+          <div class="port-tools" data-port-key="c4-tools">
             <span class="port-tool">NetSuite</span><span class="port-tool">Shopify</span><span class="port-tool">Matrixify</span>
           </div>
-          <div class="port-placeholder">&#128247; Add a sanitized screenshot of a CSV template structure</div>
+          <div class="port-placeholder locked" data-image-key="port-img-4"><div class="ph-content">&#128247; Click to upload a screenshot<br><span style="font-size:11px;opacity:0.6;margin-top:4px;display:block;">CSV template structure</span></div><div class="ph-overlay">&#128247; Replace image</div></div>
         </div>
 
         <div class="port-card">
-          <div class="port-tag">Personal Project</div>
-          <h2>Personal Life Dashboard</h2>
-          <div class="port-meta">Self-built &#8212; Vanilla JS / Supabase / GitHub Pages</div>
-          <p>Designed and built this dashboard from scratch &#8212; a multi-tab personal finance and wellness tracker with real-time Supabase sync, multi-trip travel planning, budget forecasting against pay periods, and workout session logging with lift tracking.</p>
-          <div class="port-tools">
+          <div class="port-tag" data-port-key="c5-tag">Personal Project</div>
+          <h2 data-port-key="c5-title">Personal Life Dashboard</h2>
+          <div class="port-meta" data-port-key="c5-meta">Self-built &#8212; Vanilla JS / Supabase / GitHub Pages</div>
+          <p data-port-key="c5-desc">Designed and built this dashboard from scratch &#8212; a multi-tab personal finance and wellness tracker with real-time Supabase sync, multi-trip travel planning, budget forecasting against pay periods, and workout session logging with lift tracking.</p>
+          <div class="port-tools" data-port-key="c5-tools">
             <span class="port-tool">HTML / CSS / JS</span><span class="port-tool">Supabase</span><span class="port-tool">GitHub Pages</span>
           </div>
         </div>
 
-        <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;">
+        <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;" data-port-key="port-footer">
           Donovan Staten &#8212; <a href="mailto:donstaten23@gmail.com" style="color:#E8643A;text-decoration:none;">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href="https://linkedin.com/in/donovanstaten" style="color:#E8643A;text-decoration:none;" target="_blank">LinkedIn</a>
         </div>
       </div>
@@ -715,6 +781,8 @@ function showDashboardScreen() {
   renderActiveTab();
   initSidebar();
   initClock();
+  loadPortfolioImages();
+  loadPortfolioContent();
   // Pre-load workouts page
   var wkRoot = document.getElementById("workoutPageRoot");
   if (wkRoot && !wkRoot._loaded) {
@@ -926,16 +994,168 @@ function initClock() {
     h = h % 12 || 12;
     var pad = function(n) { return n < 10 ? "0" + n : String(n); };
     var timeStr = h + ":" + pad(m) + ":" + pad(s) + " " + ampm;
-    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    var dateStr = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate() + " " + now.getFullYear();
-    var clk = document.getElementById("sidebarClock");
-    var dt = document.getElementById("sidebarDate");
+    var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    var dateStr = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate() + ", " + now.getFullYear();
+    var clk = document.getElementById("overviewClock");
+    var dt = document.getElementById("overviewDate");
     if (clk) clk.textContent = timeStr;
     if (dt) dt.textContent = dateStr;
   }
   updateClock();
   setInterval(updateClock, 1000);
+}
+
+/* ---------------- portfolio image upload ---------------- */
+
+var _portImages = {};
+
+async function loadPortfolioImages() {
+  if (!currentUserId) return;
+  try {
+    var result = await supabaseClient.from("dashboard_data")
+      .select("data").eq("user_id", currentUserId).eq("tab_key", "portfolio-images").maybeSingle();
+    if (result.data && result.data.data) {
+      _portImages = result.data.data;
+      applyPortfolioImages();
+    }
+  } catch(e) { console.error("Portfolio images load error", e); }
+}
+
+function applyPortfolioImages() {
+  Object.keys(_portImages).forEach(function(key) {
+    var el = document.querySelector('[data-image-key="' + key + '"]');
+    if (el && _portImages[key]) setPlaceholderImage(el, _portImages[key]);
+  });
+}
+
+function setPlaceholderImage(el, src) {
+  el.innerHTML =
+    '<img src="' + src + '" alt="Portfolio image" style="width:100%;border-radius:6px;display:block;" />' +
+    '<div class="ph-overlay">&#128247; Replace image</div>';
+}
+
+function triggerImageUpload(el) {
+  if (el.classList.contains("locked")) return;
+  var input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var key = el.getAttribute("data-image-key");
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      // Compress using canvas before storing
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement("canvas");
+        var MAX = 1200;
+        var ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        var compressed = canvas.toDataURL("image/jpeg", 0.82);
+        _portImages[key] = compressed;
+        setPlaceholderImage(el, compressed);
+        savePortfolioImages();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+/* ------------ portfolio edit mode ------------ */
+
+var _portEditing = false;
+var _portContent = {};
+
+function togglePortfolioEdit() {
+  _portEditing = !_portEditing;
+  var btn = document.getElementById("portEditBtn");
+
+  // Toggle editability on all keyed elements
+  var els = document.querySelectorAll("[data-port-key]");
+  for (var i = 0; i < els.length; i++) {
+    if (_portEditing) {
+      els[i].setAttribute("contenteditable", "true");
+    } else {
+      els[i].removeAttribute("contenteditable");
+    }
+  }
+
+  // Toggle image placeholders
+  var phs = document.querySelectorAll(".port-placeholder");
+  for (var i = 0; i < phs.length; i++) {
+    if (_portEditing) {
+      phs[i].classList.remove("locked");
+      phs[i].onclick = function() { triggerImageUpload(this); };
+    } else {
+      phs[i].classList.add("locked");
+      phs[i].onclick = null;
+    }
+  }
+
+  if (_portEditing) {
+    btn.innerHTML = "&#128275; Save &amp; lock";
+    btn.classList.remove("locked");
+    btn.classList.add("editing");
+  } else {
+    btn.innerHTML = "&#128274; Locked";
+    btn.classList.remove("editing");
+    btn.classList.add("locked");
+    savePortfolioContent();
+  }
+}
+
+async function loadPortfolioContent() {
+  if (!currentUserId) return;
+  try {
+    var result = await supabaseClient.from("dashboard_data")
+      .select("data").eq("user_id", currentUserId).eq("tab_key", "portfolio-content").maybeSingle();
+    if (result.data && result.data.data) {
+      _portContent = result.data.data;
+      applyPortfolioContent();
+    }
+  } catch(e) { console.error("Portfolio content load error", e); }
+}
+
+function applyPortfolioContent() {
+  Object.keys(_portContent).forEach(function(key) {
+    var el = document.querySelector('[data-port-key="' + key + '"]');
+    if (el) el.innerHTML = _portContent[key];
+  });
+}
+
+async function savePortfolioContent() {
+  if (!currentUserId) return;
+  var els = document.querySelectorAll("[data-port-key]");
+  for (var i = 0; i < els.length; i++) {
+    var key = els[i].getAttribute("data-port-key");
+    _portContent[key] = els[i].innerHTML;
+  }
+  try {
+    await supabaseClient.from("dashboard_data").upsert({
+      user_id: currentUserId,
+      tab_key: "portfolio-content",
+      data: _portContent,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error("Portfolio content save error", e); }
+}
+
+async function savePortfolioImages() {
+  if (!currentUserId) return;
+  try {
+    await supabaseClient.from("dashboard_data").upsert({
+      user_id: currentUserId,
+      tab_key: "portfolio-images",
+      data: _portImages,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error("Portfolio images save error", e); }
 }
 
 /* ---------------- budget tab ---------------- */
