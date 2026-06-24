@@ -3373,10 +3373,28 @@ function renderSettingsPage() {
     if (!input) return;
     input.addEventListener('input', function() {
       _settings[f.key] = input.value;
-      var hex = document.getElementById(f.hexId);
-      if (hex) hex.textContent = input.value;
+      var hexInput = document.getElementById(f.hexId);
+      if (hexInput) hexInput.value = input.value;
       document.documentElement.style.setProperty(f.cssVar, input.value);
     });
+    // Wire hex text input → color picker (IIFE captures loop vars)
+    (function(colorPicker, hexId, settingKey, cssVar) {
+      var hexInput = document.getElementById(hexId);
+      if (!hexInput) return;
+      hexInput.addEventListener('input', function() {
+        var raw = hexInput.value.trim();
+        var normalized = raw.startsWith('#') ? raw : '#' + raw;
+        if (/^#[0-9A-Fa-f]{6}$/.test(normalized)) {
+          colorPicker.value = normalized;
+          _settings[settingKey] = normalized;
+          hexInput.value = normalized;
+          document.documentElement.style.setProperty(cssVar, normalized);
+          hexInput.style.borderColor = '#2A313A';
+        } else {
+          hexInput.style.borderColor = raw.length > 0 ? '#c0392b' : '#2A313A';
+        }
+      });
+    })(input, f.hexId, f.key, f.cssVar);
   });
 
   // Zoom slider
@@ -3443,8 +3461,10 @@ function _colorRow(id, label, value) {
     '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;">' +
       '<input type="color" id="' + id + '" value="' + value + '" ' +
-        'style="width:40px;height:34px;border:1px solid #2A313A;border-radius:6px;background:none;cursor:pointer;padding:2px;" />' +
-      '<span class="mono" id="' + id + 'Hex" style="color:#8A919C;font-size:12px;">' + value + '</span>' +
+        'style="width:40px;height:34px;border:1px solid #2A313A;border-radius:6px;background:none;cursor:pointer;padding:2px;flex-shrink:0;" />' +
+      '<input type="text" id="' + id + 'Hex" value="' + value + '" maxlength="7" ' +
+        'class="mono" style="background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:13px;width:96px;" ' +
+        'placeholder="#000000" spellcheck="false" />' +
     '</div>' +
   '</div>';
 }
