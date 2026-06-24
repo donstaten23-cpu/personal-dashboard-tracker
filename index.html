@@ -402,6 +402,10 @@
       <button class="sidebar-item" data-page="art">
         <span class="s-icon">&#9670;</span> Art Portfolio
       </button>
+      <div class="sidebar-section-label" style="margin-top:8px;">Education</div>
+      <button class="sidebar-item" data-page="education">
+        <span class="s-icon">&#127891;</span> Degree Tracker
+      </button>
       <div class="sidebar-section-label" style="margin-top:8px;">System</div>
       <button class="sidebar-item" data-page="settings">
         <span class="s-icon">&#9881;</span> Settings
@@ -680,6 +684,11 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Page: Degree Tracker -->
+    <div class="page" id="page-education">
+      <div class="page-inner"></div>
     </div>
 
     <!-- Page: Settings -->
@@ -1100,6 +1109,9 @@ function switchPage(page) {
       renderWorkoutsTab(wkRoot);
     }
   }
+  if (page === "education") {
+    renderEducationPage();
+  }
   // Render settings page each visit so it picks up current state
   if (page === "settings") {
     renderSettingsPage();
@@ -1144,8 +1156,14 @@ async function loadPortfolioImages() {
 }
 
 function applyPortfolioImages() {
+  // backward compat: old art-img-N keys map to first Digital Art group slots
+  var _legacyMap = {
+    'art-img-1': 'art-d-1', 'art-img-2': 'art-d-2', 'art-img-3': 'art-d-3',
+    'art-img-4': 'art-d-4', 'art-img-5': 'art-d-5', 'art-img-6': 'art-d-6'
+  };
   Object.keys(_portImages).forEach(function(key) {
-    var el = document.querySelector('[data-image-key="' + key + '"]');
+    var lookupKey = _legacyMap[key] || key;
+    var el = document.querySelector('[data-image-key="' + lookupKey + '"]');
     if (el && _portImages[key]) setPlaceholderImage(el, _portImages[key]);
   });
 }
@@ -3659,6 +3677,371 @@ function _colorRow(id, label, value) {
         'placeholder="#000000" spellcheck="false" />' +
     '</div>' +
   '</div>';
+}
+
+/* ---------------- degree tracker ---------------- */
+
+var _educationData = null;
+var _eduAddCourseGroupId = null;
+var _eduEditCourseId = null;
+var _eduEditGroupId = null;
+var _eduAddingGroup = false;
+
+var EDU_STATUSES = [
+  { id: 'not-started', label: 'Not Started', color: '#5A6168' },
+  { id: 'in-progress', label: 'In Progress', color: '#D9A441' },
+  { id: 'passed',      label: 'Passed',      color: '#5BAE7A' },
+  { id: 'transferred', label: 'Transferred', color: '#3DBFC4' },
+  { id: 'failed',      label: 'Failed',      color: '#D9667A' }
+];
+
+function _eduStatus(id) {
+  return EDU_STATUSES.find(function(s) { return s.id === id; }) || EDU_STATUSES[0];
+}
+
+async function loadEducationData() {
+  if (!currentUserId) return;
+  var def = {
+    degreeTitle: 'Cybersecurity A.A.S.',
+    school: '',
+    groups: [
+      { id: uid(), name: 'Core Requirements', courses: [] },
+      { id: uid(), name: 'General Education', courses: [] },
+      { id: uid(), name: 'Electives', courses: [] }
+    ]
+  };
+  try {
+    var r = await supabaseClient.from('dashboard_data')
+      .select('data').eq('user_id', currentUserId).eq('tab_key', 'education-data').maybeSingle();
+    if (r.data && r.data.data) {
+      _educationData = Object.assign({}, def, r.data.data);
+      if (!Array.isArray(_educationData.groups)) _educationData.groups = def.groups;
+    } else {
+      _educationData = def;
+    }
+  } catch(e) { _educationData = def; }
+}
+
+async function saveEducationData() {
+  if (!currentUserId || !_educationData) return;
+  try {
+    await supabaseClient.from('dashboard_data').upsert({
+      user_id: currentUserId, tab_key: 'education-data',
+      data: _educationData, updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error('Education save error', e); }
+}
+
+function _eduDonutChart(segments, total) {
+  var cx = 100, cy = 100, r = 78, ri = 56;
+  var nonZero = segments.filter(function(s) { return s.value > 0; });
+  var passed = (segments.find(function(s) { return s.key === 'passed'; }) || {}).value || 0;
+  var pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  var shape;
+  if (nonZero.length === 0) {
+    shape = '<circle cx="100" cy="100" r="78" fill="#2A313A"/>';
+  } else if (nonZero.length === 1) {
+    shape = '<circle cx="100" cy="100" r="78" fill="' + nonZero[0].color + '"/>';
+  } else {
+    var sum = segments.reduce(function(s, g) { return s + g.value; }, 0);
+    var a = -Math.PI / 2;
+    shape = segments.map(function(seg) {
+      if (!seg.value) return '';
+      var slice = (seg.value / sum) * 2 * Math.PI;
+      var ea = a + slice, la = slice > Math.PI ? 1 : 0;
+      var f = function(n) { return n.toFixed(2); };
+      var d = 'M' + f(cx + r  * Math.cos(a))  + ',' + f(cy + r  * Math.sin(a))  +
+              ' A' + r  + ',' + r  + ' 0 ' + la + ',1 ' + f(cx + r  * Math.cos(ea)) + ',' + f(cy + r  * Math.sin(ea)) +
+              ' L' + f(cx + ri * Math.cos(ea)) + ',' + f(cy + ri * Math.sin(ea)) +
+              ' A' + ri + ',' + ri + ' 0 ' + la + ',0 ' + f(cx + ri * Math.cos(a))  + ',' + f(cy + ri * Math.sin(a)) + 'Z';
+      a = ea;
+      return '<path d="' + d + '" fill="' + seg.color + '"/>';
+    }).join('');
+  }
+  return '<svg viewBox="0 0 200 200" width="180" height="180" style="display:block;">' +
+    shape +
+    '<circle cx="100" cy="100" r="' + ri + '" fill="var(--bg-card)"/>' +
+    '<text x="100" y="93"  text-anchor="middle" fill="#EDEAE3" font-size="26" font-weight="800" font-family="ui-monospace,monospace">' + pct + '%</text>' +
+    '<text x="100" y="113" text-anchor="middle" fill="#8A919C" font-size="11" font-family="ui-monospace,monospace">COMPLETE</text>' +
+    '<text x="100" y="129" text-anchor="middle" fill="#5A6168" font-size="10" font-family="ui-monospace,monospace">' + passed + '/' + total + ' credits</text>' +
+  '</svg>';
+}
+
+async function renderEducationPage() {
+  var page = document.getElementById('page-education');
+  if (!page) return;
+  var inner = page.querySelector('.page-inner');
+
+  if (!_educationData) {
+    inner.innerHTML = '<div class="empty-state">Loading…</div>';
+    await loadEducationData();
+  }
+
+  var data = _educationData;
+
+  // Credit totals
+  var allCourses = [];
+  data.groups.forEach(function(g) { (g.courses || []).forEach(function(c) { allCourses.push(c); }); });
+  var totalCr   = allCourses.reduce(function(s, c) { return s + (Number(c.credits) || 0); }, 0);
+  var passedCr  = allCourses.filter(function(c) { return c.status === 'passed' || c.status === 'transferred'; }).reduce(function(s, c) { return s + (Number(c.credits) || 0); }, 0);
+  var inProgCr  = allCourses.filter(function(c) { return c.status === 'in-progress'; }).reduce(function(s, c) { return s + (Number(c.credits) || 0); }, 0);
+  var remainCr  = Math.max(0, totalCr - passedCr - inProgCr);
+
+  var chartSegs = [
+    { key: 'passed',      value: passedCr,  color: '#5BAE7A' },
+    { key: 'in-progress', value: inProgCr,  color: '#D9A441' },
+    { key: 'remaining',   value: remainCr,  color: '#2A313A' }
+  ];
+
+  // Legend rows
+  var legendHtml = EDU_STATUSES.map(function(s) {
+    var cnt = allCourses.filter(function(c) { return (c.status || 'not-started') === s.id; }).length;
+    var cr  = allCourses.filter(function(c) { return (c.status || 'not-started') === s.id; }).reduce(function(sum, c) { return sum + (Number(c.credits) || 0); }, 0);
+    return '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<span style="width:10px;height:10px;border-radius:50%;background:' + s.color + ';flex-shrink:0;"></span>' +
+      '<span style="color:#8A919C;font-size:13px;flex:1;">' + s.label + '</span>' +
+      '<span class="mono" style="color:#EDEAE3;font-size:13px;">' + cnt + '</span>' +
+      '<span class="mono" style="color:#5A6168;font-size:12px;min-width:32px;text-align:right;">' + cr + ' cr</span>' +
+    '</div>';
+  }).join('');
+
+  // Groups HTML
+  var groupsHtml = data.groups.map(function(group) {
+    var isEditingGroupName = _eduEditGroupId === group.id;
+    var groupLabel = isEditingGroupName
+      ? '<input type="text" id="eduGroupNameInput" value="' + escapeHtml(group.name) + '" style="background:#12151A;color:#EDEAE3;border:1px solid #E8643A55;border-radius:4px;padding:2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;width:150px;" />' +
+        '<button class="icon-btn" data-action="save-group-name" data-group="' + group.id + '" style="color:#5BAE7A;">✓</button>' +
+        '<button class="icon-btn" data-action="cancel-group-edit">✕</button>'
+      : '<span>' + escapeHtml(group.name) + '</span>' +
+        '<button class="icon-btn" data-action="edit-group" data-group="' + group.id + '" style="font-size:11px;" title="Rename">✎</button>' +
+        '<button class="icon-btn" data-action="delete-group" data-group="' + group.id + '" style="font-size:11px;" title="Delete group">✕</button>';
+
+    var coursesHtml = (group.courses || []).map(function(course) {
+      var st = _eduStatus(course.status || 'not-started');
+      if (_eduEditCourseId === course.id) {
+        return '<div class="item-row"><div class="item-edit">' +
+          '<div class="edit-line">' +
+            '<input class="edit-input" style="width:100px;" id="eduEditCode" placeholder="Code (e.g. CIS 101)" value="' + escapeHtml(course.code || '') + '" />' +
+            '<input class="edit-input grow" id="eduEditName" placeholder="Course name" value="' + escapeHtml(course.name || '') + '" />' +
+          '</div>' +
+          '<div class="edit-line">' +
+            '<input class="edit-input amt" type="number" min="0" max="12" id="eduEditCredits" placeholder="Cr" value="' + (course.credits || 3) + '" />' +
+            '<select class="edit-select" id="eduEditStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '"' + (s.id === (course.status || 'not-started') ? ' selected' : '') + '>' + s.label + '</option>'; }).join('') + '</select>' +
+            '<input class="edit-input" style="width:70px;" id="eduEditGrade" placeholder="Grade" value="' + escapeHtml(course.grade || '') + '" />' +
+            '<button class="icon-btn" data-action="save-course-edit" data-group="' + group.id + '" data-course="' + course.id + '" style="color:#5BAE7A;">✓</button>' +
+            '<button class="icon-btn" data-action="cancel-course-edit">✕</button>' +
+          '</div>' +
+        '</div></div>';
+      }
+      return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
+        '<span class="item-bar" style="background:' + st.color + ';"></span>' +
+        '<div class="item-main">' +
+          (course.code ? '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
+          '<div class="item-name">' + escapeHtml(course.name || 'Unnamed course') + '</div>' +
+          '<div class="item-sub">' + (course.credits || 0) + ' credit' + ((Number(course.credits) || 0) !== 1 ? 's' : '') + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
+          '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
+          '<button class="icon-btn" data-action="edit-course" data-group="' + group.id + '" data-course="' + course.id + '">✎</button>' +
+          '<button class="icon-btn" data-action="delete-course" data-group="' + group.id + '" data-course="' + course.id + '">✕</button>' +
+        '</div>' +
+      '</div></div>';
+    }).join('');
+
+    var addFormHtml = (_eduAddCourseGroupId === group.id)
+      ? '<div class="card" style="margin-top:10px;margin-bottom:4px;">' +
+          '<div class="gauge-label mono" style="margin-bottom:12px;">ADD COURSE</div>' +
+          '<div class="edit-line" style="margin-bottom:8px;">' +
+            '<input class="edit-input" style="width:110px;" id="eduNewCode" placeholder="Code (optional)" />' +
+            '<input class="edit-input grow" id="eduNewName" placeholder="Course name *" />' +
+          '</div>' +
+          '<div class="edit-line">' +
+            '<input class="edit-input amt" type="number" min="0" max="12" id="eduNewCredits" placeholder="Credits" value="3" />' +
+            '<select class="edit-select" id="eduNewStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('') + '</select>' +
+            '<input class="edit-input" style="width:70px;" id="eduNewGrade" placeholder="Grade" />' +
+            '<button class="add-btn" data-action="confirm-add-course" data-group="' + group.id + '" style="background:#5BAE7A;flex-shrink:0;">Add</button>' +
+            '<button class="icon-btn" data-action="cancel-add-course">✕</button>' +
+          '</div>' +
+        '</div>'
+      : '';
+
+    return '<div style="margin-bottom:8px;" data-group-id="' + group.id + '">' +
+      '<div class="port-section-label" style="margin-top:20px;">' + groupLabel + '</div>' +
+      (group.courses && group.courses.length
+        ? '<div class="list-card" style="margin-bottom:8px;">' + coursesHtml + '</div>'
+        : '<div style="color:#5A6168;font-size:13px;padding:4px 0 8px;">No courses added yet.</div>') +
+      addFormHtml +
+      (_eduAddCourseGroupId === group.id ? '' :
+        '<button class="port-edit-btn" data-action="show-add-course" data-group="' + group.id + '" style="font-size:12px;margin-top:4px;">+ Add course</button>') +
+    '</div>';
+  }).join('');
+
+  var addGroupHtml = _eduAddingGroup
+    ? '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<input class="edit-input grow" id="eduNewGroupName" placeholder="Group name (e.g. Electives)" />' +
+        '<button class="add-btn" id="eduConfirmAddGroup" style="background:#3DBFC4;">Add</button>' +
+        '<button class="icon-btn" id="eduCancelAddGroup">✕</button>' +
+      '</div>'
+    : '<button class="port-edit-btn" id="eduAddGroupBtn">+ Add group</button>';
+
+  inner.innerHTML =
+    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;">' +
+      '<div class="port-eyebrow">Education</div>' +
+      '<input class="name-input serif" id="eduDegreeTitle" value="' + escapeHtml(data.degreeTitle || '') + '" placeholder="Degree title" style="font-size:30px;" />' +
+      '<input id="eduSchool" value="' + escapeHtml(data.school || '') + '" placeholder="School / College" ' +
+        'style="background:transparent;border:none;border-bottom:1px solid transparent;color:#8A919C;font-size:14px;padding:4px 0;width:100%;outline:none;margin-top:4px;" ' +
+        'onfocus="this.style.borderBottomColor=\'#2A313A\'" onblur="this.style.borderBottomColor=\'transparent\'" />' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:28px;">' +
+      '<div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;">' +
+        '<div style="flex-shrink:0;">' + _eduDonutChart(chartSegs, totalCr) + '</div>' +
+        '<div style="flex:1;min-width:160px;">' +
+          '<div style="margin-bottom:20px;">' +
+            '<div class="gauge-label mono" style="margin-bottom:6px;">PROGRESS</div>' +
+            '<div style="font-size:32px;font-weight:800;color:#EDEAE3;line-height:1;">' + passedCr +
+              ' <span style="color:#5A6168;font-size:16px;font-weight:400;">/ ' + totalCr + ' credits</span>' +
+            '</div>' +
+            (inProgCr > 0 ? '<div style="color:#D9A441;font-size:12px;margin-top:6px;">' + inProgCr + ' credits in progress</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:10px;">' + legendHtml + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="port-section-label" style="margin-top:0;margin-bottom:4px;">Courses</div>' +
+
+    groupsHtml +
+
+    '<div style="padding:20px 0 40px;">' + addGroupHtml + '</div>';
+
+  // Auto-save title/school
+  document.getElementById('eduDegreeTitle').addEventListener('input', function(e) { data.degreeTitle = e.target.value; saveEducationData(); });
+  document.getElementById('eduSchool').addEventListener('input', function(e) { data.school = e.target.value; saveEducationData(); });
+
+  // Add group wiring
+  if (_eduAddingGroup) {
+    var ngEl = document.getElementById('eduNewGroupName');
+    if (ngEl) ngEl.focus();
+    document.getElementById('eduConfirmAddGroup').addEventListener('click', function() {
+      var name = (ngEl && ngEl.value.trim()) || 'New Group';
+      data.groups.push({ id: uid(), name: name, courses: [] });
+      _eduAddingGroup = false;
+      saveEducationData();
+      renderEducationPage();
+    });
+    document.getElementById('eduCancelAddGroup').addEventListener('click', function() {
+      _eduAddingGroup = false;
+      renderEducationPage();
+    });
+    if (ngEl) ngEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('eduConfirmAddGroup').click();
+      if (e.key === 'Escape') document.getElementById('eduCancelAddGroup').click();
+    });
+  } else {
+    document.getElementById('eduAddGroupBtn').addEventListener('click', function() {
+      _eduAddingGroup = true;
+      renderEducationPage();
+    });
+  }
+
+  // Focus active inline forms
+  if (_eduAddCourseGroupId) { var nEl = document.getElementById('eduNewName'); if (nEl) nEl.focus(); }
+  if (_eduEditGroupId)      { var gEl = document.getElementById('eduGroupNameInput'); if (gEl) gEl.focus(); }
+  if (_eduEditCourseId)     { var eEl = document.getElementById('eduEditName'); if (eEl) eEl.focus(); }
+
+  // Keydown on edit inputs
+  inner.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      if (_eduEditCourseId)  { _eduEditCourseId  = null; renderEducationPage(); return; }
+      if (_eduEditGroupId)   { _eduEditGroupId   = null; renderEducationPage(); return; }
+      if (_eduAddCourseGroupId) { _eduAddCourseGroupId = null; renderEducationPage(); return; }
+    }
+  });
+
+  // Delegate clicks — attach only once per page load
+  if (!inner._eduClickAttached) {
+    inner._eduClickAttached = true;
+    inner.addEventListener('click', function(e) {
+      var data = _educationData;
+      if (!data) return;
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      var gid    = btn.getAttribute('data-group');
+      var cid    = btn.getAttribute('data-course');
+      var group  = gid ? data.groups.find(function(g) { return g.id === gid; }) : null;
+
+      if (action === 'show-add-course') {
+        _eduAddCourseGroupId = gid; _eduEditCourseId = null;
+        renderEducationPage();
+      } else if (action === 'cancel-add-course') {
+        _eduAddCourseGroupId = null;
+        renderEducationPage();
+      } else if (action === 'confirm-add-course') {
+        if (!group) return;
+        var nameVal = (document.getElementById('eduNewName') || {}).value || '';
+        if (!nameVal.trim()) { var el2 = document.getElementById('eduNewName'); if (el2) el2.focus(); return; }
+        if (!group.courses) group.courses = [];
+        group.courses.push({
+          id: uid(),
+          code:    ((document.getElementById('eduNewCode')    || {}).value || '').trim(),
+          name:    nameVal.trim(),
+          credits: Number((document.getElementById('eduNewCredits') || {}).value) || 0,
+          status:  (document.getElementById('eduNewStatus')  || {}).value || 'not-started',
+          grade:   ((document.getElementById('eduNewGrade')   || {}).value || '').trim()
+        });
+        _eduAddCourseGroupId = null;
+        saveEducationData();
+        renderEducationPage();
+      } else if (action === 'edit-course') {
+        _eduEditCourseId = cid; _eduAddCourseGroupId = null;
+        renderEducationPage();
+      } else if (action === 'cancel-course-edit') {
+        _eduEditCourseId = null;
+        renderEducationPage();
+      } else if (action === 'save-course-edit') {
+        if (!group) return;
+        var course = (group.courses || []).find(function(c) { return c.id === cid; });
+        if (!course) return;
+        course.code    = ((document.getElementById('eduEditCode')    || {}).value || '').trim();
+        course.name    = ((document.getElementById('eduEditName')    || {}).value || '').trim();
+        course.credits = Number((document.getElementById('eduEditCredits') || {}).value) || 0;
+        course.status  = (document.getElementById('eduEditStatus')  || {}).value || 'not-started';
+        course.grade   = ((document.getElementById('eduEditGrade')   || {}).value || '').trim();
+        _eduEditCourseId = null;
+        saveEducationData();
+        renderEducationPage();
+      } else if (action === 'delete-course') {
+        if (!group) return;
+        group.courses = (group.courses || []).filter(function(c) { return c.id !== cid; });
+        saveEducationData();
+        renderEducationPage();
+      } else if (action === 'edit-group') {
+        _eduEditGroupId = gid; _eduAddingGroup = false;
+        renderEducationPage();
+      } else if (action === 'save-group-name') {
+        if (!group) return;
+        var nv = (document.getElementById('eduGroupNameInput') || {}).value || '';
+        if (nv.trim()) group.name = nv.trim();
+        _eduEditGroupId = null;
+        saveEducationData();
+        renderEducationPage();
+      } else if (action === 'cancel-group-edit') {
+        _eduEditGroupId = null;
+        renderEducationPage();
+      } else if (action === 'delete-group') {
+        if (!group) return;
+        data.groups = data.groups.filter(function(g) { return g.id !== gid; });
+        if (_eduAddCourseGroupId === gid) _eduAddCourseGroupId = null;
+        if (_eduEditGroupId     === gid) _eduEditGroupId     = null;
+        saveEducationData();
+        renderEducationPage();
+      }
+    });
+  }
+
+  initScrollAnims();
 }
 
 /* ---------------- boot ---------------- */
