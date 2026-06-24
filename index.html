@@ -14,6 +14,18 @@
     font-style: normal;
     font-display: swap;
   }
+  :root {
+    --bg: #12151A;
+    --bg-sidebar: #0E1117;
+    --bg-card: #1B2027;
+    --border: #1E2530;
+    --border-2: #2A313A;
+    --accent: #E8643A;
+    --text-1: #EDEAE3;
+    --text-2: #8A919C;
+    --text-3: #5A6168;
+    --content-zoom: 1;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -320,6 +332,21 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  /* settings-panel theme overrides — reference CSS vars so JS can update them live */
+  body { background: var(--bg); }
+  .sidebar { background: var(--bg-sidebar); border-right-color: var(--border); }
+  .sidebar-logo { border-bottom-color: var(--border); }
+  .sidebar-footer { border-top-color: var(--border); }
+  .sidebar-item.active { border-left-color: var(--accent); }
+  .main-content { zoom: var(--content-zoom); }
+  .card, .list-card, .port-card { background: var(--bg-card); border-color: var(--border-2); }
+  .art-cell { background: var(--bg-card); border-color: var(--border-2); }
+  .chip { background: var(--bg-card); border-color: var(--border-2); }
+  .tabbtn, .trip-pill, .port-edit-btn { background: var(--bg-card); border-color: var(--border-2); }
+  .gauge-track { background: var(--border-2); }
+  .form-input, .small-input, .edit-input, .edit-select { background: var(--bg); border-color: var(--border-2); color: var(--text-1); }
+  .item-name, .port-title, .port-card h2 { color: var(--text-1); }
 </style>
 </head>
 <body>
@@ -370,6 +397,10 @@
       </button>
       <button class="sidebar-item" data-page="art">
         <span class="s-icon">&#9670;</span> Art Portfolio
+      </button>
+      <div class="sidebar-section-label" style="margin-top:8px;">System</div>
+      <button class="sidebar-item" data-page="settings">
+        <span class="s-icon">&#9881;</span> Settings
       </button>
     </div>
     <div class="sidebar-footer">
@@ -594,6 +625,11 @@
       </div>
     </div>
 
+    <!-- Page: Settings -->
+    <div class="page" id="page-settings">
+      <div class="page-inner"></div>
+    </div>
+
   </div><!-- end .main-content -->
 </div><!-- end #dashboardScreen -->
 
@@ -799,6 +835,7 @@ function showDashboardScreen() {
   loadPortfolioImages();
   loadPortfolioContent();
   loadArtContent();
+  loadSettings();
   // Pre-load workouts page
   var wkRoot = document.getElementById("workoutPageRoot");
   if (wkRoot && !wkRoot._loaded) {
@@ -1005,6 +1042,10 @@ function switchPage(page) {
       wkRoot._loaded = true;
       renderWorkoutsTab(wkRoot);
     }
+  }
+  // Render settings page each visit so it picks up current state
+  if (page === "settings") {
+    renderSettingsPage();
   }
   initScrollAnims();
 }
@@ -3194,6 +3235,218 @@ async function saveArtContent() {
       updated_at: new Date().toISOString()
     });
   } catch(e) { console.error("Art content save error", e); }
+}
+
+/* ---------------- settings panel ---------------- */
+
+var _settings = null;
+var SETTINGS_DEFAULTS = {
+  accent: '#E8643A',
+  bgColor: '#12151A',
+  cardColor: '#1B2027',
+  textColor: '#EDEAE3',
+  contentZoom: 1,
+  tabOrder: ['travel', 'budget', 'routines']
+};
+
+async function loadSettings() {
+  if (!currentUserId) return;
+  try {
+    var result = await supabaseClient.from('dashboard_data')
+      .select('data').eq('user_id', currentUserId).eq('tab_key', 'user-settings').maybeSingle();
+    _settings = Object.assign({}, SETTINGS_DEFAULTS,
+      result.data && result.data.data ? result.data.data : {});
+  } catch(e) {
+    _settings = Object.assign({}, SETTINGS_DEFAULTS);
+  }
+  if (!_settings.tabOrder || !_settings.tabOrder.length) {
+    _settings.tabOrder = SETTINGS_DEFAULTS.tabOrder.slice();
+  }
+  applySettings();
+  renderTabNav();
+}
+
+function applySettings() {
+  if (!_settings) return;
+  var r = document.documentElement;
+  r.style.setProperty('--accent',       _settings.accent);
+  r.style.setProperty('--bg',           _settings.bgColor);
+  r.style.setProperty('--bg-card',      _settings.cardColor);
+  r.style.setProperty('--text-1',       _settings.textColor);
+  r.style.setProperty('--content-zoom', _settings.contentZoom);
+  // Re-order the global TABS array to match saved preference
+  var ordered = _settings.tabOrder
+    .map(function(id) { return TABS.find(function(t) { return t.id === id; }); })
+    .filter(Boolean);
+  TABS.forEach(function(t) {
+    if (!ordered.find(function(o) { return o.id === t.id; })) ordered.push(t);
+  });
+  TABS.length = 0;
+  ordered.forEach(function(t) { TABS.push(t); });
+}
+
+async function saveSettings() {
+  if (!currentUserId || !_settings) return;
+  try {
+    await supabaseClient.from('dashboard_data').upsert({
+      user_id: currentUserId,
+      tab_key: 'user-settings',
+      data: _settings,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error('Settings save error', e); }
+}
+
+function renderSettingsPage() {
+  var page = document.getElementById('page-settings');
+  if (!page) return;
+  var s = _settings || Object.assign({}, SETTINGS_DEFAULTS);
+  var inner = page.querySelector('.page-inner');
+
+  var tabOrderRows = TABS.map(function(t, i) {
+    return '<div class="item-row"><div class="item-display">' +
+      '<span class="item-bar" style="background:' + t.accent + ';"></span>' +
+      '<div class="item-main"><div class="item-name">' + escapeHtml(t.label) + '</div></div>' +
+      '<div class="item-actions">' +
+        (i > 0
+          ? '<button class="icon-btn" data-action="tab-up" data-idx="' + i + '" title="Move up">&#8679;</button>'
+          : '<span style="width:28px;display:inline-block;"></span>') +
+        (i < TABS.length - 1
+          ? '<button class="icon-btn" data-action="tab-down" data-idx="' + i + '" title="Move down">&#8681;</button>'
+          : '<span style="width:28px;display:inline-block;"></span>') +
+      '</div>' +
+    '</div></div>';
+  }).join('');
+
+  inner.innerHTML =
+    '<div class="port-hero" style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:28px;">' +
+      '<div class="port-eyebrow">Personalization</div>' +
+      '<div class="port-title">Settings</div>' +
+      '<div class="port-subtitle">Customize the look and feel of your dashboard.</div>' +
+    '</div>' +
+
+    '<div class="port-section-label">Appearance</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:16px;">COLORS</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;">' +
+        _colorRow('settingAccent', 'Accent',          s.accent)    +
+        _colorRow('settingBg',     'Background',       s.bgColor)   +
+        _colorRow('settingCard',   'Card background',  s.cardColor) +
+        _colorRow('settingText',   'Primary text',     s.textColor) +
+      '</div>' +
+      '<div style="margin-top:16px;display:flex;justify-content:flex-end;">' +
+        '<button class="port-edit-btn" id="settingResetColors">Reset to defaults</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:12px;">CONTENT ZOOM</div>' +
+      '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<span style="color:#8A919C;font-size:11px;line-height:1;">A</span>' +
+        '<input type="range" id="settingZoom" min="0.8" max="1.3" step="0.05" value="' + s.contentZoom + '" style="flex:1;accent-color:var(--accent);" />' +
+        '<span style="color:#8A919C;font-size:15px;line-height:1;">A</span>' +
+        '<span class="mono" id="settingZoomVal" style="color:#EDEAE3;font-size:13px;min-width:38px;text-align:right;">' + Math.round(s.contentZoom * 100) + '%</span>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="port-section-label">Dashboard Tabs</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">TAB ORDER</div>' +
+      '<div style="color:#8A919C;font-size:12px;margin-bottom:12px;">Use the arrows to reorder the tabs shown in the dashboard.</div>' +
+      '<div class="list-card" id="settingTabOrder" style="border:none;padding:0;">' + tabOrderRows + '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;justify-content:flex-end;padding-bottom:40px;">' +
+      '<button class="add-btn" id="settingSaveBtn" style="background:var(--accent);">Save settings</button>' +
+    '</div>';
+
+  // Color pickers — live preview on input
+  [
+    { id: 'settingAccent', hexId: 'settingAccentHex', key: 'accent',    cssVar: '--accent'   },
+    { id: 'settingBg',     hexId: 'settingBgHex',     key: 'bgColor',   cssVar: '--bg'       },
+    { id: 'settingCard',   hexId: 'settingCardHex',   key: 'cardColor', cssVar: '--bg-card'  },
+    { id: 'settingText',   hexId: 'settingTextHex',   key: 'textColor', cssVar: '--text-1'   }
+  ].forEach(function(f) {
+    var input = document.getElementById(f.id);
+    if (!input) return;
+    input.addEventListener('input', function() {
+      _settings[f.key] = input.value;
+      var hex = document.getElementById(f.hexId);
+      if (hex) hex.textContent = input.value;
+      document.documentElement.style.setProperty(f.cssVar, input.value);
+    });
+  });
+
+  // Zoom slider
+  var zoomInput = document.getElementById('settingZoom');
+  var zoomValEl = document.getElementById('settingZoomVal');
+  if (zoomInput) {
+    zoomInput.addEventListener('input', function() {
+      var val = Number(zoomInput.value);
+      _settings.contentZoom = val;
+      if (zoomValEl) zoomValEl.textContent = Math.round(val * 100) + '%';
+      document.documentElement.style.setProperty('--content-zoom', val);
+    });
+  }
+
+  // Tab order arrows
+  var tabOrderEl = document.getElementById('settingTabOrder');
+  if (tabOrderEl) {
+    tabOrderEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      var idx = Number(btn.getAttribute('data-idx'));
+      if (action === 'tab-up' && idx > 0) {
+        var tmp = TABS[idx]; TABS[idx] = TABS[idx - 1]; TABS[idx - 1] = tmp;
+      } else if (action === 'tab-down' && idx < TABS.length - 1) {
+        var tmp2 = TABS[idx]; TABS[idx] = TABS[idx + 1]; TABS[idx + 1] = tmp2;
+      } else { return; }
+      _settings.tabOrder = TABS.map(function(t) { return t.id; });
+      renderTabNav();
+      renderSettingsPage();
+    });
+  }
+
+  // Reset colors
+  var resetBtn = document.getElementById('settingResetColors');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function() {
+      _settings.accent    = SETTINGS_DEFAULTS.accent;
+      _settings.bgColor   = SETTINGS_DEFAULTS.bgColor;
+      _settings.cardColor = SETTINGS_DEFAULTS.cardColor;
+      _settings.textColor = SETTINGS_DEFAULTS.textColor;
+      applySettings();
+      renderSettingsPage();
+    });
+  }
+
+  // Save
+  var saveBtn = document.getElementById('settingSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function() {
+      _settings.tabOrder = TABS.map(function(t) { return t.id; });
+      saveSettings();
+      saveBtn.textContent = 'Saved ✓';
+      setTimeout(function() {
+        var el = document.getElementById('settingSaveBtn');
+        if (el) el.textContent = 'Save settings';
+      }, 2000);
+    });
+  }
+}
+
+function _colorRow(id, label, value) {
+  return '<div>' +
+    '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
+    '<div style="display:flex;align-items:center;gap:10px;">' +
+      '<input type="color" id="' + id + '" value="' + value + '" ' +
+        'style="width:40px;height:34px;border:1px solid #2A313A;border-radius:6px;background:none;cursor:pointer;padding:2px;" />' +
+      '<span class="mono" id="' + id + 'Hex" style="color:#8A919C;font-size:12px;">' + value + '</span>' +
+    '</div>' +
+  '</div>';
 }
 
 /* ---------------- boot ---------------- */
