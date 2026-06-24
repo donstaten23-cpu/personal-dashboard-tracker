@@ -3697,6 +3697,7 @@ var _eduAddCourseGroupId = null;
 var _eduEditCourseId = null;
 var _eduEditGroupId = null;
 var _eduAddingGroup = false;
+var _eduView = 'groups'; // 'groups' | 'semesters'
 
 var EDU_STATUSES = [
   { id: 'not-started', label: 'Not Started', color: '#5A6168' },
@@ -3931,6 +3932,72 @@ async function renderEducationPage() {
       '</div>'
     : '<button class="port-edit-btn" id="eduAddGroupBtn">+ Add group</button>';
 
+  // Build semester-grouped view
+  var semMap = {};
+  data.groups.forEach(function(group) {
+    (group.courses || []).forEach(function(course) {
+      var key = course.semester || '__none__';
+      if (!semMap[key]) semMap[key] = [];
+      semMap[key].push({ course: course, groupName: group.name, groupId: group.id });
+    });
+  });
+  var semKeys = Object.keys(semMap).filter(function(k) { return k !== '__none__'; });
+  semKeys.sort(function(a, b) { return _parseSemester(a) - _parseSemester(b); });
+  if (semMap['__none__']) semKeys.push('__none__');
+
+  var semesterViewHtml = semKeys.length === 0
+    ? '<div style="color:#5A6168;font-size:13px;padding:8px 0 12px;">No courses added yet.</div>'
+    : semKeys.map(function(sem) {
+        var label = sem === '__none__' ? 'Unscheduled' : sem;
+        var items = semMap[sem];
+        var semCr = items.reduce(function(s, it) { return s + (Number(it.course.credits) || 0); }, 0);
+        var rowsHtml = items.map(function(item) {
+          var course = item.course;
+          var st = _eduStatus(course.status || 'not-started');
+          if (_eduEditCourseId === course.id) {
+            return '<div class="item-row"><div class="item-edit">' +
+              '<div class="edit-line">' +
+                '<input class="edit-input" style="width:100px;" id="eduEditCode" placeholder="Code" value="' + escapeHtml(course.code || '') + '" />' +
+                '<input class="edit-input grow" id="eduEditName" placeholder="Course name" value="' + escapeHtml(course.name || '') + '" />' +
+              '</div>' +
+              '<div class="edit-line">' +
+                '<input class="edit-input amt" type="number" min="0" max="12" id="eduEditCredits" placeholder="Cr" value="' + (course.credits || 3) + '" />' +
+                '<select class="edit-select" id="eduEditSemester" style="min-width:130px;">' + _eduSemesterOpts(course.semester || '') + '</select>' +
+                '<select class="edit-select" id="eduEditStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '"' + (s.id === (course.status || 'not-started') ? ' selected' : '') + '>' + s.label + '</option>'; }).join('') + '</select>' +
+                '<input class="edit-input" style="width:70px;" id="eduEditGrade" placeholder="Grade" value="' + escapeHtml(course.grade || '') + '" />' +
+                '<button class="icon-btn" data-action="save-course-edit" data-group="' + item.groupId + '" data-course="' + course.id + '" style="color:#5BAE7A;">✓</button>' +
+                '<button class="icon-btn" data-action="cancel-course-edit">✕</button>' +
+              '</div>' +
+            '</div></div>';
+          }
+          return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
+            '<span class="item-bar" style="background:' + st.color + ';"></span>' +
+            '<div class="item-main">' +
+              (course.code ? '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
+              '<div class="item-name">' + escapeHtml(course.name || 'Unnamed course') + '</div>' +
+              '<div class="item-sub">' + (course.credits || 0) + ' cr' + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + ' · <span style="opacity:.7;">' + escapeHtml(item.groupName) + '</span></div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
+              '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
+              '<button class="icon-btn" data-action="edit-course" data-group="' + item.groupId + '" data-course="' + course.id + '">✎</button>' +
+              '<button class="icon-btn" data-action="delete-course" data-group="' + item.groupId + '" data-course="' + course.id + '">✕</button>' +
+            '</div>' +
+          '</div></div>';
+        }).join('');
+        return '<div style="margin-bottom:8px;">' +
+          '<div class="port-section-label" style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;">' +
+            '<span>' + escapeHtml(label) + '</span>' +
+            '<span style="color:#5A6168;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">' + semCr + ' cr</span>' +
+          '</div>' +
+          '<div class="list-card">' + rowsHtml + '</div>' +
+        '</div>';
+      }).join('');
+
+  var viewToggle = '<div style="display:flex;background:#12151A;border-radius:8px;padding:3px;gap:2px;">' +
+    '<button data-action="edu-view-groups" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'groups' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Group</button>' +
+    '<button data-action="edu-view-semesters" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'semesters' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Semester</button>' +
+  '</div>';
+
   inner.innerHTML =
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;">' +
       '<div class="port-eyebrow">Education</div>' +
@@ -3957,11 +4024,16 @@ async function renderEducationPage() {
       '</div>' +
     '</div>' +
 
-    '<div class="port-section-label" style="margin-top:0;margin-bottom:4px;">Courses</div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<div class="port-section-label" style="margin-top:0;margin-bottom:0;">Courses</div>' +
+      viewToggle +
+    '</div>' +
 
-    groupsHtml +
+    (_eduView === 'semesters' ? semesterViewHtml : groupsHtml) +
 
-    '<div style="padding:20px 0 40px;">' + addGroupHtml + '</div>';
+    (_eduView === 'semesters'
+      ? '<div style="padding:12px 0 40px;color:#5A6168;font-size:12px;">Switch to <strong>By Group</strong> to add or manage courses.</div>'
+      : '<div style="padding:20px 0 40px;">' + addGroupHtml + '</div>');
 
   // Auto-save title/school
   document.getElementById('eduDegreeTitle').addEventListener('input', function(e) { data.degreeTitle = e.target.value; saveEducationData(); });
@@ -4020,7 +4092,11 @@ async function renderEducationPage() {
       var cid    = btn.getAttribute('data-course');
       var group  = gid ? data.groups.find(function(g) { return g.id === gid; }) : null;
 
-      if (action === 'show-add-course') {
+      if (action === 'edu-view-groups') {
+        _eduView = 'groups'; renderEducationPage();
+      } else if (action === 'edu-view-semesters') {
+        _eduView = 'semesters'; renderEducationPage();
+      } else if (action === 'show-add-course') {
         _eduAddCourseGroupId = gid; _eduEditCourseId = null;
         renderEducationPage();
       } else if (action === 'cancel-add-course') {
