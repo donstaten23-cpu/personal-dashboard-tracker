@@ -381,7 +381,8 @@
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">
-      <div class="serif" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
+      <img id="sidebarLogoImg" src="" alt="Site logo" style="display:none;max-width:100%;max-height:56px;object-fit:contain;margin-bottom:8px;border-radius:6px;" />
+      <div class="serif" id="sidebarTitle" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
     </div>
     <div class="sidebar-nav">
       <div class="sidebar-section-label">Dashboard</div>
@@ -982,7 +983,7 @@ function renderActiveTab() {
       accent: "#5BAE7A",
       enableSelection: true,
       showSavingsGoal: true,
-      eyebrow: "BUDGET PLANNER"
+      eyebrow: _pageLabel('budget', 'BUDGET PLANNER')
     });
   } else if (currentTab === "routines") {
     renderRoutinesTab(root);
@@ -1918,7 +1919,7 @@ async function renderTravelTab(root) {
   function getActiveTrip() { return raw.trips.find(function (t) { return t.id === raw.activeTripId; }); }
 
   root.innerHTML =
-    '<div class="tab-eyebrow">TRAVEL TRACKER</div>' +
+    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('travel', 'TRAVEL TRACKER')) + '</div>' +
     '<div class="trip-switcher" id="tripSwitcher"></div>' +
     '<div id="tripDetailRoot"></div>';
 
@@ -2420,7 +2421,7 @@ async function renderWorkoutsTab(root) {
   if (migratedAny) save();
 
   root.innerHTML =
-    '<div class="tab-eyebrow">WORKOUT PLANNER</div>' +
+    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card">' +
       '<div class="weight-row"><span class="gauge-label mono">CURRENT WEIGHT</span></div>' +
@@ -2891,7 +2892,7 @@ async function renderRoutinesTab(root) {
   if (migratedAny) save();
 
   root.innerHTML =
-    '<div class="tab-eyebrow">DAILY ROUTINES</div>' +
+    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('routines', 'DAILY ROUTINES')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div></div>' +
     '<div class="card">' +
@@ -3246,16 +3247,29 @@ var SETTINGS_DEFAULTS = {
   cardColor: '#1B2027',
   textColor: '#EDEAE3',
   contentZoom: 1,
-  tabOrder: ['travel', 'budget', 'routines']
+  tabOrder: ['travel', 'budget', 'routines'],
+  siteTitle: "Don's Space",
+  logoDataUrl: '',
+  pageLabels: {
+    travel:   'TRAVEL TRACKER',
+    budget:   'BUDGET PLANNER',
+    workouts: 'WORKOUT PLANNER',
+    routines: 'DAILY ROUTINES'
+  }
 };
+
+function _pageLabel(key, fallback) {
+  return (_settings && _settings.pageLabels && _settings.pageLabels[key]) || fallback;
+}
 
 async function loadSettings() {
   if (!currentUserId) return;
   try {
     var result = await supabaseClient.from('dashboard_data')
       .select('data').eq('user_id', currentUserId).eq('tab_key', 'user-settings').maybeSingle();
-    _settings = Object.assign({}, SETTINGS_DEFAULTS,
-      result.data && result.data.data ? result.data.data : {});
+    var saved = result.data && result.data.data ? result.data.data : {};
+    _settings = Object.assign({}, SETTINGS_DEFAULTS, saved);
+    _settings.pageLabels = Object.assign({}, SETTINGS_DEFAULTS.pageLabels, saved.pageLabels || {});
   } catch(e) {
     _settings = Object.assign({}, SETTINGS_DEFAULTS);
   }
@@ -3283,6 +3297,18 @@ function applySettings() {
   });
   TABS.length = 0;
   ordered.forEach(function(t) { TABS.push(t); });
+  // Sidebar title & logo
+  var titleEl = document.getElementById('sidebarTitle');
+  if (titleEl) titleEl.textContent = _settings.siteTitle || "Don's Space";
+  var logoEl = document.getElementById('sidebarLogoImg');
+  if (logoEl) {
+    if (_settings.logoDataUrl) {
+      logoEl.src = _settings.logoDataUrl;
+      logoEl.style.display = 'block';
+    } else {
+      logoEl.style.display = 'none';
+    }
+  }
 }
 
 async function saveSettings() {
@@ -3347,6 +3373,40 @@ function renderSettingsPage() {
         '<input type="range" id="settingZoom" min="0.8" max="1.3" step="0.05" value="' + s.contentZoom + '" style="flex:1;accent-color:var(--accent);" />' +
         '<span style="color:#8A919C;font-size:15px;line-height:1;">A</span>' +
         '<span class="mono" id="settingZoomVal" style="color:#EDEAE3;font-size:13px;min-width:38px;text-align:right;">' + Math.round(s.contentZoom * 100) + '%</span>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="port-section-label">Site Identity</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:16px;">BRANDING</div>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">Site name (shown in sidebar)</div>' +
+        '<input type="text" id="settingSiteTitle" value="' + escapeHtml(s.siteTitle || "Don's Space") + '" maxlength="40" ' +
+          'style="width:100%;background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:8px 10px;font-size:14px;box-sizing:border-box;" />' +
+      '</div>' +
+      '<div>' +
+        '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">Logo image (shown above site name)</div>' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<button class="port-edit-btn" id="settingLogoUploadBtn">Upload image</button>' +
+          (s.logoDataUrl
+            ? '<img id="settingLogoPreview" src="' + s.logoDataUrl + '" style="max-height:40px;max-width:120px;object-fit:contain;border-radius:4px;border:1px solid #2A313A;" />'
+            : '<span id="settingLogoPreview" style="color:#5A6168;font-size:12px;">No logo set</span>') +
+          (s.logoDataUrl ? '<button class="port-edit-btn" id="settingLogoClearBtn" style="color:#c0392b;border-color:#c0392b;">Remove</button>' : '') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="port-section-label">Page Labels</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">SECTION EYEBROWS</div>' +
+      '<div style="color:#8A919C;font-size:12px;margin-bottom:16px;">The small label shown at the top of each section.</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;">' +
+        _labelRow('settingLabelTravel',   'Travel tab',    (s.pageLabels && s.pageLabels.travel)   || 'TRAVEL TRACKER') +
+        _labelRow('settingLabelBudget',   'Budget tab',    (s.pageLabels && s.pageLabels.budget)   || 'BUDGET PLANNER') +
+        _labelRow('settingLabelWorkouts', 'Workouts page', (s.pageLabels && s.pageLabels.workouts) || 'WORKOUT PLANNER') +
+        _labelRow('settingLabelRoutines', 'Routines tab',  (s.pageLabels && s.pageLabels.routines) || 'DAILY ROUTINES') +
       '</div>' +
     '</div>' +
 
@@ -3441,6 +3501,74 @@ function renderSettingsPage() {
     });
   }
 
+  // Site title
+  var siteTitleInput = document.getElementById('settingSiteTitle');
+  if (siteTitleInput) {
+    siteTitleInput.addEventListener('input', function() {
+      _settings.siteTitle = siteTitleInput.value;
+      var el = document.getElementById('sidebarTitle');
+      if (el) el.textContent = siteTitleInput.value || "Don's Space";
+    });
+  }
+
+  // Logo upload
+  var logoUploadBtn = document.getElementById('settingLogoUploadBtn');
+  if (logoUploadBtn) {
+    logoUploadBtn.addEventListener('click', function() {
+      var fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.onchange = function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var MAX = 300;
+            var ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+            canvas.width = Math.round(img.width * ratio);
+            canvas.height = Math.round(img.height * ratio);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            var dataUrl = canvas.toDataURL('image/png');
+            _settings.logoDataUrl = dataUrl;
+            applySettings();
+            renderSettingsPage();
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+      fileInput.click();
+    });
+  }
+
+  // Logo remove
+  var logoClearBtn = document.getElementById('settingLogoClearBtn');
+  if (logoClearBtn) {
+    logoClearBtn.addEventListener('click', function() {
+      _settings.logoDataUrl = '';
+      applySettings();
+      renderSettingsPage();
+    });
+  }
+
+  // Page labels
+  [
+    { id: 'settingLabelTravel',   key: 'travel'   },
+    { id: 'settingLabelBudget',   key: 'budget'   },
+    { id: 'settingLabelWorkouts', key: 'workouts' },
+    { id: 'settingLabelRoutines', key: 'routines' }
+  ].forEach(function(f) {
+    var inp = document.getElementById(f.id);
+    if (!inp) return;
+    inp.addEventListener('input', function() {
+      if (!_settings.pageLabels) _settings.pageLabels = {};
+      _settings.pageLabels[f.key] = inp.value;
+    });
+  });
+
   // Save
   var saveBtn = document.getElementById('settingSaveBtn');
   if (saveBtn) {
@@ -3454,6 +3582,14 @@ function renderSettingsPage() {
       }, 2000);
     });
   }
+}
+
+function _labelRow(id, label, value) {
+  return '<div>' +
+    '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
+    '<input type="text" id="' + id + '" value="' + escapeHtml(value) + '" maxlength="40" ' +
+      'style="width:100%;background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box;text-transform:uppercase;letter-spacing:0.06em;" />' +
+  '</div>';
 }
 
 function _colorRow(id, label, value) {
