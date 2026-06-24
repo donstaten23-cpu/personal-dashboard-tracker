@@ -117,6 +117,7 @@
     font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 32px 0 20px;
   }
   .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
+  [data-art-key][contenteditable="true"] { outline: 1px dashed #E8643A44; border-radius: 3px; cursor: text; padding: 0 4px; }
   .port-card {
     background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px;
     margin-bottom: 20px; transition: border-color 0.2s;
@@ -590,38 +591,91 @@
           </div>
         </div>
 
-        <div class="port-section-label">Gallery</div>
+        <!-- Digital Art -->
+        <div class="port-section-label" data-art-key="art-sec1-label" style="margin-top:4px;">Digital Art</div>
         <div class="art-grid">
-          <div class="art-cell locked" data-image-key="art-img-1" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-1" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell locked" data-image-key="art-img-2" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-2" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell locked" data-image-key="art-img-3" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-3" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell locked" data-image-key="art-img-4" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-4" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell locked" data-image-key="art-img-5" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-5" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
-          <div class="art-cell locked" data-image-key="art-img-6" onclick="triggerImageUpload(this)">
+          <div class="art-cell locked" data-image-key="art-d-6" onclick="triggerImageUpload(this)">
             <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
             <div class="ph-overlay">&#128247; Replace</div>
           </div>
         </div>
 
-        <div class="port-card" style="margin-top:8px;">
-          <div class="port-tag" data-art-key="art-card-tag">About This Page</div>
-          <h2 data-art-key="art-card-title">Coming Soon</h2>
-          <p data-art-key="art-card-desc">Tap the lock to unlock, then click any cell to upload artwork from your phone or computer. Changes save automatically.</p>
+        <!-- Digital Art Portraits -->
+        <div class="port-section-label" data-art-key="art-sec2-label" style="margin-top:28px;">Digital Art Portraits</div>
+        <div class="art-grid">
+          <div class="art-cell locked" data-image-key="art-dp-1" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-dp-2" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-dp-3" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-dp-4" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-dp-5" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-dp-6" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+        </div>
+
+        <!-- Sketching Portraits -->
+        <div class="port-section-label" data-art-key="art-sec3-label" style="margin-top:28px;">Sketching Portraits</div>
+        <div class="art-grid">
+          <div class="art-cell locked" data-image-key="art-sp-1" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-sp-2" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-sp-3" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-sp-4" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-sp-5" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
+          <div class="art-cell locked" data-image-key="art-sp-6" onclick="triggerImageUpload(this)">
+            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
+            <div class="ph-overlay">&#128247; Replace</div>
+          </div>
         </div>
       </div>
     </div>
