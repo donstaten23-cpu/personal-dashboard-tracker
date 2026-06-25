@@ -172,15 +172,30 @@
   .port-placeholder:hover .ph-overlay { opacity: 1; }
 
   /* art portfolio */
-  .art-grid { display: grid; grid-template-rows: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+  .art-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .art-cell-wrap { display: flex; flex-direction: column; }
   .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
   .art-cell:not(.locked):hover { border-color: #E8643A44; }
   .art-cell.locked { cursor: default; }
+  .art-cell.has-image:not([class*="locked"]) { cursor: zoom-in; }
   .art-cell-inner { text-align: center; padding: 16px; }
   .art-cell-icon { font-size: 32px; margin-bottom: 8px; }
   .art-cell img { width: 100%; height: auto; display: block; }
   .art-cell .ph-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3; border-radius: 12px; }
   .art-cell:not(.locked):hover .ph-overlay { opacity: 1; }
+  .art-caption { font-size: 12px; color: #8A919C; text-align: center; padding: 5px 4px 0; }
+  .art-caption:empty:not([contenteditable]) { display: none; }
+  .art-caption[contenteditable="true"] { outline: 1px dashed #E8643A44; border-radius: 3px; min-height: 18px; cursor: text; padding: 3px 4px; }
+  .art-tabs { display: flex; gap: 6px; margin: 12px 0 20px; flex-wrap: wrap; }
+  .art-tab { border: 1px solid #2A313A; background: transparent; color: #8A919C; border-radius: 999px; padding: 7px 18px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background .15s, color .15s, border-color .15s; }
+  .art-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* lightbox */
+  #artLightbox { position: fixed; inset: 0; background: rgba(0,0,0,.93); z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out; }
+  #artLightbox.open { display: flex; }
+  #artLightbox .lb-img { max-width: 94vw; max-height: 82vh; object-fit: contain; border-radius: 8px; cursor: default; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
+  #artLightbox .lb-caption { color: #EDEAE3; font-size: 15px; margin-top: 14px; text-align: center; max-width: 600px; cursor: default; }
+  #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color: #8A919C; cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
+  #artLightbox .lb-close:hover { color: #EDEAE3; }
 
   @media (max-width: 700px) {
     .sidebar { transform: translateX(-100%); }
@@ -189,7 +204,9 @@
     .main-content { margin-left: 0; }
     .hamburger { display: flex; }
     .page-inner { padding: 64px 16px 32px; }
-    .art-grid { grid-template-columns: 1fr; }
+    .art-grid { grid-template-columns: 1fr 1fr; }
+    .art-tabs { gap: 4px; }
+    .art-tab { padding: 5px 12px; font-size: 12px; }
   }
 
   /* legacy tab inner */
@@ -600,90 +617,103 @@
           </div>
         </div>
 
-        <!-- Digital Art -->
-        <div class="port-section-label" data-art-key="art-sec1-label" style="margin-top:4px;">Digital Art</div>
-        <div class="art-grid">
-          <div class="art-cell locked" data-image-key="art-d-1" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-d-2" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-d-3" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-d-4" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-d-5" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-d-6" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
+        <!-- Section tabs -->
+        <div class="art-tabs" id="artTabs">
+          <button class="art-tab active" onclick="switchArtSection('art-sec1',this)">Digital Art</button>
+          <button class="art-tab" onclick="switchArtSection('art-sec2',this)">Portraits</button>
+          <button class="art-tab" onclick="switchArtSection('art-sec3',this)">Sketches</button>
+        </div>
+
+        <!-- Section 1: Digital Art -->
+        <div class="art-section" id="art-sec1">
+          <div class="port-section-label" data-art-key="art-sec1-label">Digital Art</div>
+          <div class="art-grid">
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-1" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-1-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-2" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-2-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-3" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-3-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-4" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-4-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-5" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-5-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-d-6" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-d-6-caption"></div>
+            </div>
           </div>
         </div>
 
-        <!-- Digital Art Portraits -->
-        <div class="port-section-label" data-art-key="art-sec2-label" style="margin-top:28px;">Digital Art Portraits</div>
-        <div class="art-grid">
-          <div class="art-cell locked" data-image-key="art-dp-1" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-dp-2" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-dp-3" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-dp-4" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-dp-5" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-dp-6" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
+        <!-- Section 2: Digital Art Portraits -->
+        <div class="art-section" id="art-sec2" style="display:none;">
+          <div class="port-section-label" data-art-key="art-sec2-label">Digital Art Portraits</div>
+          <div class="art-grid">
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-1" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-1-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-2" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-2-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-3" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-3-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-4" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-4-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-5" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-5-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-dp-6" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-dp-6-caption"></div>
+            </div>
           </div>
         </div>
 
-        <!-- Sketching Portraits -->
-        <div class="port-section-label" data-art-key="art-sec3-label" style="margin-top:28px;">Sketching Portraits</div>
-        <div class="art-grid">
-          <div class="art-cell locked" data-image-key="art-sp-1" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-sp-2" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-sp-3" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-sp-4" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-sp-5" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
-          </div>
-          <div class="art-cell locked" data-image-key="art-sp-6" onclick="triggerImageUpload(this)">
-            <div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div>
-            <div class="ph-overlay">&#128247; Replace</div>
+        <!-- Section 3: Sketching Portraits -->
+        <div class="art-section" id="art-sec3" style="display:none;">
+          <div class="port-section-label" data-art-key="art-sec3-label">Sketching Portraits</div>
+          <div class="art-grid">
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-1" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-1-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-2" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-2-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-3" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-3-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-4" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-4-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-5" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-5-caption"></div>
+            </div>
+            <div class="art-cell-wrap">
+              <div class="art-cell locked" data-image-key="art-sp-6" onclick="triggerImageUpload(this)"><div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div></div>
+              <div class="art-caption" data-art-key="art-sp-6-caption"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -3250,6 +3280,49 @@ function initScrollAnims() {
 var _artEditing = false;
 var _artContent = {};
 
+function switchArtSection(id, btn) {
+  document.querySelectorAll('.art-section').forEach(function(s) { s.style.display = 'none'; });
+  document.querySelectorAll('.art-tab').forEach(function(b) { b.classList.remove('active'); });
+  var sec = document.getElementById(id);
+  if (sec) sec.style.display = '';
+  if (btn) btn.classList.add('active');
+}
+
+function openLightbox(src, caption) {
+  var lb = document.getElementById('artLightbox');
+  if (!lb) return;
+  document.getElementById('lbImg').src = src;
+  var capEl = document.getElementById('lbCaption');
+  capEl.textContent = caption || '';
+  capEl.style.display = caption ? '' : 'none';
+  lb.classList.add('open');
+  document.addEventListener('keydown', _lbKeyHandler);
+}
+
+function closeLightbox() {
+  var lb = document.getElementById('artLightbox');
+  if (lb) lb.classList.remove('open');
+  document.removeEventListener('keydown', _lbKeyHandler);
+}
+
+function _lbKeyHandler(e) {
+  if (e.key === 'Escape') closeLightbox();
+}
+
+// Delegated lightbox click for art page (fires when locked / not editing)
+(function() {
+  document.addEventListener('click', function(e) {
+    if (_artEditing) return;
+    var cell = e.target.closest('.art-cell[data-image-key]');
+    if (!cell) return;
+    var img = cell.querySelector('img');
+    if (!img) return;
+    var capKey = cell.getAttribute('data-image-key') + '-caption';
+    var capEl  = document.querySelector('[data-art-key="' + capKey + '"]');
+    openLightbox(img.src, capEl ? capEl.textContent.trim() : '');
+  });
+})();
+
 function toggleArtEdit() {
   _artEditing = !_artEditing;
   var btn = document.getElementById("artEditBtn");
@@ -3833,6 +3906,24 @@ async function renderEducationPage() {
   var remainCr  = Math.max(0, totalCr - passedCr - inProgCr);
   var projGrad  = _eduProjectedGrad(allCourses);
 
+  // GPA (letter-graded completed courses)
+  var _gradeMap = {'A+':4.0,'A':4.0,'A-':3.7,'B+':3.3,'B':3.0,'B-':2.7,'C+':2.3,'C':2.0,'C-':1.7,'D+':1.3,'D':1.0,'D-':0.7,'F':0.0};
+  var _gradedCourses = allCourses.filter(function(c) {
+    var g = (c.grade || '').trim().toUpperCase();
+    return g && _gradeMap[g] !== undefined && (Number(c.credits) || 0) > 0;
+  });
+  var _qualPts   = _gradedCourses.reduce(function(s,c){return s+(_gradeMap[c.grade.trim().toUpperCase()]||0)*(Number(c.credits)||0);},0);
+  var _gradedCr  = _gradedCourses.reduce(function(s,c){return s+(Number(c.credits)||0);},0);
+  var gpa = _gradedCr > 0 ? (_qualPts / _gradedCr).toFixed(2) : null;
+
+  // Graduation countdown
+  var gradDays = null;
+  if (data.gradDate) {
+    var _gd = new Date(data.gradDate);
+    _gd.setHours(0,0,0,0);
+    gradDays = Math.ceil((_gd.getTime() - Date.now()) / 86400000);
+  }
+
   var chartSegs = [
     { key: 'passed',      value: passedCr,  color: '#5BAE7A' },
     { key: 'in-progress', value: inProgCr,  color: '#D9A441' },
@@ -4007,7 +4098,7 @@ async function renderEducationPage() {
         'onfocus="this.style.borderBottomColor=\'#2A313A\'" onblur="this.style.borderBottomColor=\'transparent\'" />' +
     '</div>' +
 
-    '<div class="card" style="margin-bottom:28px;">' +
+    '<div class="card" style="margin-bottom:16px;">' +
       '<div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;">' +
         '<div style="flex-shrink:0;">' + _eduDonutChart(chartSegs, totalCr) + '</div>' +
         '<div style="flex:1;min-width:160px;">' +
@@ -4016,11 +4107,29 @@ async function renderEducationPage() {
             '<div style="font-size:32px;font-weight:800;color:#EDEAE3;line-height:1;">' + passedCr +
               ' <span style="color:#5A6168;font-size:16px;font-weight:400;">/ ' + totalCr + ' credits</span>' +
             '</div>' +
+            (gpa !== null ? '<div style="color:#8A919C;font-size:13px;margin-top:8px;">GPA: <strong style="color:#EDEAE3;font-size:18px;">' + gpa + '</strong> <span style="font-size:11px;">/ 4.00</span></div>' : '') +
             (inProgCr > 0 ? '<div style="color:#D9A441;font-size:12px;margin-top:6px;">' + inProgCr + ' credits in progress</div>' : '') +
             (projGrad ? '<div style="color:#3DBFC4;font-size:12px;margin-top:4px;">Est. graduation: <strong>' + escapeHtml(projGrad) + '</strong></div>' : '') +
           '</div>' +
           '<div style="display:flex;flex-direction:column;gap:10px;">' + legendHtml + '</div>' +
         '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:28px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">' +
+      '<div style="flex:1;min-width:180px;">' +
+        '<div class="gauge-label mono" style="margin-bottom:6px;">GRADUATION DATE</div>' +
+        (gradDays !== null
+          ? '<div style="font-size:28px;font-weight:800;color:#EDEAE3;line-height:1;">' + Math.max(0, gradDays) +
+              ' <span style="color:#5A6168;font-size:14px;font-weight:400;">' + (gradDays > 0 ? 'days to go' : 'days ago') + '</span>' +
+            '</div>' +
+            '<div style="color:#5A6168;font-size:12px;margin-top:6px;">' + escapeHtml(data.gradDate) + '</div>'
+          : '<div style="color:#5A6168;font-size:13px;">Set a graduation date to see the countdown.</div>') +
+      '</div>' +
+      '<div>' +
+        '<label style="color:#8A919C;font-size:11px;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Target date</label>' +
+        '<input type="date" id="eduGradDate" value="' + escapeHtml(data.gradDate || '') + '" ' +
+          'style="background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;" />' +
       '</div>' +
     '</div>' +
 
@@ -4038,6 +4147,7 @@ async function renderEducationPage() {
   // Auto-save title/school
   document.getElementById('eduDegreeTitle').addEventListener('input', function(e) { data.degreeTitle = e.target.value; saveEducationData(); });
   document.getElementById('eduSchool').addEventListener('input', function(e) { data.school = e.target.value; saveEducationData(); });
+  document.getElementById('eduGradDate').addEventListener('change', function(e) { data.gradDate = e.target.value; saveEducationData(); renderEducationPage(); });
 
   // Add group wiring
   if (_eduAddingGroup) {
@@ -4388,5 +4498,13 @@ async function renderCertPage() {
 
 bootAuth();
 </script>
+
+<!-- Lightbox overlay -->
+<div id="artLightbox" onclick="closeLightbox()">
+  <span class="lb-close" onclick="closeLightbox()">&times;</span>
+  <img class="lb-img" id="lbImg" src="" alt="" onclick="event.stopPropagation()" />
+  <div class="lb-caption" id="lbCaption" onclick="event.stopPropagation()"></div>
+</div>
+
 </body>
 </html>
