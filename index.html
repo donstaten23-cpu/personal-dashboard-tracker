@@ -353,20 +353,35 @@
     }
   }
 
+  /* CSS variable defaults — prevents flash before JS applySettings() runs */
+  :root {
+    --accent: #E8643A; --bg: #12151A; --bg-card: #1B2027; --text-1: #EDEAE3;
+    --bg-sidebar: #0E1117; --border: #1E2530; --border-2: #2A313A; --content-zoom: 1;
+  }
   /* settings-panel theme overrides — reference CSS vars so JS can update them live */
-  body { background: var(--bg); }
+  body { background: var(--bg); color: var(--text-1); }
   .sidebar { background: var(--bg-sidebar); border-right-color: var(--border); }
   .sidebar-logo { border-bottom-color: var(--border); }
+  .sidebar-nav { border-color: var(--border); }
   .sidebar-footer { border-top-color: var(--border); }
+  .sidebar-item { color: var(--text-1); opacity: .6; }
+  .sidebar-item:hover, .sidebar-item.active { background: var(--bg-card); color: var(--text-1); opacity: 1; }
   .sidebar-item.active { border-left-color: var(--accent); }
   .main-content { zoom: var(--content-zoom); }
   .card, .list-card, .port-card { background: var(--bg-card); border-color: var(--border-2); }
   .art-cell { background: var(--bg-card); border-color: var(--border-2); }
   .chip { background: var(--bg-card); border-color: var(--border-2); }
-  .tabbtn, .trip-pill, .port-edit-btn { background: var(--bg-card); border-color: var(--border-2); }
+  .tabbtn, .trip-pill, .port-edit-btn { background: var(--bg-card); border-color: var(--border-2); color: var(--text-1); }
   .gauge-track { background: var(--border-2); }
   .form-input, .small-input, .edit-input, .edit-select { background: var(--bg); border-color: var(--border-2); color: var(--text-1); }
   .item-name, .port-title, .port-card h2 { color: var(--text-1); }
+  /* Card style variants */
+  body.card-flat .card, body.card-flat .list-card, body.card-flat .port-card { border-radius: 6px; box-shadow: none; }
+  body.card-flat .art-cell { border-radius: 6px; }
+  body.card-glass .card, body.card-glass .list-card, body.card-glass .port-card {
+    background: rgba(255,255,255,0.06) !important; backdrop-filter: blur(20px) saturate(140%);
+    border-color: rgba(255,255,255,0.10) !important; box-shadow: 0 2px 24px rgba(0,0,0,.28);
+  }
 </style>
 </head>
 <body>
@@ -924,8 +939,13 @@ function showAuthScreen() {
 }
 function renderGreeting() {
   var eyebrow = document.getElementById("heroEyebrow");
-  var name = document.getElementById("heroName");
-  if (eyebrow) eyebrow.textContent = getTimeGreeting() + ",";
+  var name    = document.getElementById("heroName");
+  var lines   = (_settings && _settings.greetingLines)
+    ? _settings.greetingLines.trim().split('\n').map(function(l){return l.trim();}).filter(Boolean)
+    : [];
+  if (eyebrow) eyebrow.textContent = lines.length
+    ? lines[Math.floor(Math.random() * lines.length)]
+    : getTimeGreeting() + ",";
   if (name) name.textContent = USER_DISPLAY_NAME;
 }
 function showDashboardScreen() {
@@ -1022,6 +1042,7 @@ function bootAuth() {
       showDashboardScreen();
     } else {
       currentUserId = null;
+      _defaultPageApplied = false;
       showAuthScreen();
     }
   });
@@ -1107,22 +1128,23 @@ function initSidebar() {
       closeSidebar();
     });
   }
-  // Hamburger
-  var _sidebarToggled = false;
+  // Hamburger — click only (touchend caused double-fire on PWA/mobile)
+  window._sidebarLastToggle = 0;
   function _toggleSidebar(e) {
-    e.preventDefault();
-    if (_sidebarToggled) return;
-    _sidebarToggled = true;
-    setTimeout(function() { _sidebarToggled = false; }, 400);
+    e.stopPropagation();
+    var now = Date.now();
+    if (now - window._sidebarLastToggle < 450) return;
+    window._sidebarLastToggle = now;
     document.getElementById("sidebar").classList.toggle("open");
     document.getElementById("sidebarOverlay").classList.toggle("open");
   }
   document.getElementById("hamburgerBtn").addEventListener("click", _toggleSidebar);
-  document.getElementById("hamburgerBtn").addEventListener("touchend", _toggleSidebar, { passive: false });
   document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
 }
 
 function closeSidebar() {
+  // Ignore spurious close events that fire right after the sidebar was opened
+  if (Date.now() - (window._sidebarLastToggle || 0) < 400) return;
   document.getElementById("sidebar").classList.remove("open");
   document.getElementById("sidebarOverlay").classList.remove("open");
 }
@@ -3399,11 +3421,23 @@ async function saveArtContent() {
 /* ---------------- settings panel ---------------- */
 
 var _settings = null;
+var _defaultPageApplied = false;
+
+var THEMES = [
+  { id: 'dark',     name: 'Dark',          accent: '#E8643A', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', sidebarColor: '#0E1117', borderColor: '#2A313A' },
+  { id: 'warm',     name: 'Warm Dark',     accent: '#D4A853', bgColor: '#1A1410', cardColor: '#241C14', textColor: '#F0E6D3', sidebarColor: '#120E09', borderColor: '#3A2818' },
+  { id: 'light',    name: 'Light',         accent: '#E8643A', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
+  { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', sidebarColor: '#050505', borderColor: '#2A2A2A' }
+];
+
 var SETTINGS_DEFAULTS = {
   accent: '#E8643A',
   bgColor: '#12151A',
   cardColor: '#1B2027',
   textColor: '#EDEAE3',
+  sidebarColor: '#0E1117',
+  borderColor: '#2A313A',
+  cardStyle: 'rounded',
   contentZoom: 1,
   tabOrder: ['travel', 'budget', 'routines'],
   siteTitle: "Don's Space",
@@ -3413,7 +3447,12 @@ var SETTINGS_DEFAULTS = {
     budget:   'BUDGET PLANNER',
     workouts: 'WORKOUT PLANNER',
     routines: 'DAILY ROUTINES'
-  }
+  },
+  defaultPage: '',
+  hiddenPages: [],
+  userName: 'Don',
+  partnerName: 'Wife',
+  greetingLines: ''
 };
 
 function _pageLabel(key, fallback) {
@@ -3427,7 +3466,9 @@ async function loadSettings() {
       .select('data').eq('user_id', currentUserId).eq('tab_key', 'user-settings').maybeSingle();
     var saved = result.data && result.data.data ? result.data.data : {};
     _settings = Object.assign({}, SETTINGS_DEFAULTS, saved);
-    _settings.pageLabels = Object.assign({}, SETTINGS_DEFAULTS.pageLabels, saved.pageLabels || {});
+    _settings.pageLabels  = Object.assign({}, SETTINGS_DEFAULTS.pageLabels, saved.pageLabels || {});
+    _settings.hiddenPages = Array.isArray(saved.hiddenPages) ? saved.hiddenPages : [];
+    if (typeof _settings.greetingLines !== 'string') _settings.greetingLines = '';
   } catch(e) {
     _settings = Object.assign({}, SETTINGS_DEFAULTS);
   }
@@ -3441,13 +3482,20 @@ async function loadSettings() {
 function applySettings() {
   if (!_settings) return;
   var r = document.documentElement;
-  r.style.setProperty('--accent',       _settings.accent);
-  r.style.setProperty('--bg',           _settings.bgColor);
-  r.style.setProperty('--bg-card',      _settings.cardColor);
-  r.style.setProperty('--text-1',       _settings.textColor);
-  r.style.setProperty('--content-zoom', _settings.contentZoom);
+  r.style.setProperty('--accent',       _settings.accent       || SETTINGS_DEFAULTS.accent);
+  r.style.setProperty('--bg',           _settings.bgColor      || SETTINGS_DEFAULTS.bgColor);
+  r.style.setProperty('--bg-card',      _settings.cardColor    || SETTINGS_DEFAULTS.cardColor);
+  r.style.setProperty('--text-1',       _settings.textColor    || SETTINGS_DEFAULTS.textColor);
+  r.style.setProperty('--bg-sidebar',   _settings.sidebarColor || SETTINGS_DEFAULTS.sidebarColor);
+  r.style.setProperty('--border',       _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
+  r.style.setProperty('--border-2',     _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
+  r.style.setProperty('--content-zoom', _settings.contentZoom  || 1);
+  // Card style body class
+  document.body.classList.remove('card-flat', 'card-glass');
+  if (_settings.cardStyle === 'flat')  document.body.classList.add('card-flat');
+  if (_settings.cardStyle === 'glass') document.body.classList.add('card-glass');
   // Re-order the global TABS array to match saved preference
-  var ordered = _settings.tabOrder
+  var ordered = (_settings.tabOrder || [])
     .map(function(id) { return TABS.find(function(t) { return t.id === id; }); })
     .filter(Boolean);
   TABS.forEach(function(t) {
@@ -3460,13 +3508,39 @@ function applySettings() {
   if (titleEl) titleEl.textContent = _settings.siteTitle || "Don's Space";
   var logoEl = document.getElementById('sidebarLogoImg');
   if (logoEl) {
-    if (_settings.logoDataUrl) {
-      logoEl.src = _settings.logoDataUrl;
-      logoEl.style.display = 'block';
-    } else {
-      logoEl.style.display = 'none';
-    }
+    if (_settings.logoDataUrl) { logoEl.src = _settings.logoDataUrl; logoEl.style.display = 'block'; }
+    else                        { logoEl.style.display = 'none'; }
   }
+  // User & partner display names
+  if (_settings.userName)    USER_DISPLAY_NAME    = _settings.userName;
+  if (_settings.partnerName) PARTNER_DISPLAY_NAME = _settings.partnerName;
+  // Hidden pages
+  applyHiddenPages();
+  // Default landing page — apply once per session on first settings load
+  if (!_defaultPageApplied && _settings.defaultPage) {
+    _defaultPageApplied = true;
+    if (_settings.defaultPage !== 'dashboard') switchPage(_settings.defaultPage);
+  }
+}
+
+function applyHiddenPages() {
+  var hidden = (_settings && _settings.hiddenPages) || [];
+  document.querySelectorAll('.sidebar-item[data-page]').forEach(function(btn) {
+    var pg = btn.getAttribute('data-page');
+    // Never hide dashboard or settings
+    if (pg === 'dashboard' || pg === 'settings') return;
+    btn.style.display = hidden.indexOf(pg) >= 0 ? 'none' : '';
+  });
+  // Also hide section labels when all items under them are hidden
+  document.querySelectorAll('.sidebar-section-label').forEach(function(label) {
+    var next = label.nextElementSibling;
+    var hasVisible = false;
+    while (next && !next.classList.contains('sidebar-section-label')) {
+      if (next.classList.contains('sidebar-item') && next.style.display !== 'none') hasVisible = true;
+      next = next.nextElementSibling;
+    }
+    label.style.display = hasVisible ? '' : 'none';
+  });
 }
 
 async function saveSettings() {
@@ -3502,25 +3576,97 @@ function renderSettingsPage() {
     '</div></div>';
   }).join('');
 
+  // Build sidebar page toggle rows
+  var sidebarPages = [
+    { id: 'workouts',  label: 'Workouts' },
+    { id: 'portfolio', label: 'Work Portfolio' },
+    { id: 'art',       label: 'Art Portfolio' },
+    { id: 'education', label: 'Degree Tracker' },
+    { id: 'certs',     label: 'Certifications' }
+  ];
+  var hiddenPagesToggles = sidebarPages.map(function(pg) {
+    var isHidden = (s.hiddenPages || []).indexOf(pg.id) >= 0;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-2);">' +
+      '<span style="color:var(--text-1);font-size:14px;">' + escapeHtml(pg.label) + '</span>' +
+      '<label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer;">' +
+        '<input type="checkbox" id="settingHide_' + pg.id + '" ' + (!isHidden ? 'checked' : '') +
+          ' style="opacity:0;width:0;height:0;position:absolute;">' +
+        '<span style="position:absolute;inset:0;background:' + (!isHidden ? 'var(--accent)' : '#2A313A') +
+          ';border-radius:999px;transition:.2s;" id="settingHideTrack_' + pg.id + '">' +
+          '<span style="position:absolute;top:3px;left:' + (!isHidden ? '21px' : '3px') +
+            ';width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s;" id="settingHideThumb_' + pg.id + '"></span>' +
+        '</span>' +
+      '</label>' +
+    '</div>';
+  }).join('');
+
+  // Default page options
+  var pageOptions = [
+    { id: '',          label: 'Dashboard (default)' },
+    { id: 'workouts',  label: 'Workouts' },
+    { id: 'portfolio', label: 'Work Portfolio' },
+    { id: 'art',       label: 'Art Portfolio' },
+    { id: 'education', label: 'Degree Tracker' },
+    { id: 'certs',     label: 'Certifications' }
+  ];
+
+  // Card style buttons
+  function _cardStyleBtn(id, label, icon) {
+    var active = (s.cardStyle || 'rounded') === id;
+    return '<button data-card-style="' + id + '" style="flex:1;padding:12px 8px;border-radius:8px;border:2px solid ' +
+      (active ? 'var(--accent)' : 'var(--border-2)') + ';background:' + (active ? 'var(--accent)22' : 'var(--bg)') +
+      ';color:' + (active ? 'var(--accent)' : 'var(--text-1)') + ';cursor:pointer;font-family:inherit;font-size:13px;display:flex;flex-direction:column;align-items:center;gap:6px;">' +
+      '<span style="font-size:20px;">' + icon + '</span>' + escapeHtml(label) + '</button>';
+  }
+
+  // Theme swatches
+  var themeSwatches = THEMES.map(function(t) {
+    return '<button data-theme="' + t.id + '" style="flex:1;min-width:80px;padding:12px 8px;border-radius:10px;border:2px solid var(--border-2);background:' + t.bgColor +
+      ';cursor:pointer;transition:border-color .15s;display:flex;flex-direction:column;gap:8px;align-items:center;">' +
+      '<div style="display:flex;gap:4px;">' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + t.accent + ';"></span>' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + t.cardColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + t.sidebarColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
+      '</div>' +
+      '<span style="color:' + t.textColor + ';font-size:11px;font-weight:600;">' + escapeHtml(t.name) + '</span>' +
+    '</button>';
+  }).join('');
+
   inner.innerHTML =
-    '<div class="port-hero" style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:28px;">' +
+    '<div class="port-hero" style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:28px;">' +
       '<div class="port-eyebrow">Personalization</div>' +
       '<div class="port-title">Settings</div>' +
       '<div class="port-subtitle">Customize the look and feel of your dashboard.</div>' +
     '</div>' +
 
+    // ── Appearance ─────────────────────────────────────────────────────
     '<div class="port-section-label">Appearance</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:12px;">THEMES</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;" id="settingThemes">' + themeSwatches + '</div>' +
+    '</div>' +
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:16px;">COLORS</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px 24px;">' +
-        _colorRow('settingAccent', 'Accent',          s.accent)    +
-        _colorRow('settingBg',     'Background',       s.bgColor)   +
-        _colorRow('settingCard',   'Card background',  s.cardColor) +
-        _colorRow('settingText',   'Primary text',     s.textColor) +
+        _colorRow('settingAccent',  'Accent',           s.accent)                                      +
+        _colorRow('settingBg',      'Background',        s.bgColor)                                     +
+        _colorRow('settingCard',    'Card background',   s.cardColor)                                   +
+        _colorRow('settingText',    'Primary text',      s.textColor)                                   +
+        _colorRow('settingSidebar', 'Sidebar',           s.sidebarColor || SETTINGS_DEFAULTS.sidebarColor) +
       '</div>' +
       '<div style="margin-top:16px;display:flex;justify-content:flex-end;">' +
         '<button class="port-edit-btn" id="settingResetColors">Reset to defaults</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:12px;">CARD STYLE</div>' +
+      '<div style="display:flex;gap:10px;">' +
+        _cardStyleBtn('rounded', 'Rounded', '▣') +
+        _cardStyleBtn('flat',    'Flat',    '□') +
+        _cardStyleBtn('glass',   'Glass',   '◈') +
       '</div>' +
     '</div>' +
 
@@ -3530,31 +3676,41 @@ function renderSettingsPage() {
         '<span style="color:#8A919C;font-size:11px;line-height:1;">A</span>' +
         '<input type="range" id="settingZoom" min="0.8" max="1.3" step="0.05" value="' + s.contentZoom + '" style="flex:1;accent-color:var(--accent);" />' +
         '<span style="color:#8A919C;font-size:15px;line-height:1;">A</span>' +
-        '<span class="mono" id="settingZoomVal" style="color:#EDEAE3;font-size:13px;min-width:38px;text-align:right;">' + Math.round(s.contentZoom * 100) + '%</span>' +
+        '<span class="mono" id="settingZoomVal" style="color:var(--text-1);font-size:13px;min-width:38px;text-align:right;">' + Math.round(s.contentZoom * 100) + '%</span>' +
       '</div>' +
     '</div>' +
 
-    '<div class="port-section-label">Site Identity</div>' +
+    // ── Personal Branding ───────────────────────────────────────────────
+    '<div class="port-section-label">Personal Branding</div>' +
 
     '<div class="card" style="margin-bottom:16px;">' +
-      '<div class="gauge-label mono" style="margin-bottom:16px;">BRANDING</div>' +
-      '<div style="margin-bottom:16px;">' +
-        '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">Site name (shown in sidebar)</div>' +
-        '<input type="text" id="settingSiteTitle" value="' + escapeHtml(s.siteTitle || "Don's Space") + '" maxlength="40" ' +
-          'style="width:100%;background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:8px 10px;font-size:14px;box-sizing:border-box;" />' +
+      '<div class="gauge-label mono" style="margin-bottom:16px;">IDENTITY</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-bottom:16px;">' +
+        _labelRow('settingUserName',    'Your name',    s.userName    || 'Don')   +
+        _labelRow('settingPartnerName', 'Partner name', s.partnerName || 'Wife')  +
+        _labelRow('settingSiteTitle',   'Dashboard name (sidebar)', s.siteTitle || "Don's Space") +
       '</div>' +
       '<div>' +
         '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">Logo image (shown above site name)</div>' +
         '<div style="display:flex;align-items:center;gap:12px;">' +
           '<button class="port-edit-btn" id="settingLogoUploadBtn">Upload image</button>' +
           (s.logoDataUrl
-            ? '<img id="settingLogoPreview" src="' + s.logoDataUrl + '" style="max-height:40px;max-width:120px;object-fit:contain;border-radius:4px;border:1px solid #2A313A;" />'
+            ? '<img id="settingLogoPreview" src="' + s.logoDataUrl + '" style="max-height:40px;max-width:120px;object-fit:contain;border-radius:4px;border:1px solid var(--border-2);" />'
             : '<span id="settingLogoPreview" style="color:#5A6168;font-size:12px;">No logo set</span>') +
           (s.logoDataUrl ? '<button class="port-edit-btn" id="settingLogoClearBtn" style="color:#c0392b;border-color:#c0392b;">Remove</button>' : '') +
         '</div>' +
       '</div>' +
     '</div>' +
 
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">CUSTOM GREETING</div>' +
+      '<div style="color:#8A919C;font-size:12px;margin-bottom:10px;">One greeting per line. A random line is shown each visit. Leave blank for the default time-based greeting.</div>' +
+      '<textarea id="settingGreetingLines" rows="4" placeholder="Hey,\nWelcome back,\nHello," ' +
+        'style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical;">' +
+        escapeHtml(s.greetingLines || '') + '</textarea>' +
+    '</div>' +
+
+    // ── Page Labels ─────────────────────────────────────────────────────
     '<div class="port-section-label">Page Labels</div>' +
 
     '<div class="card" style="margin-bottom:16px;">' +
@@ -3568,6 +3724,24 @@ function renderSettingsPage() {
       '</div>' +
     '</div>' +
 
+    // ── Navigation ──────────────────────────────────────────────────────
+    '<div class="port-section-label">Navigation</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:8px;">DEFAULT LANDING PAGE</div>' +
+      '<div style="color:#8A919C;font-size:12px;margin-bottom:12px;">Which page opens first when you log in.</div>' +
+      '<select id="settingDefaultPage" style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:8px 10px;font-size:14px;font-family:inherit;">' +
+        pageOptions.map(function(pg) { return '<option value="' + pg.id + '"' + ((s.defaultPage || '') === pg.id ? ' selected' : '') + '>' + escapeHtml(pg.label) + '</option>'; }).join('') +
+      '</select>' +
+    '</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">SHOW / HIDE SIDEBAR ITEMS</div>' +
+      '<div style="color:#8A919C;font-size:12px;margin-bottom:4px;">Toggle pages on and off. Dashboard and Settings are always visible.</div>' +
+      hiddenPagesToggles +
+    '</div>' +
+
+    // ── Dashboard Tabs ──────────────────────────────────────────────────
     '<div class="port-section-label">Dashboard Tabs</div>' +
 
     '<div class="card" style="margin-bottom:16px;">' +
@@ -3580,12 +3754,41 @@ function renderSettingsPage() {
       '<button class="add-btn" id="settingSaveBtn" style="background:var(--accent);">Save settings</button>' +
     '</div>';
 
+  // Theme swatches
+  var themesEl = document.getElementById('settingThemes');
+  if (themesEl) {
+    themesEl.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-theme]');
+      if (!btn) return;
+      var t = THEMES.find(function(th) { return th.id === btn.getAttribute('data-theme'); });
+      if (!t) return;
+      _settings.accent       = t.accent;
+      _settings.bgColor      = t.bgColor;
+      _settings.cardColor    = t.cardColor;
+      _settings.textColor    = t.textColor;
+      _settings.sidebarColor = t.sidebarColor;
+      _settings.borderColor  = t.borderColor;
+      applySettings();
+      renderSettingsPage();
+    });
+  }
+
+  // Card style buttons
+  inner.querySelectorAll('[data-card-style]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _settings.cardStyle = btn.getAttribute('data-card-style');
+      applySettings();
+      renderSettingsPage();
+    });
+  });
+
   // Color pickers — live preview on input
   [
-    { id: 'settingAccent', hexId: 'settingAccentHex', key: 'accent',    cssVar: '--accent'   },
-    { id: 'settingBg',     hexId: 'settingBgHex',     key: 'bgColor',   cssVar: '--bg'       },
-    { id: 'settingCard',   hexId: 'settingCardHex',   key: 'cardColor', cssVar: '--bg-card'  },
-    { id: 'settingText',   hexId: 'settingTextHex',   key: 'textColor', cssVar: '--text-1'   }
+    { id: 'settingAccent',  hexId: 'settingAccentHex',  key: 'accent',       cssVar: '--accent'     },
+    { id: 'settingBg',      hexId: 'settingBgHex',      key: 'bgColor',      cssVar: '--bg'         },
+    { id: 'settingCard',    hexId: 'settingCardHex',     key: 'cardColor',    cssVar: '--bg-card'    },
+    { id: 'settingText',    hexId: 'settingTextHex',     key: 'textColor',    cssVar: '--text-1'     },
+    { id: 'settingSidebar', hexId: 'settingSidebarHex',  key: 'sidebarColor', cssVar: '--bg-sidebar' }
   ].forEach(function(f) {
     var input = document.getElementById(f.id);
     if (!input) return;
@@ -3727,6 +3930,49 @@ function renderSettingsPage() {
     });
   });
 
+  // User name
+  var userNameInp = document.getElementById('settingUserName');
+  if (userNameInp) userNameInp.addEventListener('input', function() {
+    _settings.userName = userNameInp.value;
+    USER_DISPLAY_NAME = userNameInp.value || 'Don';
+  });
+
+  // Partner name
+  var partnerNameInp = document.getElementById('settingPartnerName');
+  if (partnerNameInp) partnerNameInp.addEventListener('input', function() {
+    _settings.partnerName = partnerNameInp.value;
+    PARTNER_DISPLAY_NAME = partnerNameInp.value || 'Wife';
+  });
+
+  // Greeting lines
+  var greetingInp = document.getElementById('settingGreetingLines');
+  if (greetingInp) greetingInp.addEventListener('input', function() { _settings.greetingLines = greetingInp.value; });
+
+  // Default landing page
+  var defPageSel = document.getElementById('settingDefaultPage');
+  if (defPageSel) defPageSel.addEventListener('change', function() { _settings.defaultPage = defPageSel.value; });
+
+  // Show/hide sidebar page toggles
+  sidebarPages.forEach(function(pg) {
+    var cb = document.getElementById('settingHide_' + pg.id);
+    if (!cb) return;
+    cb.addEventListener('change', function() {
+      var hidden = _settings.hiddenPages || [];
+      if (cb.checked) { // visible
+        _settings.hiddenPages = hidden.filter(function(id) { return id !== pg.id; });
+      } else { // hidden
+        if (hidden.indexOf(pg.id) < 0) hidden.push(pg.id);
+        _settings.hiddenPages = hidden;
+      }
+      // Update toggle visuals
+      var track = document.getElementById('settingHideTrack_' + pg.id);
+      var thumb = document.getElementById('settingHideThumb_' + pg.id);
+      if (track) track.style.background = cb.checked ? 'var(--accent)' : '#2A313A';
+      if (thumb) thumb.style.left = cb.checked ? '21px' : '3px';
+      applyHiddenPages();
+    });
+  });
+
   // Save
   var saveBtn = document.getElementById('settingSaveBtn');
   if (saveBtn) {
@@ -3745,8 +3991,8 @@ function renderSettingsPage() {
 function _labelRow(id, label, value) {
   return '<div>' +
     '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
-    '<input type="text" id="' + id + '" value="' + escapeHtml(value) + '" maxlength="40" ' +
-      'style="width:100%;background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box;text-transform:uppercase;letter-spacing:0.06em;" />' +
+    '<input type="text" id="' + id + '" value="' + escapeHtml(value) + '" maxlength="60" ' +
+      'style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box;text-transform:uppercase;letter-spacing:0.06em;" />' +
   '</div>';
 }
 
