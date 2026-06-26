@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portfolio</title>
+<style>
+  @font-face {
+    font-family: 'Asap';
+    src: url('Asap_VariableFont_wdth_wght.ttf') format('truetype');
+    font-weight: 100 900; font-style: normal; font-display: swap;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #12151A; color: #EDEAE3; font-family: 'Asap', system-ui, -apple-system, sans-serif; }
+  .serif { font-weight: 800; letter-spacing: -0.01em; }
+  a { color: #E8643A; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .page-inner { max-width: 720px; margin: 0 auto; padding: 40px 20px 60px; }
+
+  .port-hero { padding: 40px 0 28px; border-bottom: 1px solid #2A313A; margin-bottom: 28px; }
+  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-title { font-size: 36px; font-weight: 800; color: #EDEAE3; line-height: 1.1; margin-bottom: 6px; }
+  .port-subtitle { color: #8A919C; font-size: 14px; }
+  .port-intro { color: #EDEAE3; font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
+  .port-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #5A6168; font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 32px 0 20px; }
+  .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
+  .port-card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px; margin-bottom: 20px; }
+  .port-card:hover { border-color: #E8643A44; }
+  .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-card h2 { font-size: 22px; font-weight: 700; color: #EDEAE3; margin: 0 0 4px; }
+  .port-meta { color: #5A6168; font-size: 13px; margin-bottom: 14px; }
+  .port-card p { color: #8A919C; font-size: 15px; line-height: 1.65; margin-bottom: 12px; }
+  .port-card ul { margin: 0 0 14px 18px; padding: 0; }
+  .port-card li { color: #8A919C; font-size: 15px; margin-bottom: 6px; line-height: 1.5; }
+  .port-metrics { display: flex; gap: 24px; flex-wrap: wrap; margin: 18px 0; padding: 16px 0; border-top: 1px solid #2A313A; border-bottom: 1px solid #2A313A; }
+  .port-metric-num { font-size: 26px; font-weight: 800; color: #E8643A; display: block; line-height: 1; font-family: ui-monospace, monospace; }
+  .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
+  .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .port-tool { background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
+  .port-img { width: 100%; border-radius: 6px; display: block; margin-top: 16px; }
+
+  .loading { color: #5A6168; font-size: 14px; padding: 60px 0; text-align: center; }
+  .error-banner { background: #2A1810; border: 1px solid #E8643A44; border-radius: 8px; padding: 16px 20px; color: #FF8A5C; font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+  .error-banner code { background: #1B2027; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+
+  @media (max-width: 600px) { .page-inner { padding: 24px 16px 40px; } .port-title { font-size: 28px; } }
+</style>
+</head>
+<body>
+<div class="page-inner" id="root">
+  <div class="loading">Loading portfolio…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/*
+  PUBLIC PORTFOLIO PAGE
+  =====================
+  This page reads your portfolio content from Supabase and renders it
+  without requiring any login.
+
+  SETUP (one time):
+  1. Open your Supabase project → SQL Editor and run:
+
+     CREATE POLICY "Public portfolio read" ON dashboard_data
+       FOR SELECT
+       USING (
+         tab_key IN ('portfolio-content') OR
+         tab_key LIKE 'portfolio-img-%'
+       );
+
+  2. Fill in YOUR_USER_ID below with your Supabase user ID.
+     You can find it in Supabase → Authentication → Users, or
+     by opening the dashboard app and checking the browser console.
+
+  3. Fill in SUPABASE_URL and SUPABASE_ANON_KEY (same values as in index.html).
+*/
+
+var SUPABASE_URL     = "https://rqlnwomkrmhxffzzngyi.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
+var USER_ID          = "";   // <-- paste your Supabase user ID here
+
+// ─── Default content (shown when Supabase data hasn't loaded yet) ───────────
+// This mirrors the static HTML in index.html so the page looks right
+// even before any edits have been saved from the dashboard.
+var DEFAULT_CONTENT = {
+  "port-eyebrow":   "Systems &amp; Implementation",
+  "port-title":     "Work Portfolio",
+  "port-subtitle":  "PMP-Certified Implementation &amp; Business Systems Professional",
+  "port-intro":     "A working record of the systems implementations, platform integrations, and process automation projects I&#8217;ve owned end-to-end &#8212; built to show <span style=\"color:#E8643A;\">how</span> I approach problems, not just what&#8217;s on a resume line.",
+  "c1-tag":   "SaaS Marketplace Implementation",
+  "c1-title": "Channel Engine Multi-Marketplace Integration",
+  "c1-meta":  "Sylvane, Inc. &#8212; Project Lead &amp; Platform SME",
+  "c1-desc":  "Led the implementation and ongoing administration of Channel Engine, a SaaS marketplace integration platform connecting our Shopify storefront and NetSuite ERP to four major marketplaces. Owned data mapping, cross-functional coordination, and internal training.",
+  "c1-bullets": "<li>Data mapping across Shopify, NetSuite, and four marketplace schemas</li><li>Cross-functional coordination across operations, merchandising, and IT</li><li>Independently launched the Best Buy integration during a leadership absence</li>",
+  "c1-m1-num": "3,000+", "c1-m1-lbl": "SKUs Onboarded",
+  "c1-m2-num": "4",      "c1-m2-lbl": "Marketplaces",
+  "c1-m3-num": "$60K+",  "c1-m3-lbl": "New Channel Revenue",
+  "c1-tools": "<span class=\"port-tool\">Channel Engine</span><span class=\"port-tool\">Shopify</span><span class=\"port-tool\">NetSuite</span><span class=\"port-tool\">EDI</span>",
+  "c2-tag":   "Custom Application Build",
+  "c2-title": "Automated Inventory Re-Order System",
+  "c2-meta":  "Sylvane, Inc. &#8212; Designer &amp; Builder",
+  "c2-desc":  "Designed and built a custom inventory reorder application in Google Sheets, integrating live data from our internal reporting tool and NetSuite. The system calculates weighted weeks-of-supply and suggested order quantities automatically.",
+  "c2-bullets": "<li>Live data integration via automated hourly refresh from reporting tool and NetSuite</li><li>Custom weighted sales algorithm for Weeks of Supply prioritizing recent trends</li><li>Google Apps Script automation for reorder worksheet and PO generation</li>",
+  "c2-tools": "<span class=\"port-tool\">Google Sheets</span><span class=\"port-tool\">Google Apps Script</span><span class=\"port-tool\">NetSuite</span><span class=\"port-tool\">Shopify</span>",
+  "c3-tag":   "Government Contract Systems",
+  "c3-title": "GSA Contract Tracking &amp; Modification Workbook",
+  "c3-meta":  "Sylvane, Inc. &#8212; Builder &amp; Administrator",
+  "c3-desc":  "Built and maintain an Excel-based tracking workbook for GSA Multiple Award Schedule contract modifications, used to coordinate compliance deadlines, pricing updates, and documentation across operations and merchandising.",
+  "c3-m1-num": "4+", "c3-m1-lbl": "Modifications / Year",
+  "c3-tools": "<span class=\"port-tool\">Excel</span><span class=\"port-tool\">SharePoint</span><span class=\"port-tool\">OneDrive</span>",
+  "c4-tag":   "Platform Migration",
+  "c4-title": "Shopify-to-NetSuite Systems Migration",
+  "c4-meta":  "Sylvane, Inc. &#8212; Merchandising Systems Lead",
+  "c4-desc":  "Led the merchandising systems workstream of a company-wide Shopify-to-NetSuite platform migration, building the bulk import templates and documentation that became the team&#8217;s standard workflow for inventory and pricing updates.",
+  "c4-m1-num": "10+", "c4-m1-lbl": "NetSuite Templates Built",
+  "c4-tools": "<span class=\"port-tool\">NetSuite</span><span class=\"port-tool\">Shopify</span><span class=\"port-tool\">Matrixify</span>",
+  "c5-tag":   "Personal Project",
+  "c5-title": "Personal Life Dashboard",
+  "c5-meta":  "Self-built &#8212; Vanilla JS / Supabase / GitHub Pages",
+  "c5-desc":  "Designed and built this dashboard from scratch &#8212; a multi-tab personal finance and wellness tracker with real-time Supabase sync, multi-trip travel planning, budget forecasting against pay periods, and workout session logging with lift tracking.",
+  "c5-tools": "<span class=\"port-tool\">HTML / CSS / JS</span><span class=\"port-tool\">Supabase</span><span class=\"port-tool\">GitHub Pages</span>",
+  "port-footer": "Donovan Staten &#8212; <a href=\"mailto:donstaten23@gmail.com\" style=\"color:#E8643A;text-decoration:none;\">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href=\"https://linkedin.com/in/donovanstaten\" style=\"color:#E8643A;text-decoration:none;\" target=\"_blank\">LinkedIn</a>"
+};
+
+// ─── Render ─────────────────────────────────────────────────────────────────
+
+function k(key) {
+  return (window._content && window._content[key]) ? window._content[key] : (DEFAULT_CONTENT[key] || '');
+}
+
+function img(imageKey) {
+  var src = window._images && window._images[imageKey];
+  return src ? '<img class="port-img" src="' + src + '" alt="" />' : '';
+}
+
+function renderPortfolio() {
+  var root = document.getElementById('root');
+
+  var setupNote = !USER_ID
+    ? '<div class="error-banner">&#9888;&#65039; <strong>Setup needed:</strong> Open <code>portfolio.html</code>, fill in <code>USER_ID</code> with your Supabase user ID, then run the SQL policy shown in the comments at the top of this file.<br>Content shown below is the default placeholder text.</div>'
+    : '';
+
+  root.innerHTML = setupNote +
+    '<div class="port-hero">' +
+      '<div class="port-eyebrow">' + k('port-eyebrow') + '</div>' +
+      '<div class="port-title serif">' + k('port-title') + '</div>' +
+      '<div class="port-subtitle">' + k('port-subtitle') + '</div>' +
+    '</div>' +
+
+    '<p class="port-intro">' + k('port-intro') + '</p>' +
+
+    '<div class="port-section-label">Featured Projects</div>' +
+
+    _card('c1', img('port-img-1')) +
+    _card('c2', img('port-img-2')) +
+    _card('c3', img('port-img-3'), true) +
+    _card('c4', img('port-img-4'), true) +
+    _card('c5', '') +
+
+    '<div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;">' +
+      k('port-footer') +
+    '</div>';
+}
+
+function _card(prefix, imgHtml, noMetrics) {
+  var m1 = k(prefix + '-m1-num') ? (
+    '<div class="port-metrics">' +
+      '<div><span class="port-metric-num">' + k(prefix + '-m1-num') + '</span><span class="port-metric-label">' + k(prefix + '-m1-lbl') + '</span></div>' +
+      (k(prefix + '-m2-num') ? '<div><span class="port-metric-num">' + k(prefix + '-m2-num') + '</span><span class="port-metric-label">' + k(prefix + '-m2-lbl') + '</span></div>' : '') +
+      (k(prefix + '-m3-num') ? '<div><span class="port-metric-num">' + k(prefix + '-m3-num') + '</span><span class="port-metric-label">' + k(prefix + '-m3-lbl') + '</span></div>' : '') +
+    '</div>'
+  ) : '';
+
+  var bullets = k(prefix + '-bullets') ? '<ul>' + k(prefix + '-bullets') + '</ul>' : '';
+
+  return '<div class="port-card">' +
+    '<div class="port-tag">' + k(prefix + '-tag') + '</div>' +
+    '<h2>' + k(prefix + '-title') + '</h2>' +
+    '<div class="port-meta">' + k(prefix + '-meta') + '</div>' +
+    '<p>' + k(prefix + '-desc') + '</p>' +
+    bullets + m1 +
+    (k(prefix + '-tools') ? '<div class="port-tools">' + k(prefix + '-tools') + '</div>' : '') +
+    imgHtml +
+  '</div>';
+}
+
+// ─── Load from Supabase ──────────────────────────────────────────────────────
+
+async function loadAndRender() {
+  window._content = null;
+  window._images  = {};
+
+  if (!USER_ID) {
+    renderPortfolio();
+    return;
+  }
+
+  if (!window.supabase) {
+    document.getElementById('root').innerHTML = '<div class="error-banner">Could not load Supabase library. Check your internet connection.</div>';
+    renderPortfolio();
+    return;
+  }
+
+  var client;
+  try {
+    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    renderPortfolio();
+    return;
+  }
+
+  try {
+    // Fetch text content
+    var contentResult = await client.from('dashboard_data')
+      .select('data')
+      .eq('user_id', USER_ID)
+      .eq('tab_key', 'portfolio-content')
+      .maybeSingle();
+    if (contentResult.data && contentResult.data.data) {
+      window._content = contentResult.data.data;
+    }
+
+    // Fetch images (each stored as its own row)
+    var imgResult = await client.from('dashboard_data')
+      .select('tab_key, data')
+      .eq('user_id', USER_ID)
+      .like('tab_key', 'portfolio-img-%');
+    if (imgResult.data && imgResult.data.length) {
+      imgResult.data.forEach(function(row) {
+        var key = row.tab_key.replace('portfolio-img-', '');
+        if (row.data && row.data.src) window._images[key] = row.data.src;
+      });
+    }
+  } catch(e) {
+    // Supabase error (likely RLS blocking anonymous reads)
+    var root = document.getElementById('root');
+    root.innerHTML = '<div class="error-banner">&#9888;&#65039; <strong>Could not load portfolio data.</strong> If you haven\'t set up the public read policy yet, run this in Supabase SQL Editor:<br><br>' +
+      '<code>CREATE POLICY "Public portfolio read" ON dashboard_data FOR SELECT USING (tab_key IN (\'portfolio-content\') OR tab_key LIKE \'portfolio-img-%\');</code><br><br>' +
+      'Then reload this page. Showing default content below.</div>' +
+      root.innerHTML;
+  }
+
+  renderPortfolio();
+}
+
+loadAndRender();
+</script>
+</body>
+</html>
