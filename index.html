@@ -182,6 +182,10 @@
   .art-cell-icon { font-size: 32px; margin-bottom: 8px; }
   .art-cell img { width: 100%; height: auto; display: block; }
   .art-cell .ph-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3; border-radius: 12px; }
+  /* delete-image button — shown only in edit mode on filled cells */
+  .img-del-btn { display: none; position: absolute; top: 6px; right: 6px; z-index: 20; background: rgba(0,0,0,.72); border: none; color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 14px; line-height: 22px; text-align: center; cursor: pointer; padding: 0; }
+  .art-cell.editing-mode .img-del-btn { display: block; }
+  .port-placeholder.editing-mode .img-del-btn { display: block; }
   .art-cell:not(.locked):hover .ph-overlay { opacity: 1; }
   .art-caption { font-size: 12px; color: #8A919C; text-align: center; padding: 5px 4px 0; }
   .art-caption:empty:not([contenteditable]) { display: none; }
@@ -392,7 +396,7 @@
       <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
     </header>
-    <form id="authForm" class="card" style="margin:0;" method="post" action="#">
+    <form id="authForm" class="card" style="margin:0;" method="post" action="" autocomplete="on">
       <div class="form-row">
         <input class="form-input" type="email" id="authEmail" name="email" placeholder="Email" autocomplete="username" required />
         <input class="form-input" type="password" id="authPassword" name="password" placeholder="Password" autocomplete="current-password" required />
@@ -440,6 +444,9 @@
       </button>
       <button class="sidebar-item" data-page="certs">
         <span class="s-icon">&#127941;</span> Certifications
+      </button>
+      <button class="sidebar-item" data-page="jobs">
+        <span class="s-icon">&#128188;</span> Job Tracker
       </button>
       <div class="sidebar-section-label" style="margin-top:8px;">System</div>
       <button class="sidebar-item" data-page="settings">
@@ -744,6 +751,11 @@
       <div class="page-inner"></div>
     </div>
 
+    <!-- Page: Job Tracker -->
+    <div class="page" id="page-jobs">
+      <div class="page-inner"></div>
+    </div>
+
     <!-- Page: Settings -->
     <div class="page" id="page-settings">
       <div class="page-inner"></div>
@@ -976,7 +988,14 @@ async function handleSignIn() {
   errEl.textContent = "";
   if (!email || !password) { errEl.textContent = "Enter an email and password."; return; }
   var result = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
-  if (result.error) errEl.textContent = result.error.message;
+  if (result.error) { errEl.textContent = result.error.message; return; }
+  // Offer to save credentials in browsers that support the Credential Management API
+  if (window.PasswordCredential && email && password) {
+    try {
+      var cred = new window.PasswordCredential({ id: email, password: password, name: email });
+      await navigator.credentials.store(cred);
+    } catch(e) { /* non-fatal — browser may decline silently */ }
+  }
 }
 async function handleSignUp() {
   var email = document.getElementById("authEmail").value.trim();
@@ -1044,6 +1063,16 @@ function bootAuth() {
       currentUserId = null;
       _defaultPageApplied = false;
       showAuthScreen();
+      // Auto-fill from saved credentials (Chrome Credential Management API)
+      if (navigator.credentials && window.PasswordCredential) {
+        navigator.credentials.get({ password: true, mediation: 'silent' })
+          .then(function(cred) {
+            if (cred) {
+              document.getElementById('authEmail').value    = cred.id;
+              document.getElementById('authPassword').value = cred.password;
+            }
+          }).catch(function() {});
+      }
     }
   });
 }
@@ -1175,6 +1204,9 @@ function switchPage(page) {
   if (page === "certs") {
     renderCertPage();
   }
+  if (page === "jobs") {
+    renderJobsPage();
+  }
   // Render settings page each visit so it picks up current state
   if (page === "settings") {
     renderSettingsPage();
@@ -1204,42 +1236,80 @@ function initClock() {
 
 /* ---------------- portfolio image upload ---------------- */
 
+// Each image is stored as its own Supabase row with tab_key = "portfolio-img-{key}"
+// This avoids hitting row-size limits when all images were in one JSON blob.
 var _portImages = {};
 
 async function loadPortfolioImages() {
   if (!currentUserId) return;
   try {
+    // Fetch all per-image rows for this user
     var result = await supabaseClient.from("dashboard_data")
-      .select("data").eq("user_id", currentUserId).eq("tab_key", "portfolio-images").maybeSingle();
-    if (result.data && result.data.data) {
-      _portImages = result.data.data;
-      applyPortfolioImages();
+      .select("tab_key, data")
+      .eq("user_id", currentUserId)
+      .like("tab_key", "portfolio-img-%");
+    if (result.data && result.data.length) {
+      result.data.forEach(function(row) {
+        var key = row.tab_key.replace("portfolio-img-", "");
+        if (row.data && row.data.src) _portImages[key] = row.data.src;
+      });
     }
+    // Migrate old single-blob format if it exists
+    var old = await supabaseClient.from("dashboard_data")
+      .select("data").eq("user_id", currentUserId).eq("tab_key", "portfolio-images").maybeSingle();
+    if (old.data && old.data.data) {
+      var blob = old.data.data;
+      var _legacyMap = {
+        'art-img-1': 'art-d-1', 'art-img-2': 'art-d-2', 'art-img-3': 'art-d-3',
+        'art-img-4': 'art-d-4', 'art-img-5': 'art-d-5', 'art-img-6': 'art-d-6'
+      };
+      var migrated = [];
+      Object.keys(blob).forEach(function(k) {
+        if (!blob[k]) return;
+        var newKey = _legacyMap[k] || k;
+        if (!_portImages[newKey]) {
+          _portImages[newKey] = blob[k];
+          migrated.push(savePortfolioImage(newKey, blob[k]));
+        }
+      });
+      if (migrated.length) {
+        await Promise.all(migrated);
+        // Remove old blob row
+        await supabaseClient.from("dashboard_data")
+          .delete().eq("user_id", currentUserId).eq("tab_key", "portfolio-images");
+      }
+    }
+    applyPortfolioImages();
   } catch(e) { console.error("Portfolio images load error", e); }
 }
 
 function applyPortfolioImages() {
-  // backward compat: old art-img-N keys map to first Digital Art group slots
-  var _legacyMap = {
-    'art-img-1': 'art-d-1', 'art-img-2': 'art-d-2', 'art-img-3': 'art-d-3',
-    'art-img-4': 'art-d-4', 'art-img-5': 'art-d-5', 'art-img-6': 'art-d-6'
-  };
   Object.keys(_portImages).forEach(function(key) {
-    var lookupKey = _legacyMap[key] || key;
-    var el = document.querySelector('[data-image-key="' + lookupKey + '"]');
+    var el = document.querySelector('[data-image-key="' + key + '"]');
     if (el && _portImages[key]) setPlaceholderImage(el, _portImages[key]);
   });
 }
 
 function setPlaceholderImage(el, imgSrc) {
+  var key = el.getAttribute("data-image-key") || "";
   if (el.classList.contains("art-cell")) {
     el.innerHTML =
       '<img src="' + imgSrc + '" alt="Artwork" />' +
-      '<div class="ph-overlay">&#128247; Replace</div>';
+      '<div class="ph-overlay">&#128247; Replace</div>' +
+      '<button class="img-del-btn" data-delete-key="' + key + '" title="Remove image">×</button>';
   } else {
     el.innerHTML =
       '<img src="' + imgSrc + '" alt="Portfolio image" style="width:100%;border-radius:6px;display:block;" />' +
-      '<div class="ph-overlay">&#128247; Replace image</div>';
+      '<div class="ph-overlay">&#128247; Replace image</div>' +
+      '<button class="img-del-btn" data-delete-key="' + key + '" title="Remove image">×</button>';
+  }
+  // Attach delete handler
+  var delBtn = el.querySelector(".img-del-btn");
+  if (delBtn) {
+    delBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      clearPortfolioImage(el, key);
+    });
   }
 }
 
@@ -1254,19 +1324,20 @@ function triggerImageUpload(el) {
     var key = el.getAttribute("data-image-key");
     var reader = new FileReader();
     reader.onload = function(ev) {
-      // Compress using canvas before storing
       var img = new Image();
       img.onload = function() {
         var canvas = document.createElement("canvas");
-        var MAX = 1200;
+        var MAX = 900;
         var ratio = Math.min(MAX / img.width, MAX / img.height, 1);
         canvas.width = Math.round(img.width * ratio);
         canvas.height = Math.round(img.height * ratio);
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        var compressed = canvas.toDataURL("image/jpeg", 0.82);
+        var compressed = canvas.toDataURL("image/jpeg", 0.78);
         _portImages[key] = compressed;
         setPlaceholderImage(el, compressed);
-        savePortfolioImages();
+        // Re-apply editing class so delete button stays visible
+        if (_portEditing || _artEditing) el.classList.add("editing-mode");
+        savePortfolioImage(key, compressed);
       };
       img.src = ev.target.result;
     };
@@ -1274,6 +1345,44 @@ function triggerImageUpload(el) {
   };
   input.click();
 }
+
+async function savePortfolioImage(key, dataUrl) {
+  if (!currentUserId) return;
+  try {
+    await supabaseClient.from("dashboard_data").upsert({
+      user_id: currentUserId,
+      tab_key: "portfolio-img-" + key,
+      data: { src: dataUrl },
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error("Portfolio image save error [" + key + "]", e); }
+}
+
+function clearPortfolioImage(el, key) {
+  delete _portImages[key];
+  // Reset to empty placeholder HTML
+  if (el.classList.contains("art-cell")) {
+    el.innerHTML = '<div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div>';
+  } else {
+    var hint = el.querySelector(".ph-content");
+    var hintHtml = hint ? hint.outerHTML : '<div class="ph-content">&#128247; Click to upload a screenshot</div>';
+    el.innerHTML = hintHtml + '<div class="ph-overlay">&#128247; Replace image</div>';
+  }
+  // Re-attach click handler since we're in edit mode
+  el.onclick = function() { triggerImageUpload(el); };
+  deletePortfolioImageRow(key);
+}
+
+async function deletePortfolioImageRow(key) {
+  if (!currentUserId) return;
+  try {
+    await supabaseClient.from("dashboard_data")
+      .delete().eq("user_id", currentUserId).eq("tab_key", "portfolio-img-" + key);
+  } catch(e) { console.error("Portfolio image delete error [" + key + "]", e); }
+}
+
+// Keep old name for any legacy call paths
+function savePortfolioImages() { /* no-op — images now saved per-key */ }
 
 /* ------------ portfolio edit mode ------------ */
 
@@ -1299,9 +1408,11 @@ function togglePortfolioEdit() {
   for (var i = 0; i < phs.length; i++) {
     if (_portEditing) {
       phs[i].classList.remove("locked");
+      phs[i].classList.add("editing-mode");
       phs[i].onclick = function() { triggerImageUpload(this); };
     } else {
       phs[i].classList.add("locked");
+      phs[i].classList.remove("editing-mode");
       phs[i].onclick = null;
     }
   }
@@ -3364,9 +3475,11 @@ function toggleArtEdit() {
   for (var i = 0; i < cells.length; i++) {
     if (_artEditing) {
       cells[i].classList.remove("locked");
+      cells[i].classList.add("editing-mode");
       cells[i].onclick = function() { triggerImageUpload(this); };
     } else {
       cells[i].classList.add("locked");
+      cells[i].classList.remove("editing-mode");
       cells[i].onclick = null;
     }
   }
@@ -3582,7 +3695,8 @@ function renderSettingsPage() {
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
-    { id: 'certs',     label: 'Certifications' }
+    { id: 'certs',     label: 'Certifications' },
+    { id: 'jobs',      label: 'Job Tracker' }
   ];
   var hiddenPagesToggles = sidebarPages.map(function(pg) {
     var isHidden = (s.hiddenPages || []).indexOf(pg.id) >= 0;
@@ -3607,7 +3721,8 @@ function renderSettingsPage() {
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
-    { id: 'certs',     label: 'Certifications' }
+    { id: 'certs',     label: 'Certifications' },
+    { id: 'jobs',      label: 'Job Tracker' }
   ];
 
   // Card style buttons
@@ -4740,6 +4855,250 @@ async function renderCertPage() {
   initScrollAnims();
 }
 
+/* ---------------- job tracker ---------------- */
+
+var _jobData    = null;
+var _jobAddMode = false;
+var _jobEditId  = null;
+var _jobStageFilter = 'all';
+
+var JOB_STAGES = [
+  { id: 'saved',     label: 'Saved',     color: '#5A6168' },
+  { id: 'applied',   label: 'Applied',   color: '#5B8FA8' },
+  { id: 'interview', label: 'Interview', color: '#D9A441' },
+  { id: 'offer',     label: 'Offer',     color: '#5BAE7A' },
+  { id: 'rejected',  label: 'Rejected',  color: '#D9667A' }
+];
+
+function _jobStage(id) {
+  return JOB_STAGES.find(function(s) { return s.id === id; }) || JOB_STAGES[0];
+}
+
+async function loadJobData() {
+  if (!currentUserId) return;
+  var def = { jobs: [] };
+  try {
+    var r = await supabaseClient.from('dashboard_data')
+      .select('data').eq('user_id', currentUserId).eq('tab_key', 'jobs-data').maybeSingle();
+    if (r.data && r.data.data) {
+      _jobData = Object.assign({}, def, r.data.data);
+      if (!Array.isArray(_jobData.jobs)) _jobData.jobs = [];
+    } else {
+      _jobData = def;
+    }
+  } catch(e) { _jobData = def; }
+}
+
+async function saveJobData() {
+  if (!currentUserId || !_jobData) return;
+  try {
+    await supabaseClient.from('dashboard_data').upsert({
+      user_id: currentUserId, tab_key: 'jobs-data',
+      data: _jobData, updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error('Job save error', e); }
+}
+
+async function renderJobsPage() {
+  var page = document.getElementById('page-jobs');
+  if (!page) return;
+  var inner = page.querySelector('.page-inner');
+
+  if (!_jobData) {
+    inner.innerHTML = '<div class="empty-state">Loading…</div>';
+    await loadJobData();
+  }
+
+  var data = _jobData;
+  var jobs  = data.jobs || [];
+
+  // Stage summary counts
+  var counts = {};
+  JOB_STAGES.forEach(function(s) { counts[s.id] = 0; });
+  jobs.forEach(function(j) { var sid = j.stage || 'saved'; if (counts[sid] !== undefined) counts[sid]++; });
+
+  var summaryHtml = JOB_STAGES.map(function(s) {
+    var active = _jobStageFilter === s.id;
+    return '<button data-action="job-filter" data-stage="' + s.id + '" style="flex:1;min-width:80px;padding:14px 8px;border-radius:10px;cursor:pointer;font-family:inherit;border:2px solid ' + (active ? s.color : 'var(--border-2)') + ';background:' + (active ? s.color + '22' : 'var(--bg-card)') + ';transition:.15s;">' +
+      '<div style="font-size:26px;font-weight:800;color:' + s.color + ';">' + counts[s.id] + '</div>' +
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#8A919C;margin-top:4px;">' + s.label + '</div>' +
+    '</button>';
+  }).join('');
+
+  var filtered = _jobStageFilter === 'all' ? jobs : jobs.filter(function(j) { return (j.stage || 'saved') === _jobStageFilter; });
+  // Sort: newest applied date first, then by creation order
+  filtered = filtered.slice().sort(function(a, b) {
+    var da = a.dateApplied || a.createdAt || '';
+    var db = b.dateApplied || b.createdAt || '';
+    return db.localeCompare(da);
+  });
+
+  var jobsHtml = filtered.length === 0
+    ? '<div class="empty-state">No jobs ' + (_jobStageFilter === 'all' ? 'tracked yet.' : 'in this stage.') + ' Add one below.</div>'
+    : '<div class="list-card">' + filtered.map(function(job) {
+        var st = _jobStage(job.stage || 'saved');
+        if (_jobEditId === job.id) {
+          return '<div class="item-row"><div class="item-edit">' +
+            '<div class="edit-line" style="margin-bottom:8px;">' +
+              '<input class="edit-input grow" id="jobEditCompany" placeholder="Company *" value="' + escapeHtml(job.company || '') + '" />' +
+              '<input class="edit-input grow" id="jobEditRole" placeholder="Role / Title *" value="' + escapeHtml(job.role || '') + '" />' +
+            '</div>' +
+            '<div class="edit-line" style="margin-bottom:8px;">' +
+              '<select class="edit-select" id="jobEditStage">' + JOB_STAGES.map(function(s) { return '<option value="' + s.id + '"' + (s.id === (job.stage || 'saved') ? ' selected' : '') + '>' + s.label + '</option>'; }).join('') + '</select>' +
+              '<input class="edit-input date" type="date" id="jobEditDate" value="' + escapeHtml(job.dateApplied || '') + '" title="Date applied" />' +
+              '<input class="edit-input" style="width:100px;" id="jobEditSalary" placeholder="Salary (est.)" value="' + escapeHtml(job.salary || '') + '" />' +
+            '</div>' +
+            '<div class="edit-line" style="margin-bottom:8px;">' +
+              '<input class="edit-input grow" id="jobEditLink" placeholder="Job posting URL" value="' + escapeHtml(job.link || '') + '" />' +
+            '</div>' +
+            '<div class="edit-line">' +
+              '<input class="edit-input grow" id="jobEditNotes" placeholder="Notes" value="' + escapeHtml(job.notes || '') + '" />' +
+              '<button class="icon-btn" data-action="job-save-edit" data-job="' + job.id + '" style="color:#5BAE7A;">✓</button>' +
+              '<button class="icon-btn" data-action="job-cancel-edit">✕</button>' +
+            '</div>' +
+          '</div></div>';
+        }
+        var meta = [];
+        if (job.dateApplied) meta.push('Applied ' + formatDateShort(job.dateApplied));
+        if (job.salary) meta.push(escapeHtml(job.salary));
+        return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
+          '<span class="item-bar" style="background:' + st.color + ';"></span>' +
+          '<div class="item-main">' +
+            '<div class="item-name">' + escapeHtml(job.company || 'Unknown Company') + '</div>' +
+            '<div style="color:#8A919C;font-size:13px;margin-bottom:2px;">' + escapeHtml(job.role || '') + '</div>' +
+            (meta.length ? '<div class="item-sub">' + meta.join(' · ') + '</div>' : '') +
+            (job.notes ? '<div style="color:#5A6168;font-size:12px;margin-top:2px;font-style:italic;">' + escapeHtml(job.notes) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">' +
+            '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
+            '<div style="display:flex;gap:4px;">' +
+              (job.link ? '<a href="' + escapeHtml(job.link) + '" target="_blank" rel="noopener" class="icon-btn" title="Open posting" style="color:#5B8FA8;text-decoration:none;">&#128279;</a>' : '') +
+              '<button class="icon-btn" data-action="job-edit" data-job="' + job.id + '">✎</button>' +
+              '<button class="icon-btn" data-action="job-delete" data-job="' + job.id + '">✕</button>' +
+            '</div>' +
+          '</div>' +
+        '</div></div>';
+      }).join('') + '</div>';
+
+  var addFormHtml = _jobAddMode
+    ? '<div class="card" style="margin-top:8px;margin-bottom:12px;">' +
+        '<div class="gauge-label mono" style="margin-bottom:12px;">ADD JOB</div>' +
+        '<div class="edit-line" style="margin-bottom:8px;">' +
+          '<input class="edit-input grow" id="jobNewCompany" placeholder="Company *" />' +
+          '<input class="edit-input grow" id="jobNewRole" placeholder="Role / Title *" />' +
+        '</div>' +
+        '<div class="edit-line" style="margin-bottom:8px;">' +
+          '<select class="edit-select" id="jobNewStage">' + JOB_STAGES.map(function(s) { return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('') + '</select>' +
+          '<input class="edit-input date" type="date" id="jobNewDate" value="' + todayISO() + '" title="Date applied" />' +
+          '<input class="edit-input" style="width:100px;" id="jobNewSalary" placeholder="Salary (est.)" />' +
+        '</div>' +
+        '<div class="edit-line" style="margin-bottom:8px;">' +
+          '<input class="edit-input grow" id="jobNewLink" placeholder="Job posting URL" />' +
+        '</div>' +
+        '<div class="edit-line">' +
+          '<input class="edit-input grow" id="jobNewNotes" placeholder="Notes (optional)" />' +
+          '<button class="add-btn" data-action="job-confirm-add" style="background:#5B8FA8;flex-shrink:0;">Add</button>' +
+          '<button class="icon-btn" data-action="job-cancel-add">✕</button>' +
+        '</div>' +
+      '</div>'
+    : '';
+
+  inner.innerHTML =
+    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
+      '<div class="port-eyebrow">Career</div>' +
+      '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Job Tracker</div>' +
+      '<div style="color:#8A919C;font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;" id="jobSummaryCards">' + summaryHtml + '</div>' +
+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<div class="port-section-label" style="margin:0;">' +
+        (_jobStageFilter === 'all' ? 'All Jobs' : _jobStage(_jobStageFilter).label) +
+        ' <span style="color:#5A6168;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">(' + filtered.length + ')</span>' +
+      '</div>' +
+      '<button class="port-edit-btn" data-action="job-filter" data-stage="all" style="font-size:12px;' + (_jobStageFilter === 'all' ? 'background:var(--accent);color:#fff;border-color:var(--accent);' : '') + '">Show all</button>' +
+    '</div>' +
+
+    jobsHtml +
+    addFormHtml +
+
+    '<div style="padding:12px 0 40px;">' +
+      (_jobAddMode ? '' : '<button class="port-edit-btn" data-action="job-show-add">+ Add job</button>') +
+    '</div>';
+
+  // Focus add form
+  if (_jobAddMode) { var jnEl = document.getElementById('jobNewCompany'); if (jnEl) jnEl.focus(); }
+  if (_jobEditId)  { var jeEl = document.getElementById('jobEditCompany'); if (jeEl) jeEl.focus(); }
+
+  // Escape to cancel
+  inner.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      if (_jobEditId)  { _jobEditId  = null; renderJobsPage(); return; }
+      if (_jobAddMode) { _jobAddMode = false; renderJobsPage(); return; }
+    }
+  });
+
+  if (!inner._jobClickAttached) {
+    inner._jobClickAttached = true;
+    inner.addEventListener('click', function(e) {
+      var d = _jobData;
+      if (!d) return;
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      var jid    = btn.getAttribute('data-job');
+      var job    = jid ? (d.jobs || []).find(function(j) { return j.id === jid; }) : null;
+
+      if (action === 'job-filter') {
+        _jobStageFilter = btn.getAttribute('data-stage') || 'all';
+        renderJobsPage();
+      } else if (action === 'job-show-add') {
+        _jobAddMode = true; _jobEditId = null; renderJobsPage();
+      } else if (action === 'job-cancel-add') {
+        _jobAddMode = false; renderJobsPage();
+      } else if (action === 'job-confirm-add') {
+        var comp = (document.getElementById('jobNewCompany') || {}).value || '';
+        var role = (document.getElementById('jobNewRole')    || {}).value || '';
+        if (!comp.trim()) { var el = document.getElementById('jobNewCompany'); if (el) el.focus(); return; }
+        if (!d.jobs) d.jobs = [];
+        d.jobs.push({
+          id:          uid(),
+          company:     comp.trim(),
+          role:        role.trim(),
+          stage:       (document.getElementById('jobNewStage')  || {}).value || 'saved',
+          dateApplied: ((document.getElementById('jobNewDate')   || {}).value || '').trim(),
+          salary:      ((document.getElementById('jobNewSalary') || {}).value || '').trim(),
+          link:        ((document.getElementById('jobNewLink')   || {}).value || '').trim(),
+          notes:       ((document.getElementById('jobNewNotes')  || {}).value || '').trim(),
+          createdAt:   todayISO()
+        });
+        _jobAddMode = false; saveJobData(); renderJobsPage();
+      } else if (action === 'job-edit') {
+        _jobEditId = jid; _jobAddMode = false; renderJobsPage();
+      } else if (action === 'job-cancel-edit') {
+        _jobEditId = null; renderJobsPage();
+      } else if (action === 'job-save-edit') {
+        if (!job) return;
+        job.company     = ((document.getElementById('jobEditCompany') || {}).value || '').trim();
+        job.role        = ((document.getElementById('jobEditRole')    || {}).value || '').trim();
+        job.stage       = (document.getElementById('jobEditStage')    || {}).value || 'saved';
+        job.dateApplied = ((document.getElementById('jobEditDate')    || {}).value || '').trim();
+        job.salary      = ((document.getElementById('jobEditSalary')  || {}).value || '').trim();
+        job.link        = ((document.getElementById('jobEditLink')    || {}).value || '').trim();
+        job.notes       = ((document.getElementById('jobEditNotes')   || {}).value || '').trim();
+        _jobEditId = null; saveJobData(); renderJobsPage();
+      } else if (action === 'job-delete') {
+        d.jobs = (d.jobs || []).filter(function(j) { return j.id !== jid; });
+        if (_jobEditId === jid) _jobEditId = null;
+        saveJobData(); renderJobsPage();
+      }
+    });
+  }
+
+  initScrollAnims();
+}
+
 /* ---------------- boot ---------------- */
 
 bootAuth();
@@ -4754,3 +5113,4 @@ bootAuth();
 
 </body>
 </html>
+
