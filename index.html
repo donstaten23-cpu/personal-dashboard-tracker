@@ -429,6 +429,12 @@
       <button class="sidebar-item active" data-page="dashboard">
         <span class="s-icon">&#9783;</span> Overview
       </button>
+      <button class="sidebar-item" data-page="travel">
+        <span class="s-icon">&#9992;</span> Travel
+      </button>
+      <button class="sidebar-item" data-page="budget">
+        <span class="s-icon">&#9650;</span> Budget
+      </button>
       <button class="sidebar-item" data-page="workouts">
         <span class="s-icon">&#9651;</span> Workouts
       </button>
@@ -507,8 +513,21 @@
 
         <div id="gcalCard" style="margin-bottom:16px;"></div>
 
-        <div class="tabnav" id="tabnav"></div>
-        <div id="tabroot"></div>
+        <div id="routinesRoot"></div>
+      </div>
+    </div>
+
+    <!-- Page: Travel -->
+    <div class="page" id="page-travel">
+      <div class="page-inner">
+        <div id="travelPageRoot"></div>
+      </div>
+    </div>
+
+    <!-- Page: Budget -->
+    <div class="page" id="page-budget">
+      <div class="page-inner">
+        <div id="budgetPageRoot"></div>
       </div>
     </div>
 
@@ -787,11 +806,7 @@ var currentUserId = null;
 
 /* ---------------- shared constants ---------------- */
 
-var TABS = [
-  { id: "travel", label: "Travel", accent: "#E8643A" },
-  { id: "budget", label: "Budget", accent: "#5BAE7A" },
-  { id: "routines", label: "Routines", accent: "#D9A441" }
-];
+var TABS = [];  // travel + budget moved to sidebar pages; routines rendered inline
 
 var TRAVEL_CATEGORIES = [
   { id: "flights", label: "Flights", color: "#E8643A", glyph: "\u2708" },
@@ -969,8 +984,6 @@ function showDashboardScreen() {
   document.getElementById("authScreen").style.display = "none";
   document.getElementById("dashboardScreen").style.display = "block";
   renderGreeting();
-  renderTabNav();
-  renderActiveTab();
   initSidebar();
   initClock();
   loadPortfolioImages();
@@ -978,6 +991,12 @@ function showDashboardScreen() {
   loadArtContent();
   loadSettings();
   initGoogleCalendar();
+  // Render routines inline on the overview page
+  var rtRoot = document.getElementById("routinesRoot");
+  if (rtRoot && !rtRoot._loaded) {
+    rtRoot._loaded = true;
+    renderRoutinesTab(rtRoot);
+  }
   // Pre-load workouts page
   var wkRoot = document.getElementById("workoutPageRoot");
   if (wkRoot && !wkRoot._loaded) {
@@ -1110,6 +1129,7 @@ var currentTab = "travel";
 
 function renderTabNav() {
   var nav = document.getElementById("tabnav");
+  if (!nav) return;
   nav.innerHTML = TABS.map(function (t) {
     var active = t.id === currentTab;
     var style = active ? "background:" + t.accent + ";border-color:" + t.accent + ";" : "";
@@ -1128,6 +1148,7 @@ function renderTabNav() {
 function renderActiveTab() {
   if (window._countdownInterval) { clearInterval(window._countdownInterval); window._countdownInterval = null; }
   var root = document.getElementById("tabroot");
+  if (!root) return;
   root.innerHTML = "";
   if (currentTab === "travel") {
     renderTravelTab(root);
@@ -1195,6 +1216,32 @@ function switchPage(page) {
   var items = document.querySelectorAll(".sidebar-item[data-page]");
   for (var i = 0; i < items.length; i++) {
     items[i].classList.toggle("active", items[i].getAttribute("data-page") === page);
+  }
+  // Clear budget countdown when leaving budget page
+  if (page !== "budget" && window._countdownInterval) {
+    clearInterval(window._countdownInterval);
+    window._countdownInterval = null;
+  }
+  // Travel page — re-render each visit
+  if (page === "travel") {
+    var tvRoot = document.getElementById("travelPageRoot");
+    if (tvRoot) renderTravelTab(tvRoot);
+  }
+  // Budget page — re-render each visit
+  if (page === "budget") {
+    var bgRoot = document.getElementById("budgetPageRoot");
+    if (bgRoot) renderSpendTab(bgRoot, {
+      storageKey: "dashboard-budget-data",
+      defaultTitle: "Monthly Budget",
+      categories: BUDGET_CATEGORIES,
+      goalLabel: "Monthly budget",
+      amountLabel: "Amount",
+      emptyText: "No expenses logged yet. Add your first one below.",
+      accent: "#5BAE7A",
+      enableSelection: true,
+      showSavingsGoal: true,
+      eyebrow: _pageLabel('budget', 'BUDGET PLANNER')
+    });
   }
   // Lazy-load workouts page if first visit
   if (page === "workouts") {
@@ -3697,6 +3744,8 @@ function renderSettingsPage() {
 
   // Build sidebar page toggle rows
   var sidebarPages = [
+    { id: 'travel',    label: 'Travel' },
+    { id: 'budget',    label: 'Budget' },
     { id: 'workouts',  label: 'Workouts' },
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
@@ -3723,6 +3772,8 @@ function renderSettingsPage() {
   // Default page options
   var pageOptions = [
     { id: '',          label: 'Dashboard (default)' },
+    { id: 'travel',    label: 'Travel' },
+    { id: 'budget',    label: 'Budget' },
     { id: 'workouts',  label: 'Workouts' },
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
@@ -3862,14 +3913,6 @@ function renderSettingsPage() {
       hiddenPagesToggles +
     '</div>' +
 
-    // ── Dashboard Tabs ──────────────────────────────────────────────────
-    '<div class="port-section-label">Dashboard Tabs</div>' +
-
-    '<div class="card" style="margin-bottom:16px;">' +
-      '<div class="gauge-label mono" style="margin-bottom:4px;">TAB ORDER</div>' +
-      '<div style="color:#8A919C;font-size:12px;margin-bottom:12px;">Use the arrows to reorder the tabs shown in the dashboard.</div>' +
-      '<div class="list-card" id="settingTabOrder" style="border:none;padding:0;">' + tabOrderRows + '</div>' +
-    '</div>' +
 
     '<div style="display:flex;justify-content:flex-end;padding-bottom:40px;">' +
       '<button class="add-btn" id="settingSaveBtn" style="background:var(--accent);">Save settings</button>' +
@@ -5178,8 +5221,8 @@ function renderGcalCard() {
   var connected = _gcalToken && Date.now() < _gcalTokenExpiry;
 
   cardEl.innerHTML = '<div class="card" style="padding:18px 20px;">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;' + (connected ? "margin-bottom:14px;" : "") + '">' +
-      '<span class="gauge-label mono" style="letter-spacing:.12em;">GOOGLE CALENDAR</span>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;' + (connected ? "margin-bottom:16px;" : "") + '">' +
+      '<span class="gauge-label mono" style="letter-spacing:.12em;">UPCOMING EVENTS</span>' +
       (connected ? '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' : "") +
     "</div>" +
     (connected
@@ -5206,11 +5249,11 @@ async function fetchAndRenderCalendarEvents() {
 
   try {
     var now    = new Date().toISOString();
-    var maxEnd = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+    var maxEnd = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
     var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events" +
       "?timeMin=" + encodeURIComponent(now) +
       "&timeMax=" + encodeURIComponent(maxEnd) +
-      "&singleEvents=true&orderBy=startTime&maxResults=12";
+      "&singleEvents=true&orderBy=startTime&maxResults=20";
 
     var resp = await fetch(url, { headers: { Authorization: "Bearer " + _gcalToken } });
 
@@ -5225,33 +5268,62 @@ async function fetchAndRenderCalendarEvents() {
     var events = json.items || [];
 
     if (!events.length) {
-      evEl.innerHTML = '<div style="color:#5A6168;font-size:13px;padding:4px 0;">No events in the next 14 days.</div>';
+      evEl.innerHTML = '<div style="color:#5A6168;font-size:13px;padding:8px 0;">No upcoming events this week.</div>';
       return;
     }
 
-    var today = todayISO();
-    evEl.innerHTML = events.map(function(ev, idx) {
-      var isAllDay = !ev.start.dateTime;
-      var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
-      var d        = new Date(rawStart);
-      var dayStr   = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
-      var dateNum  = d.getDate();
-      var timeStr  = isAllDay ? "All day" : d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-      var isToday  = (ev.start.dateTime || ev.start.date).slice(0, 10) === today;
-      var accent   = isToday ? "var(--accent)" : "#5B8FA8";
-      var border   = idx < events.length - 1 ? "border-bottom:1px solid var(--border-2);" : "";
+    var today    = todayISO();
+    var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-      return '<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 0;' + border + '">' +
-        '<div style="flex-shrink:0;text-align:center;background:' + accent + '1A;border-radius:7px;padding:5px 8px;min-width:46px;">' +
-          '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:' + accent + ';">' + dayStr + "</div>" +
-          '<div style="font-size:18px;font-weight:800;color:' + accent + ';line-height:1.1;">' + dateNum + "</div>" +
-        "</div>" +
-        '<div style="flex:1;min-width:0;padding-top:3px;">' +
-          '<div style="color:var(--text-1);font-size:14px;font-weight:' + (isToday ? "600" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + "</div>" +
-          '<div style="color:#8A919C;font-size:12px;margin-top:2px;">' + timeStr + (ev.location ? " &middot; " + escapeHtml(ev.location.split(",")[0]) : "") + "</div>" +
-        "</div>" +
-      "</div>";
-    }).join("");
+    // Group events by date
+    var groups = {};
+    var dateOrder = [];
+    events.forEach(function(ev) {
+      var dateKey = (ev.start.dateTime || ev.start.date).slice(0, 10);
+      if (!groups[dateKey]) { groups[dateKey] = []; dateOrder.push(dateKey); }
+      groups[dateKey].push(ev);
+    });
+
+    var html = dateOrder.map(function(dateKey, groupIdx) {
+      var isToday    = dateKey === today;
+      var isTomorrow = dateKey === tomorrow;
+      var dayAccent  = isToday ? "var(--accent)" : isTomorrow ? "#D9A441" : "#5B8FA8";
+
+      var d = new Date(dateKey + "T12:00:00");
+      var dayLabel = isToday ? "TODAY"
+        : isTomorrow ? "TOMORROW"
+        : d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase() +
+          " · " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+
+      var eventsHtml = groups[dateKey].map(function(ev) {
+        var isAllDay = !ev.start.dateTime;
+        var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
+        var d2       = new Date(rawStart);
+        var timeStr  = isAllDay ? "All day" : d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;">' +
+          '<div style="flex-shrink:0;width:56px;text-align:right;padding-top:2px;">' +
+            '<span style="font-size:11px;color:#8A919C;font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
+          '</div>' +
+          '<div style="width:2px;min-height:18px;align-self:stretch;background:' + dayAccent + '33;border-radius:2px;flex-shrink:0;margin-top:3px;"></div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="color:var(--text-1);font-size:13px;font-weight:' + (isToday ? "500" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + '</div>' +
+            (ev.location ? '<div style="color:#5A6168;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      var marginTop = groupIdx > 0 ? "margin-top:14px;" : "";
+      return '<div style="' + marginTop + '">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+          '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:' + dayAccent + ';">' + dayLabel + '</span>' +
+          '<div style="flex:1;height:1px;background:' + dayAccent + '25;"></div>' +
+        '</div>' +
+        eventsHtml +
+      '</div>';
+    }).join('');
+
+    evEl.innerHTML = html;
   } catch(e) {
     var evEl2 = document.getElementById("gcalEvents");
     if (evEl2) evEl2.innerHTML = '<div style="color:#FF8A5C;font-size:13px;">Failed to load events.</div>';
