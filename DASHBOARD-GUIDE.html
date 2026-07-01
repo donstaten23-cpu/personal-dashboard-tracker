@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Developer Guide</title>
+<style>
+  @font-face {
+    font-family: 'Asap';
+    src: url('Asap_VariableFont_wdth_wght.ttf') format('truetype');
+    font-weight: 100 900; font-style: normal;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #12151A;
+    color: #EDEAE3;
+    font-family: 'Asap', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  h1 { font-size: 32px; font-weight: 800; color: #EDEAE3; margin: 0 0 6px; }
+  h2 { font-size: 20px; font-weight: 700; color: #EDEAE3; margin: 40px 0 12px; border-left: 3px solid #E8643A; padding-left: 12px; }
+  h3 { font-size: 15px; font-weight: 700; color: #E8643A; margin: 20px 0 6px; text-transform: uppercase; letter-spacing: .08em; }
+  p  { color: #8A919C; margin: 0 0 12px; }
+  a  { color: #E8643A; }
+
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { color: #5A6168; font-size: 14px; margin-bottom: 32px; }
+
+  .card {
+    background: #1B2027;
+    border: 1px solid #2A313A;
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .card p { margin: 0; }
+
+  code {
+    font-family: ui-monospace, 'Cascadia Code', monospace;
+    font-size: 12px;
+    background: #12151A;
+    border: 1px solid #2A313A;
+    border-radius: 5px;
+    padding: 2px 7px;
+    color: #E8643A;
+  }
+  pre {
+    background: #0E1117;
+    border: 1px solid #2A313A;
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    margin: 12px 0 18px;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #8A919C;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  pre code .k  { color: #E8643A; }   /* keyword / accent */
+  pre code .s  { color: #5BAE7A; }   /* string */
+  pre code .c  { color: #3A4250; }   /* comment */
+
+  .divider { height: 1px; background: #1E2530; margin: 36px 0; }
+
+  .step-grid { display: grid; grid-template-columns: 28px 1fr; gap: 8px 16px; margin: 14px 0; }
+  .step-num  { width: 28px; height: 28px; background: #E8643A22; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #E8643A; flex-shrink: 0; margin-top: 2px; }
+  .step-body { color: #8A919C; }
+  .step-body strong { color: #EDEAE3; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: #5A6168; font-weight: 700; padding: 8px 12px; border-bottom: 1px solid #2A313A; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1E2530; color: #8A919C; vertical-align: top; font-size: 14px; }
+  td:first-child { color: #EDEAE3; font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; margin-right: 6px; }
+  .badge-orange { background: #E8643A22; color: #E8643A; }
+  .badge-green  { background: #5BAE7A22; color: #5BAE7A; }
+  .badge-blue   { background: #5B8FA822; color: #5B8FA8; }
+  .badge-gold   { background: #D9A44122; color: #D9A441; }
+
+  .toc { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; padding: 18px 22px; margin-bottom: 36px; }
+  .toc-title { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #5A6168; font-weight: 700; margin-bottom: 10px; }
+  .toc a { color: #8A919C; text-decoration: none; display: block; padding: 3px 0; font-size: 14px; }
+  .toc a:hover { color: #E8643A; }
+  .toc .toc-num { color: #3A4250; font-variant-numeric: tabular-nums; margin-right: 8px; }
+
+  @media print {
+    body { background: #fff; color: #111; }
+    .card { border-color: #ddd; background: #f9f9f9; }
+    pre { background: #f5f5f5; border-color: #ddd; }
+    pre code { color: #444; }
+    h1, h2 { color: #111; }
+    h3 { color: #c04; }
+    a { color: #c04; }
+    p, .step-body, td { color: #444; }
+    td:first-child { color: #111; }
+    .toc a { color: #444; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Developer Reference</div>
+  <h1>Dashboard Guide</h1>
+  <div class="subtitle">How the personal dashboard is built, stored, and extended</div>
+
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <a href="#files"><span class="toc-num">1.</span> File structure</a>
+    <a href="#constants"><span class="toc-num">2.</span> Key constants (things you edit to customize)</a>
+    <a href="#data"><span class="toc-num">3.</span> How data is stored (Supabase)</a>
+    <a href="#pages"><span class="toc-num">4.</span> Page architecture</a>
+    <a href="#sections"><span class="toc-num">5.</span> What each section does</a>
+    <a href="#addpage"><span class="toc-num">6.</span> How to add a new page</a>
+    <a href="#theming"><span class="toc-num">7.</span> Theming &amp; CSS variables</a>
+    <a href="#gcal"><span class="toc-num">8.</span> Google Calendar integration</a>
+    <a href="#settings"><span class="toc-num">9.</span> Settings system</a>
+  </div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="files">1. File structure</h2>
+
+  <div class="card">
+    <p>The entire app is a <strong style="color:#EDEAE3;">single HTML file</strong> with no build tools, no framework, and no npm. Everything — HTML structure, CSS styles, and JavaScript logic — lives in <code>index.html</code>.</p>
+  </div>
+
+  <table>
+    <tr><th>File</th><th>Purpose</th></tr>
+    <tr><td>index.html</td><td>The entire app. ~5,300 lines of HTML + CSS + JS in one file.</td></tr>
+    <tr><td>portfolio.html</td><td>Standalone <em>public</em> portfolio page. Reads from Supabase without login. Share this URL on your resume.</td></tr>
+    <tr><td>manifest.json</td><td>Makes the app installable as a PWA (progressive web app) on mobile and desktop.</td></tr>
+    <tr><td>Asap_VariableFont_wdth_wght.ttf</td><td>The custom font used everywhere.</td></tr>
+    <tr><td>sd-logo.svg, Icon-192.png, icon-512.png</td><td>App icons used by the PWA manifest and browser tab.</td></tr>
+    <tr><td>DASHBOARD-GUIDE.html</td><td>This file.</td></tr>
+  </table>
+
+  <h3>Layout of index.html</h3>
+  <pre><code>&lt;head&gt;
+  CSS styles (lines ~12–380)
+  Google Identity Services script tag (for Calendar)
+
+&lt;body&gt;
+  Auth screen        — email/password sign-in form
+  Dashboard screen
+    Sidebar          — navigation links
+    Main content
+      page-dashboard — Overview: clock, calendar card, routines
+      page-travel    — Trip planner
+      page-budget    — Monthly budget
+      page-workouts  — Workout log
+      page-portfolio — Editable work portfolio
+      page-art       — Art portfolio with image grid
+      page-education — Degree tracker
+      page-certs     — Certifications
+      page-jobs      — Job applications tracker
+      page-settings  — All settings
+
+&lt;script&gt;
+  Supabase + constants
+  Shared utilities (escapeHtml, todayISO, uid…)
+  Auth logic
+  Sidebar + page switching
+  Travel tab
+  Budget / spending tab
+  Routines tab
+  Workouts tab
+  Portfolio (work + art)
+  Education / certs / jobs
+  Settings
+  Google Calendar module
+  boot()
+&lt;/script&gt;</code></pre>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="constants">2. Key constants</h2>
+
+  <p>These are at the very top of the <code>&lt;script&gt;</code> block, around line 775. Edit them directly in <code>index.html</code>.</p>
+
+  <table>
+    <tr><th>Constant</th><th>What it does</th></tr>
+    <tr><td>SUPABASE_URL</td><td>Your Supabase project URL. Found in Supabase → Settings → API.</td></tr>
+    <tr><td>SUPABASE_ANON_KEY</td><td>Your Supabase publishable/anon key. Same location.</td></tr>
+    <tr><td>USER_DISPLAY_NAME</td><td>Your first name — shown in the greeting ("Good morning, Don").</td></tr>
+    <tr><td>PARTNER_DISPLAY_NAME</td><td>Label used in the Budget tab's pay schedule ("Wife" pay period, etc.).</td></tr>
+    <tr><td>GOOGLE_CLIENT_ID</td><td>OAuth 2.0 client ID for the Google Calendar integration.</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="data">3. How data is stored (Supabase)</h2>
+
+  <div class="card">
+    <p>All data lives in a single Supabase table called <strong style="color:#EDEAE3;">dashboard_data</strong>. Each "section" of the dashboard is one row, identified by a <code>tab_key</code> string. The actual content is stored as a JSON object in the <code>data</code> column (type JSONB).</p>
+  </div>
+
+  <h3>Table schema</h3>
+  <pre><code>dashboard_data
+  user_id     uuid        (ties data to the signed-in user)
+  tab_key     text        (identifies which section this row is for)
+  data        jsonb       (the section's data as a JSON object)
+  updated_at  timestamptz (set on every save)</code></pre>
+
+  <h3>Tab keys used by this app</h3>
+  <table>
+    <tr><th>tab_key</th><th>What's stored</th></tr>
+    <tr><td>dashboard-travel-data</td><td>All trips: array of trip objects, each with items (flights, stay, activities…).</td></tr>
+    <tr><td>dashboard-budget-data</td><td>Monthly expenses, savings goal, pay period config.</td></tr>
+    <tr><td>dashboard-routines-data</td><td>Routines array with name, frequency, completion history, streaks.</td></tr>
+    <tr><td>dashboard-workouts-data</td><td>Workout sessions, exercises, sets/reps/weight history.</td></tr>
+    <tr><td>dashboard-education-data</td><td>Degree program, courses, grades.</td></tr>
+    <tr><td>dashboard-certs-data</td><td>Certifications list with dates and status.</td></tr>
+    <tr><td>dashboard-jobs-data</td><td>Job applications with status, company, notes.</td></tr>
+    <tr><td>portfolio-content</td><td>All the text fields on the Work Portfolio page (editable in-place).</td></tr>
+    <tr><td>portfolio-img-{key}</td><td>One row per portfolio image. <code>data.src</code> holds a base64 data URL. Keys: port-img-1 through port-img-5, art-dp-1 through art-dp-6, art-sp-1 through art-sp-6, etc.</td></tr>
+    <tr><td>user-settings</td><td>Theme colors, sidebar visibility, default landing page, greeting lines, content zoom.</td></tr>
+  </table>
+
+  <h3>How a section loads and saves data</h3>
+  <pre><code><span class="c">// LOAD — call this inside any render function</span>
+var data = await loadTabData(<span class="s">"dashboard-travel-data"</span>, { trips: [] });
+<span class="c">// Returns saved data, or the default object if no row exists yet.</span>
+
+<span class="c">// SAVE — call this whenever the user makes a change</span>
+await saveTabData(<span class="s">"dashboard-travel-data"</span>, data);
+<span class="c">// Upserts the row (insert if new, update if existing).</span></code></pre>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="pages">4. Page architecture</h2>
+
+  <h3>How pages work</h3>
+  <p>Every page is a <code>&lt;div class="page" id="page-{name}"&gt;</code> inside <code>.main-content</code>. Only one page has the <code>active</code> class at a time, which makes it visible. All others are hidden via CSS (<code>display:none</code>).</p>
+
+  <pre><code><span class="c">&lt;!-- In the HTML --&gt;</span>
+&lt;div class="page active" id="page-dashboard"&gt;...&lt;/div&gt;
+&lt;div class="page" id="page-travel"&gt;...&lt;/div&gt;
+&lt;div class="page" id="page-budget"&gt;...&lt;/div&gt;</code></pre>
+
+  <h3>How navigation works</h3>
+  <p>Every sidebar button has a <code>data-page="name"</code> attribute. Clicking it calls <code>switchPage("name")</code>, which:</p>
+  <div class="step-grid">
+    <div class="step-num">1</div><div class="step-body">Removes <code>active</code> from all <code>.page</code> divs and adds it to <code>#page-{name}</code></div>
+    <div class="step-num">2</div><div class="step-body">Removes <code>active</code> from all sidebar buttons and adds it to the clicked one</div>
+    <div class="step-num">3</div><div class="step-body">Runs any page-specific render logic (e.g. <code>renderTravelTab()</code>, <code>renderSpendTab()</code>)</div>
+  </div>
+
+  <h3>Lazy loading</h3>
+  <p>Heavy pages like Workouts are rendered once on first visit using a <code>_loaded</code> flag on the root element. Pages like Travel and Budget re-render on every visit (since their data changes frequently). Routines renders once on sign-in and stays in the DOM.</p>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="sections">5. What each section does</h2>
+
+  <table>
+    <tr><th>Page</th><th>Render function</th><th>Data key</th></tr>
+    <tr><td>Overview (dashboard)</td><td>Inline — routines rendered to <code>#routinesRoot</code> on load</td><td>—</td></tr>
+    <tr><td>Travel</td><td>renderTravelTab(root)</td><td>dashboard-travel-data</td></tr>
+    <tr><td>Budget</td><td>renderSpendTab(root, cfg)</td><td>dashboard-budget-data</td></tr>
+    <tr><td>Workouts</td><td>renderWorkoutsTab(root)</td><td>dashboard-workouts-data</td></tr>
+    <tr><td>Work Portfolio</td><td>loadPortfolioContent() + in-place editing</td><td>portfolio-content + portfolio-img-*</td></tr>
+    <tr><td>Art Portfolio</td><td>loadArtContent()</td><td>portfolio-img-* (art-dp-*, art-sp-*)</td></tr>
+    <tr><td>Degree Tracker</td><td>renderEducationPage()</td><td>dashboard-education-data</td></tr>
+    <tr><td>Certifications</td><td>renderCertPage()</td><td>dashboard-certs-data</td></tr>
+    <tr><td>Job Tracker</td><td>renderJobsPage()</td><td>dashboard-jobs-data</td></tr>
+    <tr><td>Settings</td><td>renderSettingsPage()</td><td>user-settings</td></tr>
+  </table>
+
+  <h3>The Overview page</h3>
+  <p>The overview is special — it's a static layout, not re-rendered on page switch. It contains:</p>
+  <table>
+    <tr><th>Element</th><th>What it is</th></tr>
+    <tr><td>#overviewClock / #overviewDate</td><td>Live clock, updated every second by initClock()</td></tr>
+    <tr><td>#heroEyebrow / #heroName</td><td>Greeting line + your name (from USER_DISPLAY_NAME)</td></tr>
+    <tr><td>#gcalCard</td><td>Google Calendar "Upcoming Events" card — re-renders when connected</td></tr>
+    <tr><td>#routinesRoot</td><td>Full Routines component, rendered once on sign-in</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="addpage">6. How to add a new page</h2>
+
+  <p>Four places to edit in <code>index.html</code>:</p>
+
+  <div class="step-grid">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>Add a sidebar button</strong> — inside <code>&lt;nav class="sidebar"&gt;</code>, add:<br>
+      <pre style="margin:8px 0;"><code>&lt;button class="sidebar-item" data-page="mypage"&gt;
+  &lt;span class="s-icon"&gt;&#9670;&lt;/span&gt; My Page
+&lt;/button&gt;</code></pre>
+    </div>
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>Add the page div</strong> — alongside the other <code>.page</code> divs in <code>.main-content</code>:<br>
+      <pre style="margin:8px 0;"><code>&lt;div class="page" id="page-mypage"&gt;
+  &lt;div class="page-inner"&gt;
+    &lt;div id="mypageRoot"&gt;&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+    </div>
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>Handle it in switchPage()</strong> — add a block inside the function:<br>
+      <pre style="margin:8px 0;"><code>if (page === <span class="s">"mypage"</span>) {
+  renderMyPage();
+}</code></pre>
+    </div>
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <strong>Write the render function</strong> — add it anywhere in the script:<br>
+      <pre style="margin:8px 0;"><code>async function renderMyPage() {
+  var root = document.getElementById(<span class="s">'mypageRoot'</span>);
+  var data = await loadTabData(<span class="s">'my-page-data'</span>, { items: [] });
+  root.innerHTML = <span class="s">'...'</span>;
+  <span class="c">// set up event listeners here</span>
+  root.addEventListener(<span class="s">'click'</span>, function(e) {
+    <span class="c">// handle actions via e.target.closest('[data-action]')</span>
+  });
+}</code></pre>
+    </div>
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <strong>(Optional) Add it to settings visibility toggles</strong> — find the <code>sidebarPages</code> array inside <code>renderSettingsPage()</code> and add <code>{ id: 'mypage', label: 'My Page' }</code>.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="theming">7. Theming &amp; CSS variables</h2>
+
+  <p>All colors are CSS custom properties set on <code>:root</code> and overridden by <code>applySettings()</code> when the user changes their theme.</p>
+
+  <table>
+    <tr><th>Variable</th><th>Default</th><th>Used for</th></tr>
+    <tr><td>--accent</td><td>#E8643A</td><td>Buttons, highlights, active states, section labels</td></tr>
+    <tr><td>--bg</td><td>#12151A</td><td>Page background</td></tr>
+    <tr><td>--bg-card</td><td>#1B2027</td><td>Card backgrounds</td></tr>
+    <tr><td>--bg-sidebar</td><td>#0E1117</td><td>Sidebar background</td></tr>
+    <tr><td>--text-1</td><td>#EDEAE3</td><td>Primary text color</td></tr>
+    <tr><td>--border</td><td>#2A313A</td><td>Card and sidebar borders</td></tr>
+    <tr><td>--border-2</td><td>#2A313A</td><td>Inner dividers (same value, separate variable)</td></tr>
+    <tr><td>--content-zoom</td><td>1</td><td>Scale factor applied to .main-content via CSS zoom</td></tr>
+  </table>
+
+  <p>To use a variable in your own additions: <code>background: var(--bg-card);</code> or inline style <code>"background:var(--bg-card)"</code>.</p>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="gcal">8. Google Calendar integration</h2>
+
+  <div class="card">
+    <p>The calendar uses Google's <strong style="color:#EDEAE3;">OAuth 2.0 implicit grant</strong> flow via the Google Identity Services (GIS) library. No server-side code needed — the browser gets a short-lived access token directly.</p>
+  </div>
+
+  <h3>Flow</h3>
+  <div class="step-grid">
+    <div class="step-num">1</div><div class="step-body">User clicks <strong>Connect Google Calendar</strong> → <code>connectGoogleCalendar()</code> calls <code>google.accounts.oauth2.initTokenClient(...).requestAccessToken()</code></div>
+    <div class="step-num">2</div><div class="step-body">Google shows its consent screen. On approval it returns an <strong>access token</strong> (valid ~1 hour).</div>
+    <div class="step-num">3</div><div class="step-body">Token is saved in <code>sessionStorage</code> under key <code>"gcal-token"</code> with its expiry. This survives a page refresh but not closing the tab.</div>
+    <div class="step-num">4</div><div class="step-body"><code>fetchAndRenderCalendarEvents()</code> hits the Google Calendar REST API and renders events grouped by day.</div>
+    <div class="step-num">5</div><div class="step-body">If the API returns 401 (expired), the token is cleared and the card reverts to the Connect button.</div>
+  </div>
+
+  <h3>Google Cloud Console setup (already done)</h3>
+  <table>
+    <tr><th>Setting</th><th>Value</th></tr>
+    <tr><td>OAuth scope</td><td>calendar.events.readonly</td></tr>
+    <tr><td>Authorized JS origin</td><td>https://donstaten23-cpu.github.io</td></tr>
+    <tr><td>Test user</td><td>donstaten23@gmail.com</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <!-- ────────────────────────────────────────────── -->
+  <h2 id="settings">9. Settings system</h2>
+
+  <p>Settings are stored as a single JSON object in Supabase under <code>tab_key = "user-settings"</code>. They're loaded on sign-in by <code>loadSettings()</code> and applied by <code>applySettings()</code>.</p>
+
+  <h3>What gets saved</h3>
+  <table>
+    <tr><th>Field</th><th>Controls</th></tr>
+    <tr><td>accent</td><td>The main accent color (--accent variable)</td></tr>
+    <tr><td>bgColor, cardColor, textColor, sidebarColor, borderColor</td><td>All other theme colors</td></tr>
+    <tr><td>cardStyle</td><td>"rounded" (default), "flat", or "glass"</td></tr>
+    <tr><td>contentZoom</td><td>Scale factor for the main content area</td></tr>
+    <tr><td>siteTitle</td><td>The name shown at the top of the sidebar</td></tr>
+    <tr><td>logoDataUrl</td><td>Base64 logo image for the sidebar header</td></tr>
+    <tr><td>userName, partnerName</td><td>Display names used in greetings and budget labels</td></tr>
+    <tr><td>greetingLines</td><td>Custom greeting lines (one per line in the textarea); random one is picked each time</td></tr>
+    <tr><td>hiddenPages</td><td>Array of page IDs hidden from the sidebar</td></tr>
+    <tr><td>defaultPage</td><td>Which page to land on after sign-in (defaults to "dashboard")</td></tr>
+    <tr><td>pageLabels</td><td>Custom eyebrow labels per section (e.g. "TRAVEL TRACKER")</td></tr>
+  </table>
+
+  <h3>How settings are applied</h3>
+  <pre><code><span class="c">// Called after load AND after saving from the settings UI</span>
+function applySettings() {
+  <span class="c">// Sets CSS variables on :root</span>
+  document.documentElement.style.setProperty(<span class="s">'--accent'</span>, _settings.accent);
+  <span class="c">// Applies card style body class (card-flat / card-glass / default)</span>
+  <span class="c">// Shows/hides sidebar items from hiddenPages array</span>
+  <span class="c">// Navigates to defaultPage on first load</span>
+}</code></pre>
+
+  <div class="divider"></div>
+
+  <h2>Quick reference: useful utility functions</h2>
+  <table>
+    <tr><th>Function</th><th>What it returns</th></tr>
+    <tr><td>todayISO()</td><td>Today's date as "YYYY-MM-DD"</td></tr>
+    <tr><td>todayWeekKey()</td><td>ISO week string like "2026-W26" — used for weekly routine tracking</td></tr>
+    <tr><td>uid()</td><td>A random short ID string — use this when creating new data items</td></tr>
+    <tr><td>escapeHtml(str)</td><td>Escapes &lt; &gt; &amp; " for safe innerHTML insertion</td></tr>
+    <tr><td>loadTabData(key, default)</td><td>Async. Returns parsed data from Supabase, or default if not found</td></tr>
+    <tr><td>saveTabData(key, data)</td><td>Async. Upserts a row to Supabase dashboard_data</td></tr>
+    <tr><td>_pageLabel(key, fallback)</td><td>Returns the user's custom label for a section, or the fallback string</td></tr>
+    <tr><td>switchPage(name)</td><td>Navigates to a page by its ID suffix (e.g. "travel", "budget")</td></tr>
+  </table>
+
+  <div style="margin-top:48px;padding-top:24px;border-top:1px solid #1E2530;color:#3A4250;font-size:12px;">
+    Dashboard Guide &mdash; print this page to PDF from your browser (File → Print → Save as PDF)
+  </div>
+
+</div>
+</body>
+</html>
