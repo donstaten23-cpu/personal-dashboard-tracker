@@ -459,6 +459,9 @@
       <button class="sidebar-item" data-page="settings">
         <span class="s-icon">&#9881;</span> Settings
       </button>
+      <button class="sidebar-item" data-page="guide">
+        <span class="s-icon">&#9432;</span> Guide
+      </button>
     </div>
     <div class="sidebar-footer">
       <form id="changePasswordForm" method="post" action="#" style="display:none;margin-bottom:12px;">
@@ -781,6 +784,11 @@
     <!-- Page: Settings -->
     <div class="page" id="page-settings">
       <div class="page-inner"></div>
+    </div>
+
+    <!-- Page: Developer Guide -->
+    <div class="page" id="page-guide">
+      <div class="page-inner" id="guidePageInner"></div>
     </div>
 
   </div><!-- end .main-content -->
@@ -1263,6 +1271,9 @@ function switchPage(page) {
   // Render settings page each visit so it picks up current state
   if (page === "settings") {
     renderSettingsPage();
+  }
+  if (page === "guide") {
+    renderGuidePage();
   }
   initScrollAnims();
 }
@@ -3693,8 +3704,8 @@ function applyHiddenPages() {
   var hidden = (_settings && _settings.hiddenPages) || [];
   document.querySelectorAll('.sidebar-item[data-page]').forEach(function(btn) {
     var pg = btn.getAttribute('data-page');
-    // Never hide dashboard or settings
-    if (pg === 'dashboard' || pg === 'settings') return;
+    // Never hide dashboard, settings, or guide
+    if (pg === 'dashboard' || pg === 'settings' || pg === 'guide') return;
     btn.style.display = hidden.indexOf(pg) >= 0 ? 'none' : '';
   });
   // Also hide section labels when all items under them are hidden
@@ -3914,7 +3925,8 @@ function renderSettingsPage() {
     '</div>' +
 
 
-    '<div style="display:flex;justify-content:flex-end;padding-bottom:40px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:40px;">' +
+      '<button onclick="switchPage(\'guide\')" style="background:none;border:none;color:#5A6168;font-size:13px;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline;">&#9432; Developer Guide</button>' +
       '<button class="add-btn" id="settingSaveBtn" style="background:var(--accent);">Save settings</button>' +
     '</div>';
 
@@ -5146,6 +5158,148 @@ async function renderJobsPage() {
   }
 
   initScrollAnims();
+}
+
+/* ============================================================
+   DEVELOPER GUIDE PAGE
+   ============================================================ */
+
+function renderGuidePage() {
+  var el = document.getElementById('guidePageInner');
+  if (!el) return;
+
+  function sec(title) {
+    return '<div class="port-section-label" style="margin-top:28px;">' + title + '</div>';
+  }
+  function card(body) {
+    return '<div class="card" style="margin-bottom:14px;">' + body + '</div>';
+  }
+  function tbl(rows) {
+    return '<table style="width:100%;border-collapse:collapse;margin:10px 0 4px;">' +
+      rows.map(function(r) {
+        return '<tr>' +
+          '<td style="padding:8px 12px 8px 0;border-bottom:1px solid var(--border-2);color:var(--text-1);font-family:ui-monospace,monospace;font-size:12px;white-space:nowrap;vertical-align:top;width:1%;">' + r[0] + '</td>' +
+          '<td style="padding:8px 0 8px 12px;border-bottom:1px solid var(--border-2);color:#8A919C;font-size:13px;vertical-align:top;">' + r[1] + '</td>' +
+        '</tr>';
+      }).join('') +
+    '</table>';
+  }
+  function pre(code) {
+    return '<pre style="background:#0E1117;border:1px solid var(--border-2);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 4px;"><code style="font-family:ui-monospace,monospace;font-size:12px;color:#8A919C;line-height:1.6;">' + code + '</code></pre>';
+  }
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">' +
+      '<button onclick="switchPage(\'settings\')" style="background:none;border:1px solid var(--border-2);color:#8A919C;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;">&#8592; Back to Settings</button>' +
+    '</div>' +
+    '<div class="port-eyebrow" style="margin-top:20px;">Developer Reference</div>' +
+    '<div class="port-title" style="font-size:28px;margin-bottom:4px;">Dashboard Guide</div>' +
+    '<div style="color:#5A6168;font-size:13px;margin-bottom:8px;">How the dashboard is built, stored, and extended</div>' +
+
+    sec('File Structure') +
+    card(
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">The entire app is a <strong style="color:var(--text-1);">single HTML file</strong> with no build tools, no framework, and no npm. HTML structure, CSS, and JavaScript all live in <code>index.html</code>.</div>' +
+      tbl([
+        ['index.html',         'The entire app (~5,300 lines). All logic lives here.'],
+        ['portfolio.html',     'Standalone public portfolio — no login required. Share this on your resume.'],
+        ['manifest.json',      'Makes the app installable as a PWA on mobile and desktop.'],
+        ['DASHBOARD-GUIDE.html','Full printable version of this guide (open in browser → print to PDF).'],
+      ])
+    ) +
+
+    sec('Key Constants') +
+    card(
+      '<div style="color:#8A919C;font-size:13px;margin-bottom:10px;">At the top of the &lt;script&gt; block (~line 795). Edit these to customize the app.</div>' +
+      tbl([
+        ['SUPABASE_URL',          'Your Supabase project URL — Settings → API in Supabase dashboard.'],
+        ['SUPABASE_ANON_KEY',     'Your Supabase publishable key — same location.'],
+        ['USER_DISPLAY_NAME',     'Your first name, shown in the greeting ("Good morning, Don").'],
+        ['PARTNER_DISPLAY_NAME',  'Label used in Budget\'s pay schedule (e.g. "Wife").'],
+        ['GOOGLE_CLIENT_ID',      'OAuth 2.0 Client ID for Google Calendar integration.'],
+      ])
+    ) +
+
+    sec('How Data is Stored') +
+    card(
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">All data lives in a single Supabase table: <strong style="color:var(--text-1);">dashboard_data</strong>. Each section of the app is one row identified by a <code>tab_key</code> string. The actual content is a JSON object in the <code>data</code> column (JSONB).</div>' +
+      pre('dashboard_data\n  user_id     uuid   — ties data to the signed-in user\n  tab_key     text   — identifies which section this row is for\n  data        jsonb  — the section\'s content as a JSON object\n  updated_at  timestamptz') +
+      '<div style="color:#8A919C;font-size:13px;margin:12px 0 8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Tab keys used</div>' +
+      tbl([
+        ['dashboard-travel-data',   'All trips: array of trip objects with items (flights, stay, activities…)'],
+        ['dashboard-budget-data',   'Monthly expenses, savings goal, pay period config'],
+        ['dashboard-routines-data', 'Routines with name, frequency, completion history'],
+        ['dashboard-workouts-data', 'Workout sessions, exercises, sets/reps/weight'],
+        ['dashboard-education-data','Degree program, courses, grades'],
+        ['dashboard-certs-data',    'Certifications list with dates and status'],
+        ['dashboard-jobs-data',     'Job applications with status, company, notes'],
+        ['portfolio-content',       'All text fields on the Work Portfolio page'],
+        ['portfolio-img-{key}',     'One row per image. data.src = base64 data URL'],
+        ['user-settings',           'Theme colors, sidebar toggles, default page, greeting lines'],
+      ]) +
+      pre('// Load data (returns saved object or default if no row yet)\nvar data = await loadTabData("dashboard-travel-data", { trips: [] });\n\n// Save data (upserts the row)\nawait saveTabData("dashboard-travel-data", data);')
+    ) +
+
+    sec('Page Architecture') +
+    card(
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:10px;">Every page is a <code>&lt;div class="page" id="page-{name}"&gt;</code>. Only the active page has the <code>active</code> class — all others are hidden via CSS.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin:10px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">How navigation works</div>' +
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;">Sidebar buttons have <code>data-page="name"</code>. Clicking calls <code>switchPage("name")</code>, which: (1) toggles the <code>active</code> class on <code>#page-{name}</code>, (2) marks the sidebar button active, (3) runs the page\'s render function.</div>'
+    ) +
+
+    sec('How to Add a New Page') +
+    card(
+      '<div style="color:#8A919C;font-size:13px;margin-bottom:12px;">Four edits in <code>index.html</code>:</div>' +
+      '<div style="display:grid;grid-template-columns:24px 1fr;gap:8px 12px;">' +
+        _guideStep('1', '<strong style="color:var(--text-1);">Sidebar button</strong> — inside <code>&lt;nav class="sidebar"&gt;</code>:' + pre('&lt;button class="sidebar-item" data-page="mypage"&gt;\n  &lt;span class="s-icon"&gt;&#9670;&lt;/span&gt; My Page\n&lt;/button&gt;')) +
+        _guideStep('2', '<strong style="color:var(--text-1);">Page div</strong> — alongside other <code>.page</code> divs:' + pre('&lt;div class="page" id="page-mypage"&gt;\n  &lt;div class="page-inner"&gt;\n    &lt;div id="mypageRoot"&gt;&lt;/div&gt;\n  &lt;/div&gt;\n&lt;/div&gt;')) +
+        _guideStep('3', '<strong style="color:var(--text-1);">Handle in switchPage()</strong>:' + pre('if (page === "mypage") { renderMyPage(); }')) +
+        _guideStep('4', '<strong style="color:var(--text-1);">Write the render function</strong>:' + pre('async function renderMyPage() {\n  var root = document.getElementById(\'mypageRoot\');\n  var data = await loadTabData(\'my-page-data\', { items: [] });\n  root.innerHTML = \'...\';\n  root.addEventListener(\'click\', function(e) {\n    // handle actions\n  });\n}')) +
+      '</div>'
+    ) +
+
+    sec('CSS Variables (Theming)') +
+    card(
+      '<div style="color:#8A919C;font-size:13px;margin-bottom:10px;">Set on <code>:root</code> by <code>applySettings()</code> when the user changes their theme. Use these in any new code you add.</div>' +
+      tbl([
+        ['--accent',        'Buttons, highlights, active states (#E8643A by default)'],
+        ['--bg',            'Page background'],
+        ['--bg-card',       'Card backgrounds'],
+        ['--bg-sidebar',    'Sidebar background'],
+        ['--text-1',        'Primary text color'],
+        ['--border',        'Card and sidebar borders'],
+        ['--border-2',      'Inner dividers'],
+        ['--content-zoom',  'Scale factor on the main content area'],
+      ])
+    ) +
+
+    sec('Utility Functions') +
+    card(
+      tbl([
+        ['todayISO()',               'Today as "YYYY-MM-DD"'],
+        ['todayWeekKey()',           '"2026-W26" — used for weekly routine tracking'],
+        ['uid()',                    'Random short ID — use when creating new data items'],
+        ['escapeHtml(str)',          'Escapes &lt; &gt; &amp; " for safe innerHTML insertion'],
+        ['loadTabData(key, default)','Async. Returns data from Supabase, or default if no row'],
+        ['saveTabData(key, data)',   'Async. Upserts a row in dashboard_data'],
+        ['_pageLabel(key, fallback)','Returns user\'s custom section label, or fallback string'],
+        ['switchPage(name)',         'Navigates to a page by its ID suffix'],
+      ])
+    ) +
+
+    sec('Google Calendar Integration') +
+    card(
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;">Uses Google\'s <strong style="color:var(--text-1);">OAuth 2.0 implicit grant</strong> via the Google Identity Services library. No server needed — the browser gets a short-lived access token directly. Token is saved in <code>sessionStorage</code> under <code>"gcal-token"</code> and survives a page refresh but not closing the tab. If the API returns 401, the token is cleared automatically and the Connect button reappears.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code></div>'
+    ) +
+
+    '<div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border-2);color:#3A4250;font-size:12px;padding-bottom:40px;">' +
+      'Full printable version: open <code>DASHBOARD-GUIDE.html</code> in a browser → File → Print → Save as PDF' +
+    '</div>';
+}
+
+function _guideStep(num, body) {
+  return '<div style="width:24px;height:24px;background:var(--accent)22;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;margin-top:2px;">' + num + '</div>' +
+    '<div style="color:#8A919C;font-size:13px;line-height:1.6;margin-bottom:8px;">' + body + '</div>';
 }
 
 /* ============================================================
