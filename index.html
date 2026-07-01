@@ -8,6 +8,7 @@
 <link rel="apple-touch-icon" href="./Icon-192.png" />
 <meta name="mobile-web-app-capable" content="yes" />
 <title>Dashboard</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   @font-face {
     font-family: 'Asap';
@@ -504,6 +505,8 @@
           </div>
         </div>
 
+        <div id="gcalCard" style="margin-bottom:16px;"></div>
+
         <div class="tabnav" id="tabnav"></div>
         <div id="tabroot"></div>
       </div>
@@ -776,6 +779,8 @@ var SUPABASE_ANON_KEY = "sb_publishable_f1oApcIXVoxrcRB5_WSSAQ_HRLfqXE8";
 var USER_DISPLAY_NAME = "Don";
 /* Used to label the two people in the Budget tab's pay schedule. */
 var PARTNER_DISPLAY_NAME = "Wife";
+/* Google Calendar OAuth Client ID */
+var GOOGLE_CLIENT_ID = "1017729047706-t51pi0i7k2cgo0g1ggm5ndc1cs8se5qg.apps.googleusercontent.com";
 
 var supabaseClient = null;
 var currentUserId = null;
@@ -972,6 +977,7 @@ function showDashboardScreen() {
   loadPortfolioContent();
   loadArtContent();
   loadSettings();
+  initGoogleCalendar();
   // Pre-load workouts page
   var wkRoot = document.getElementById("workoutPageRoot");
   if (wkRoot && !wkRoot._loaded) {
@@ -5099,6 +5105,159 @@ async function renderJobsPage() {
   initScrollAnims();
 }
 
+/* ============================================================
+   GOOGLE CALENDAR MODULE
+   ============================================================ */
+
+var _gcalToken       = null;
+var _gcalTokenExpiry = 0;
+var _gcalClient      = null;
+var _gcalPendingCb   = null;
+
+function initGoogleCalendar() {
+  try {
+    var stored = JSON.parse(sessionStorage.getItem("gcal-token") || "null");
+    if (stored && stored.token && stored.expiry > Date.now()) {
+      _gcalToken       = stored.token;
+      _gcalTokenExpiry = stored.expiry;
+    }
+  } catch(e) {}
+  renderGcalCard();
+}
+
+function _getGcalClient() {
+  if (_gcalClient) return _gcalClient;
+  if (!window.google || !window.google.accounts) return null;
+  _gcalClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: "https://www.googleapis.com/auth/calendar.events.readonly",
+    callback: function(resp) {
+      if (resp.error || !resp.access_token) {
+        var statusEl = document.getElementById("gcalStatus");
+        if (statusEl) statusEl.textContent = "Auth error: " + (resp.error || "unknown");
+        return;
+      }
+      _gcalToken       = resp.access_token;
+      _gcalTokenExpiry = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
+      try {
+        sessionStorage.setItem("gcal-token", JSON.stringify({ token: _gcalToken, expiry: _gcalTokenExpiry }));
+      } catch(e) {}
+      if (_gcalPendingCb) { var cb = _gcalPendingCb; _gcalPendingCb = null; cb(); }
+      else renderGcalCard();
+    }
+  });
+  return _gcalClient;
+}
+
+function connectGoogleCalendar() {
+  var client = _getGcalClient();
+  if (!client) {
+    var statusEl = document.getElementById("gcalStatus");
+    if (statusEl) statusEl.textContent = "Google script still loading — try again in a moment.";
+    return;
+  }
+  _gcalPendingCb = function() { renderGcalCard(); };
+  client.requestAccessToken({ prompt: "consent" });
+}
+
+function disconnectGoogleCalendar() {
+  if (_gcalToken && window.google && window.google.accounts) {
+    try { google.accounts.oauth2.revoke(_gcalToken, function() {}); } catch(e) {}
+  }
+  _gcalToken       = null;
+  _gcalTokenExpiry = 0;
+  _gcalClient      = null;
+  try { sessionStorage.removeItem("gcal-token"); } catch(e) {}
+  renderGcalCard();
+}
+
+function renderGcalCard() {
+  var cardEl = document.getElementById("gcalCard");
+  if (!cardEl) return;
+
+  var connected = _gcalToken && Date.now() < _gcalTokenExpiry;
+
+  cardEl.innerHTML = '<div class="card" style="padding:18px 20px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;' + (connected ? "margin-bottom:14px;" : "") + '">' +
+      '<span class="gauge-label mono" style="letter-spacing:.12em;">GOOGLE CALENDAR</span>' +
+      (connected ? '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' : "") +
+    "</div>" +
+    (connected
+      ? '<div id="gcalEvents" style="font-size:14px;"><div style="color:#5A6168;font-size:13px;padding:4px 0;">Loading events&hellip;</div></div>'
+      : '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+          '<button onclick="connectGoogleCalendar()" class="add-btn" style="background:var(--accent);color:#fff;font-size:13px;padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;">Connect Google Calendar</button>' +
+          '<span id="gcalStatus" style="color:#8A919C;font-size:12px;"></span>' +
+        "</div>") +
+  "</div>";
+
+  if (connected) fetchAndRenderCalendarEvents();
+}
+
+async function fetchAndRenderCalendarEvents() {
+  var evEl = document.getElementById("gcalEvents");
+  if (!evEl) return;
+
+  if (!_gcalToken || Date.now() >= _gcalTokenExpiry) {
+    _gcalToken = null;
+    try { sessionStorage.removeItem("gcal-token"); } catch(e) {}
+    renderGcalCard();
+    return;
+  }
+
+  try {
+    var now    = new Date().toISOString();
+    var maxEnd = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+    var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events" +
+      "?timeMin=" + encodeURIComponent(now) +
+      "&timeMax=" + encodeURIComponent(maxEnd) +
+      "&singleEvents=true&orderBy=startTime&maxResults=12";
+
+    var resp = await fetch(url, { headers: { Authorization: "Bearer " + _gcalToken } });
+
+    if (resp.status === 401) {
+      _gcalToken = null;
+      try { sessionStorage.removeItem("gcal-token"); } catch(e) {}
+      renderGcalCard();
+      return;
+    }
+
+    var json   = await resp.json();
+    var events = json.items || [];
+
+    if (!events.length) {
+      evEl.innerHTML = '<div style="color:#5A6168;font-size:13px;padding:4px 0;">No events in the next 14 days.</div>';
+      return;
+    }
+
+    var today = todayISO();
+    evEl.innerHTML = events.map(function(ev, idx) {
+      var isAllDay = !ev.start.dateTime;
+      var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
+      var d        = new Date(rawStart);
+      var dayStr   = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+      var dateNum  = d.getDate();
+      var timeStr  = isAllDay ? "All day" : d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      var isToday  = (ev.start.dateTime || ev.start.date).slice(0, 10) === today;
+      var accent   = isToday ? "var(--accent)" : "#5B8FA8";
+      var border   = idx < events.length - 1 ? "border-bottom:1px solid var(--border-2);" : "";
+
+      return '<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 0;' + border + '">' +
+        '<div style="flex-shrink:0;text-align:center;background:' + accent + '1A;border-radius:7px;padding:5px 8px;min-width:46px;">' +
+          '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:' + accent + ';">' + dayStr + "</div>" +
+          '<div style="font-size:18px;font-weight:800;color:' + accent + ';line-height:1.1;">' + dateNum + "</div>" +
+        "</div>" +
+        '<div style="flex:1;min-width:0;padding-top:3px;">' +
+          '<div style="color:var(--text-1);font-size:14px;font-weight:' + (isToday ? "600" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + "</div>" +
+          '<div style="color:#8A919C;font-size:12px;margin-top:2px;">' + timeStr + (ev.location ? " &middot; " + escapeHtml(ev.location.split(",")[0]) : "") + "</div>" +
+        "</div>" +
+      "</div>";
+    }).join("");
+  } catch(e) {
+    var evEl2 = document.getElementById("gcalEvents");
+    if (evEl2) evEl2.innerHTML = '<div style="color:#FF8A5C;font-size:13px;">Failed to load events.</div>';
+  }
+}
+
 /* ---------------- boot ---------------- */
 
 bootAuth();
@@ -5113,4 +5272,3 @@ bootAuth();
 
 </body>
 </html>
-
