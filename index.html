@@ -121,6 +121,12 @@
   }
   .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
   [data-art-key][contenteditable="true"] { outline: 1px dashed #E8643A44; border-radius: 3px; cursor: text; padding: 0 4px; }
+  [data-guide-key][contenteditable="true"] {
+    outline: none;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px #E8643A55;
+    cursor: text;
+  }
   .port-card {
     background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px;
     margin-bottom: 20px; transition: border-color 0.2s;
@@ -1273,7 +1279,12 @@ function switchPage(page) {
     renderSettingsPage();
   }
   if (page === "guide") {
-    renderGuidePage();
+    var gRoot = document.getElementById("guidePageInner");
+    if (gRoot && !gRoot._loaded) {
+      gRoot._loaded = true;
+      renderGuidePage();
+      loadGuideContent();
+    }
   }
   initScrollAnims();
 }
@@ -5164,6 +5175,8 @@ async function renderJobsPage() {
    DEVELOPER GUIDE PAGE
    ============================================================ */
 
+var _guideEditing = false;
+
 function renderGuidePage() {
   var el = document.getElementById('guidePageInner');
   if (!el) return;
@@ -5189,9 +5202,11 @@ function renderGuidePage() {
   }
 
   el.innerHTML =
-    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">' +
+    '<div class="port-edit-bar" style="margin-bottom:4px;">' +
       '<button onclick="switchPage(\'settings\')" style="background:none;border:1px solid var(--border-2);color:#8A919C;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;">&#8592; Back to Settings</button>' +
+      '<button class="port-edit-btn locked" id="guideEditBtn" onclick="toggleGuideEdit()">&#128274; Locked</button>' +
     '</div>' +
+    '<div data-guide-key="body">' +
     '<div class="port-eyebrow" style="margin-top:20px;">Developer Reference</div>' +
     '<div class="port-title" style="font-size:28px;margin-bottom:4px;">Dashboard Guide</div>' +
     '<div style="color:#5A6168;font-size:13px;margin-bottom:8px;">How the dashboard is built, stored, and extended</div>' +
@@ -5234,6 +5249,8 @@ function renderGuidePage() {
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
         ['portfolio-img-{key}',     'One row per image. data.src = base64 data URL'],
+        ['art-content',             'All text/captions on the Art Portfolio page'],
+        ['dashboard-guide-content', 'Saved HTML for this guide page, once edited (see below)'],
         ['user-settings',           'Theme colors, sidebar toggles, default page, greeting lines'],
       ]) +
       pre('// Load data (returns saved object or default if no row yet)\nvar data = await loadTabData("dashboard-travel-data", { trips: [] });\n\n// Save data (upserts the row)\nawait saveTabData("dashboard-travel-data", data);')
@@ -5288,13 +5305,74 @@ function renderGuidePage() {
 
     sec('Google Calendar Integration') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;">Uses Google\'s <strong style="color:var(--text-1);">OAuth 2.0 implicit grant</strong> via the Google Identity Services library. No server needed — the browser gets a short-lived access token directly. Token is saved in <code>sessionStorage</code> under <code>"gcal-token"</code> and survives a page refresh but not closing the tab. If the API returns 401, the token is cleared automatically and the Connect button reappears.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code></div>'
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">Uses Google\'s <strong style="color:var(--text-1);">OAuth 2.0 authorization code flow</strong> (Google Identity Services\' <code>initCodeClient</code>, popup mode) instead of the old implicit grant, because only the code flow issues a <strong style="color:var(--text-1);">refresh token</strong>. Exchanging the code for tokens requires the Google client secret, which can\'t live in browser JS — that exchange happens in a small Supabase Edge Function instead.</div>' +
+      pre('Browser                          Edge Function (google-oauth)         Google\n  |--- auth code --------------------->|                                   |\n  |                                     |--- code + client_secret -------->|\n  |                                     |<-- access_token + refresh_token --|\n  |<-- access_token ---------------------|  (refresh_token stored server-side)') +
+      '<div style="color:#8A919C;font-size:13px;margin:12px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Where things live</div>' +
+      tbl([
+        ['supabase/functions/google-oauth', 'Edge Function: exchanges/refreshes tokens with Google, using the GOOGLE_CLIENT_SECRET function secret. Verifies the caller via their Supabase session JWT before touching any tokens.'],
+        ['google_oauth_tokens table',       'Stores each user\'s refresh token. RLS is enabled with zero policies, so only the Edge Function\'s service-role key can read/write it — the browser never sees the refresh token.'],
+        ['sessionStorage["gcal-token"]',    'Caches the current short-lived access token client-side so most page loads don\'t need a round trip to the Edge Function.'],
+      ]) +
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management) and <code>tasks.readonly</code> (for the Tasks sync list) — requested together in one consent screen.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>'
     ) +
 
     '<div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border-2);color:#3A4250;font-size:12px;padding-bottom:40px;">' +
       'Full printable version: open <code>DASHBOARD-GUIDE.html</code> in a browser → File → Print → Save as PDF' +
+    '</div>' +
     '</div>';
+}
+
+function toggleGuideEdit() {
+  _guideEditing = !_guideEditing;
+  var btn = document.getElementById("guideEditBtn");
+
+  var els = document.querySelectorAll("[data-guide-key]");
+  for (var i = 0; i < els.length; i++) {
+    if (_guideEditing) {
+      els[i].setAttribute("contenteditable", "true");
+    } else {
+      els[i].removeAttribute("contenteditable");
+    }
+  }
+
+  if (_guideEditing) {
+    btn.innerHTML = "&#128275; Save &amp; lock";
+    btn.classList.remove("locked");
+    btn.classList.add("editing");
+  } else {
+    btn.innerHTML = "&#128274; Locked";
+    btn.classList.remove("editing");
+    btn.classList.add("locked");
+    saveGuideContent();
+  }
+}
+
+async function loadGuideContent() {
+  if (!currentUserId) return;
+  try {
+    var result = await supabaseClient.from("dashboard_data")
+      .select("data").eq("user_id", currentUserId).eq("tab_key", "dashboard-guide-content").maybeSingle();
+    if (result.data && result.data.data && result.data.data.body) {
+      var el = document.querySelector('[data-guide-key="body"]');
+      if (el) el.innerHTML = result.data.data.body;
+    }
+  } catch(e) { console.error("Guide content load error", e); }
+}
+
+async function saveGuideContent() {
+  if (!currentUserId) return;
+  var el = document.querySelector('[data-guide-key="body"]');
+  if (!el) return;
+  try {
+    await supabaseClient.from("dashboard_data").upsert({
+      user_id: currentUserId,
+      tab_key: "dashboard-guide-content",
+      data: { body: el.innerHTML },
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.error("Guide content save error", e); }
 }
 
 function _guideStep(num, body) {
@@ -5309,38 +5387,82 @@ function _guideStep(num, body) {
 var _gcalToken       = null;
 var _gcalTokenExpiry = 0;
 var _gcalClient      = null;
-var _gcalPendingCb   = null;
+var _gcalScopes      = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks.readonly";
+var _gcalEventsById  = {};
 
-function initGoogleCalendar() {
+// All calls to the google-oauth Supabase Edge Function go through here.
+// The function verifies the caller via this Supabase session JWT, then
+// exchanges/refreshes Google tokens using the client secret (never exposed
+// to the browser) and hands back a short-lived Google access token.
+async function _callGoogleOAuthFn(action, extra) {
+  try {
+    var sessionResult = await supabaseClient.auth.getSession();
+    var jwt = sessionResult.data && sessionResult.data.session && sessionResult.data.session.access_token;
+    if (!jwt) return { _ok: false, error: "not signed in" };
+    var resp = await fetch(SUPABASE_URL + "/functions/v1/google-oauth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + jwt },
+      body: JSON.stringify(Object.assign({ action: action }, extra || {}))
+    });
+    var out = {};
+    try { out = await resp.json(); } catch(e) {}
+    out._ok = resp.ok;
+    return out;
+  } catch(e) {
+    return { _ok: false, error: String(e) };
+  }
+}
+
+function _setGcalToken(token, expiresIn) {
+  _gcalToken       = token;
+  _gcalTokenExpiry = Date.now() + ((expiresIn || 3600) - 60) * 1000;
+  try {
+    sessionStorage.setItem("gcal-token", JSON.stringify({ token: _gcalToken, expiry: _gcalTokenExpiry }));
+  } catch(e) {}
+}
+
+// Called on sign-in. Tries the cached token first, then falls back to a
+// silent server-side refresh (using a stored refresh token) so the user
+// stays connected across reloads without clicking Connect again.
+async function initGoogleCalendar() {
   try {
     var stored = JSON.parse(sessionStorage.getItem("gcal-token") || "null");
     if (stored && stored.token && stored.expiry > Date.now()) {
       _gcalToken       = stored.token;
       _gcalTokenExpiry = stored.expiry;
+      renderGcalCard();
+      return;
     }
   } catch(e) {}
+
+  var result = await _callGoogleOAuthFn("refresh");
+  if (result._ok && result.access_token) {
+    _setGcalToken(result.access_token, result.expires_in);
+  }
   renderGcalCard();
 }
 
 function _getGcalClient() {
   if (_gcalClient) return _gcalClient;
   if (!window.google || !window.google.accounts) return null;
-  _gcalClient = google.accounts.oauth2.initTokenClient({
+  _gcalClient = google.accounts.oauth2.initCodeClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: "https://www.googleapis.com/auth/calendar.events.readonly",
-    callback: function(resp) {
-      if (resp.error || !resp.access_token) {
-        var statusEl = document.getElementById("gcalStatus");
+    scope: _gcalScopes,
+    ux_mode: "popup",
+    callback: async function(resp) {
+      var statusEl = document.getElementById("gcalStatus");
+      if (resp.error || !resp.code) {
         if (statusEl) statusEl.textContent = "Auth error: " + (resp.error || "unknown");
         return;
       }
-      _gcalToken       = resp.access_token;
-      _gcalTokenExpiry = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
-      try {
-        sessionStorage.setItem("gcal-token", JSON.stringify({ token: _gcalToken, expiry: _gcalTokenExpiry }));
-      } catch(e) {}
-      if (_gcalPendingCb) { var cb = _gcalPendingCb; _gcalPendingCb = null; cb(); }
-      else renderGcalCard();
+      if (statusEl) statusEl.textContent = "Connecting…";
+      var result = await _callGoogleOAuthFn("exchange", { code: resp.code });
+      if (!result._ok || !result.access_token) {
+        if (statusEl) statusEl.textContent = "Connect failed: " + (result.error || "unknown error");
+        return;
+      }
+      _setGcalToken(result.access_token, result.expires_in);
+      renderGcalCard();
     }
   });
   return _gcalClient;
@@ -5353,11 +5475,10 @@ function connectGoogleCalendar() {
     if (statusEl) statusEl.textContent = "Google script still loading — try again in a moment.";
     return;
   }
-  _gcalPendingCb = function() { renderGcalCard(); };
-  client.requestAccessToken({ prompt: "consent" });
+  client.requestCode();
 }
 
-function disconnectGoogleCalendar() {
+async function disconnectGoogleCalendar() {
   if (_gcalToken && window.google && window.google.accounts) {
     try { google.accounts.oauth2.revoke(_gcalToken, function() {}); } catch(e) {}
   }
@@ -5366,6 +5487,28 @@ function disconnectGoogleCalendar() {
   _gcalClient      = null;
   try { sessionStorage.removeItem("gcal-token"); } catch(e) {}
   renderGcalCard();
+  await _callGoogleOAuthFn("disconnect");
+}
+
+// Wraps fetch() with the current access token and, on a 401, tries one
+// silent server-side refresh before retrying — so an expired ~1hr access
+// token never surfaces as a "please reconnect" prompt to the user.
+async function _gcalAuthedFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({ Authorization: "Bearer " + _gcalToken }, opts.headers || {});
+  var resp = await fetch(url, opts);
+  if (resp.status !== 401) return resp;
+
+  var result = await _callGoogleOAuthFn("refresh");
+  if (!result._ok || !result.access_token) {
+    _gcalToken = null; _gcalTokenExpiry = 0;
+    try { sessionStorage.removeItem("gcal-token"); } catch(e) {}
+    renderGcalCard();
+    return resp;
+  }
+  _setGcalToken(result.access_token, result.expires_in);
+  opts.headers.Authorization = "Bearer " + _gcalToken;
+  return fetch(url, opts);
 }
 
 function renderGcalCard() {
@@ -5377,17 +5520,106 @@ function renderGcalCard() {
   cardEl.innerHTML = '<div class="card" style="padding:18px 20px;">' +
     '<div style="display:flex;align-items:center;justify-content:space-between;' + (connected ? "margin-bottom:16px;" : "") + '">' +
       '<span class="gauge-label mono" style="letter-spacing:.12em;">UPCOMING EVENTS</span>' +
-      (connected ? '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' : "") +
+      (connected
+        ? '<div style="display:flex;gap:8px;">' +
+            '<button onclick="openGcalEventForm()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ New event</button>' +
+            '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' +
+          '</div>'
+        : "") +
     "</div>" +
     (connected
-      ? '<div id="gcalEvents" style="font-size:14px;"><div style="color:#5A6168;font-size:13px;padding:4px 0;">Loading events&hellip;</div></div>'
+      ? '<div id="gcalEventForm"></div>' +
+        '<div id="gcalEvents" style="font-size:14px;"><div style="color:#5A6168;font-size:13px;padding:4px 0;">Loading events&hellip;</div></div>' +
+        '<div id="gcalTasks" style="margin-top:4px;"></div>'
       : '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
           '<button onclick="connectGoogleCalendar()" class="add-btn" style="background:var(--accent);color:#fff;font-size:13px;padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;">Connect Google Calendar</button>' +
           '<span id="gcalStatus" style="color:#8A919C;font-size:12px;"></span>' +
         "</div>") +
   "</div>";
 
-  if (connected) fetchAndRenderCalendarEvents();
+  if (connected) { fetchAndRenderCalendarEvents(); fetchAndRenderTasks(); }
+}
+
+function openGcalEventForm(eventId) {
+  var formEl = document.getElementById("gcalEventForm");
+  if (!formEl) return;
+  var ev = eventId ? _gcalEventsById[eventId] : null;
+
+  var isAllDay  = ev ? !ev.start.dateTime : false;
+  var dateVal   = ev ? (ev.start.dateTime || ev.start.date).slice(0, 10) : todayISO();
+  var startVal  = ev && ev.start.dateTime ? ev.start.dateTime.slice(11, 16) : "09:00";
+  var endVal    = ev && ev.end.dateTime ? ev.end.dateTime.slice(11, 16) : "10:00";
+
+  formEl.innerHTML =
+    '<div class="card" style="padding:14px 16px;margin-bottom:14px;background:var(--bg);">' +
+      '<input class="form-input" id="gcalEvTitle" placeholder="Event title" value="' + escapeHtml(ev ? (ev.summary || "") : "") + '" style="margin-bottom:8px;" />' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' +
+        '<input class="form-input" type="date" id="gcalEvDate" value="' + dateVal + '" style="flex:1;min-width:130px;" />' +
+        '<input class="form-input" type="time" id="gcalEvStart" value="' + startVal + '" style="flex:1;min-width:100px;" ' + (isAllDay ? "disabled" : "") + ' />' +
+        '<input class="form-input" type="time" id="gcalEvEnd" value="' + endVal + '" style="flex:1;min-width:100px;" ' + (isAllDay ? "disabled" : "") + ' />' +
+      '</div>' +
+      '<label style="display:flex;align-items:center;gap:6px;color:#8A919C;font-size:12px;margin-bottom:10px;">' +
+        '<input type="checkbox" id="gcalEvAllDay" onchange="var d=this.checked;document.getElementById(\'gcalEvStart\').disabled=d;document.getElementById(\'gcalEvEnd\').disabled=d;" ' + (isAllDay ? "checked" : "") + ' /> All day' +
+      '</label>' +
+      '<div class="form-actions" style="display:flex;align-items:center;gap:8px;">' +
+        '<span class="error-text" id="gcalEvFormError"></span>' +
+        (eventId ? '<button class="add-btn" style="background:none;border:1px solid #FF8A5C;color:#FF8A5C;" onclick="deleteGcalEvent(\'' + eventId + '\')">Delete</button>' : "") +
+        '<button class="add-btn" style="background:none;border:1px solid #2A313A;color:#8A919C;" onclick="closeGcalEventForm()">Cancel</button>' +
+        '<button class="add-btn" style="background:var(--accent);" onclick="saveGcalEvent(' + (eventId ? "'" + eventId + "'" : "null") + ')">Save</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function closeGcalEventForm() {
+  var formEl = document.getElementById("gcalEventForm");
+  if (formEl) formEl.innerHTML = "";
+}
+
+async function saveGcalEvent(eventId) {
+  var errEl = document.getElementById("gcalEvFormError");
+  var title = (document.getElementById("gcalEvTitle").value || "").trim();
+  var date  = document.getElementById("gcalEvDate").value;
+  if (!title || !date) {
+    if (errEl) errEl.textContent = "Title and date are required.";
+    return;
+  }
+  var allDay = document.getElementById("gcalEvAllDay").checked;
+
+  var body = { summary: title };
+  if (allDay) {
+    var endDate = new Date(date + "T00:00:00");
+    endDate.setDate(endDate.getDate() + 1);
+    body.start = { date: date };
+    body.end   = { date: endDate.toISOString().slice(0, 10) };
+  } else {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    var startTime = document.getElementById("gcalEvStart").value || "09:00";
+    var endTime   = document.getElementById("gcalEvEnd").value || "10:00";
+    body.start = { dateTime: date + "T" + startTime + ":00", timeZone: tz };
+    body.end   = { dateTime: date + "T" + endTime + ":00", timeZone: tz };
+  }
+
+  var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events" + (eventId ? "/" + eventId : "");
+  var resp = await _gcalAuthedFetch(url, {
+    method: eventId ? "PATCH" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok) {
+    var errJson = {};
+    try { errJson = await resp.json(); } catch(e) {}
+    if (errEl) errEl.textContent = (errJson.error && errJson.error.message) || "Save failed.";
+    return;
+  }
+  closeGcalEventForm();
+  fetchAndRenderCalendarEvents();
+}
+
+async function deleteGcalEvent(eventId) {
+  var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events/" + eventId;
+  await _gcalAuthedFetch(url, { method: "DELETE" });
+  closeGcalEventForm();
+  fetchAndRenderCalendarEvents();
 }
 
 async function fetchAndRenderCalendarEvents() {
@@ -5409,7 +5641,7 @@ async function fetchAndRenderCalendarEvents() {
       "&timeMax=" + encodeURIComponent(maxEnd) +
       "&singleEvents=true&orderBy=startTime&maxResults=20";
 
-    var resp = await fetch(url, { headers: { Authorization: "Bearer " + _gcalToken } });
+    var resp = await _gcalAuthedFetch(url);
 
     if (resp.status === 401) {
       _gcalToken = null;
@@ -5420,6 +5652,8 @@ async function fetchAndRenderCalendarEvents() {
 
     var json   = await resp.json();
     var events = json.items || [];
+    _gcalEventsById = {};
+    events.forEach(function(ev) { _gcalEventsById[ev.id] = ev; });
 
     if (!events.length) {
       evEl.innerHTML = '<div style="color:#5A6168;font-size:13px;padding:8px 0;">No upcoming events this week.</div>';
@@ -5464,6 +5698,10 @@ async function fetchAndRenderCalendarEvents() {
             '<div style="color:var(--text-1);font-size:13px;font-weight:' + (isToday ? "500" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + '</div>' +
             (ev.location ? '<div style="color:#5A6168;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
           '</div>' +
+          '<div style="flex-shrink:0;display:flex;gap:4px;">' +
+            '<button onclick="openGcalEventForm(\'' + ev.id + '\')" title="Edit" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&#9998;</button>' +
+            '<button onclick="deleteGcalEvent(\'' + ev.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
+          '</div>' +
         '</div>';
       }).join('');
 
@@ -5481,6 +5719,39 @@ async function fetchAndRenderCalendarEvents() {
   } catch(e) {
     var evEl2 = document.getElementById("gcalEvents");
     if (evEl2) evEl2.innerHTML = '<div style="color:#FF8A5C;font-size:13px;">Failed to load events.</div>';
+  }
+}
+
+async function fetchAndRenderTasks() {
+  var tkEl = document.getElementById("gcalTasks");
+  if (!tkEl || !_gcalToken) return;
+
+  try {
+    var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=20";
+    var resp = await _gcalAuthedFetch(url);
+    if (!resp.ok) { tkEl.innerHTML = ""; return; }
+
+    var json  = await resp.json();
+    var tasks = (json.items || []).filter(function(t) { return t.status !== "completed"; });
+
+    if (!tasks.length) { tkEl.innerHTML = ""; return; }
+
+    tkEl.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;">' +
+        '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">TASKS</span>' +
+        '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
+      '</div>' +
+      tasks.map(function(t) {
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;">' +
+          '<span style="color:#5A6168;font-size:13px;line-height:1.4;">&#9675;</span>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="color:var(--text-1);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
+            (t.due ? '<div style="color:#5A6168;font-size:11px;">Due ' + new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+  } catch(e) {
+    tkEl.innerHTML = "";
   }
 }
 
