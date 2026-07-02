@@ -5196,11 +5196,11 @@ function renderGuidePage() {
     return '<div class="card" style="margin-bottom:14px;">' + body + '</div>';
   }
   function tbl(rows) {
-    return '<table style="width:100%;border-collapse:collapse;margin:10px 0 4px;">' +
+    return '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 4px;">' +
       rows.map(function(r) {
         return '<tr>' +
-          '<td style="padding:8px 12px 8px 0;border-bottom:1px solid var(--border-2);color:var(--text-1);font-family:ui-monospace,monospace;font-size:12px;white-space:nowrap;vertical-align:top;width:1%;">' + r[0] + '</td>' +
-          '<td style="padding:8px 0 8px 12px;border-bottom:1px solid var(--border-2);color:#8A919C;font-size:13px;vertical-align:top;">' + r[1] + '</td>' +
+          '<td style="padding:8px 12px 8px 0;border-bottom:1px solid var(--border-2);color:var(--text-1);font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:break-word;word-break:break-word;vertical-align:top;width:38%;">' + r[0] + '</td>' +
+          '<td style="padding:8px 0 8px 12px;border-bottom:1px solid var(--border-2);color:#8A919C;font-size:13px;vertical-align:top;overflow-wrap:break-word;word-break:break-word;">' + r[1] + '</td>' +
         '</tr>';
       }).join('') +
     '</table>';
@@ -5563,21 +5563,45 @@ function openGcalEventForm(eventId) {
   if (!formEl) return;
   var ev = eventId ? _gcalEventsById[eventId] : null;
 
-  var isAllDay  = ev ? !ev.start.dateTime : false;
-  var dateVal   = ev ? (ev.start.dateTime || ev.start.date).slice(0, 10) : todayISO();
-  var startVal  = ev && ev.start.dateTime ? ev.start.dateTime.slice(11, 16) : "09:00";
-  var endVal    = ev && ev.end.dateTime ? ev.end.dateTime.slice(11, 16) : "10:00";
+  var isAllDay = ev ? !ev.start.dateTime : false;
+  var startDateVal = ev ? (ev.start.dateTime || ev.start.date).slice(0, 10) : todayISO();
+  var startTimeVal = ev && ev.start.dateTime ? ev.start.dateTime.slice(11, 16) : "09:00";
+  var endDateVal, endTimeVal;
+  if (ev) {
+    if (ev.end.dateTime) {
+      endDateVal = ev.end.dateTime.slice(0, 10);
+      endTimeVal = ev.end.dateTime.slice(11, 16);
+    } else {
+      // all-day end.date is exclusive (day after the last day) — show the inclusive last day instead
+      endDateVal = addDaysISO(ev.end.date, -1);
+      endTimeVal = "10:00";
+    }
+  } else {
+    endDateVal = startDateVal;
+    endTimeVal = "10:00";
+  }
 
   formEl.innerHTML =
     '<div class="card" style="padding:14px 16px;margin-bottom:14px;background:var(--bg);">' +
       '<input class="form-input" id="gcalEvTitle" placeholder="Event title" value="' + escapeHtml(ev ? (ev.summary || "") : "") + '" style="margin-bottom:8px;" />' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' +
-        '<input class="form-input" type="date" id="gcalEvDate" value="' + dateVal + '" style="flex:1;min-width:130px;" />' +
-        '<input class="form-input" type="time" id="gcalEvStart" value="' + startVal + '" style="flex:1;min-width:100px;" ' + (isAllDay ? "disabled" : "") + ' />' +
-        '<input class="form-input" type="time" id="gcalEvEnd" value="' + endVal + '" style="flex:1;min-width:100px;" ' + (isAllDay ? "disabled" : "") + ' />' +
+        '<div style="flex:1;min-width:130px;">' +
+          '<div style="color:#8A919C;font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">Start</div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<input class="form-input" type="date" id="gcalEvStartDate" value="' + startDateVal + '" style="flex:1;min-width:110px;" />' +
+            '<input class="form-input" type="time" id="gcalEvStartTime" value="' + startTimeVal + '" style="flex:1;min-width:90px;" ' + (isAllDay ? "disabled" : "") + ' />' +
+          '</div>' +
+        '</div>' +
+        '<div style="flex:1;min-width:130px;">' +
+          '<div style="color:#8A919C;font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">End</div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<input class="form-input" type="date" id="gcalEvEndDate" value="' + endDateVal + '" style="flex:1;min-width:110px;" />' +
+            '<input class="form-input" type="time" id="gcalEvEndTime" value="' + endTimeVal + '" style="flex:1;min-width:90px;" ' + (isAllDay ? "disabled" : "") + ' />' +
+          '</div>' +
+        '</div>' +
       '</div>' +
       '<label style="display:flex;align-items:center;gap:6px;color:#8A919C;font-size:12px;margin-bottom:10px;">' +
-        '<input type="checkbox" id="gcalEvAllDay" onchange="var d=this.checked;document.getElementById(\'gcalEvStart\').disabled=d;document.getElementById(\'gcalEvEnd\').disabled=d;" ' + (isAllDay ? "checked" : "") + ' /> All day' +
+        '<input type="checkbox" id="gcalEvAllDay" onchange="var d=this.checked;document.getElementById(\'gcalEvStartTime\').disabled=d;document.getElementById(\'gcalEvEndTime\').disabled=d;" ' + (isAllDay ? "checked" : "") + ' /> All day' +
       '</label>' +
       '<div class="form-actions" style="display:flex;align-items:center;gap:8px;">' +
         '<span class="error-text" id="gcalEvFormError"></span>' +
@@ -5595,26 +5619,33 @@ function closeGcalEventForm() {
 
 async function saveGcalEvent(eventId) {
   var errEl = document.getElementById("gcalEvFormError");
-  var title = (document.getElementById("gcalEvTitle").value || "").trim();
-  var date  = document.getElementById("gcalEvDate").value;
-  if (!title || !date) {
-    if (errEl) errEl.textContent = "Title and date are required.";
+  var title     = (document.getElementById("gcalEvTitle").value || "").trim();
+  var startDate = document.getElementById("gcalEvStartDate").value;
+  var endDate   = document.getElementById("gcalEvEndDate").value || startDate;
+  if (!title || !startDate) {
+    if (errEl) errEl.textContent = "Title and start date are required.";
+    return;
+  }
+  if (endDate < startDate) {
+    if (errEl) errEl.textContent = "End date can't be before the start date.";
     return;
   }
   var allDay = document.getElementById("gcalEvAllDay").checked;
 
   var body = { summary: title };
   if (allDay) {
-    var endDate = new Date(date + "T00:00:00");
-    endDate.setDate(endDate.getDate() + 1);
-    body.start = { date: date };
-    body.end   = { date: endDate.toISOString().slice(0, 10) };
+    body.start = { date: startDate };
+    body.end   = { date: addDaysISO(endDate, 1) }; // Google's all-day end date is exclusive
   } else {
     var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    var startTime = document.getElementById("gcalEvStart").value || "09:00";
-    var endTime   = document.getElementById("gcalEvEnd").value || "10:00";
-    body.start = { dateTime: date + "T" + startTime + ":00", timeZone: tz };
-    body.end   = { dateTime: date + "T" + endTime + ":00", timeZone: tz };
+    var startTime = document.getElementById("gcalEvStartTime").value || "09:00";
+    var endTime   = document.getElementById("gcalEvEndTime").value || "10:00";
+    if (endDate === startDate && endTime <= startTime) {
+      if (errEl) errEl.textContent = "End time must be after the start time.";
+      return;
+    }
+    body.start = { dateTime: startDate + "T" + startTime + ":00", timeZone: tz };
+    body.end   = { dateTime: endDate + "T" + endTime + ":00", timeZone: tz };
   }
 
   var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events" + (eventId ? "/" + eventId : "");
@@ -5638,6 +5669,23 @@ async function deleteGcalEvent(eventId) {
   await _gcalAuthedFetch(url, { method: "DELETE" });
   closeGcalEventForm();
   fetchAndRenderCalendarEvents();
+}
+
+// Multi-day events get a "Jul 3–5" style range label instead of a single time,
+// since they're only ever listed once (under their start day).
+function _gcalEventSpanLabel(ev, isAllDay, startDateObj) {
+  var startDateOnly = (ev.start.dateTime || ev.start.date).slice(0, 10);
+  var endDateOnly = ev.end.dateTime ? ev.end.dateTime.slice(0, 10) : addDaysISO(ev.end.date, -1);
+  if (endDateOnly && endDateOnly !== startDateOnly) {
+    var s = new Date(startDateOnly + "T12:00:00");
+    var e = new Date(endDateOnly + "T12:00:00");
+    var sMonth = s.toLocaleDateString("en-US", { month: "short" });
+    var eMonth = e.toLocaleDateString("en-US", { month: "short" });
+    return sMonth === eMonth
+      ? sMonth + " " + s.getDate() + "–" + e.getDate()
+      : sMonth + " " + s.getDate() + "–" + eMonth + " " + e.getDate();
+  }
+  return isAllDay ? "All day" : startDateObj.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 async function fetchAndRenderCalendarEvents() {
@@ -5705,10 +5753,10 @@ async function fetchAndRenderCalendarEvents() {
         var isAllDay = !ev.start.dateTime;
         var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
         var d2       = new Date(rawStart);
-        var timeStr  = isAllDay ? "All day" : d2.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        var timeStr  = _gcalEventSpanLabel(ev, isAllDay, d2);
 
         return '<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;">' +
-          '<div style="flex-shrink:0;width:56px;text-align:right;padding-top:2px;">' +
+          '<div style="flex-shrink:0;width:64px;text-align:right;padding-top:2px;">' +
             '<span style="font-size:11px;color:#8A919C;font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
           '</div>' +
           '<div style="width:2px;min-height:18px;align-self:stretch;background:' + dayAccent + '33;border-radius:2px;flex-shrink:0;margin-top:3px;"></div>' +
@@ -5766,7 +5814,7 @@ function _gcalTaskRowHtml(t) {
     '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:#5A6168;font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
     '<div style="flex:1;min-width:0;">' +
       '<div class="gcal-task-title" contenteditable="true" data-task-id="' + t.id + '" style="color:var(--text-1);font-size:13px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
-      (t.due ? '<div style="color:#5A6168;font-size:11px;">Due ' + new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>' : '') +
+      '<input type="date" class="gcal-task-due" data-task-id="' + t.id + '" value="' + (t.due ? t.due.slice(0, 10) : "") + '" title="Due date" style="background:transparent;color:#5A6168;font-size:11px;font-family:inherit;border:none;padding:1px 0;margin-top:1px;cursor:pointer;max-width:120px;color-scheme:dark;" />' +
     '</div>' +
     '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
   '</div>';
@@ -5809,11 +5857,12 @@ async function fetchAndRenderTasks() {
       groupsHtml +
       '<div style="display:flex;gap:6px;margin-top:10px;">' +
         '<input id="gcalNewTaskInput" placeholder="Add a task…" style="flex:1;min-width:0;background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')addGcalTask();" />' +
-        '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ Add</button>' +
+        '<input id="gcalNewTaskDate" type="date" title="Due date (optional)" style="background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 6px;font-size:11px;font-family:inherit;color-scheme:dark;flex-shrink:0;" />' +
+        '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;flex-shrink:0;">+ Add</button>' +
       '</div>';
 
-    if (!tkEl._gcalTitleEditsBound) {
-      tkEl._gcalTitleEditsBound = true;
+    if (!tkEl._gcalTaskEventsBound) {
+      tkEl._gcalTaskEventsBound = true;
       tkEl.addEventListener("focusout", function(e) {
         var el = e.target.closest(".gcal-task-title[contenteditable]");
         if (!el) return;
@@ -5829,6 +5878,11 @@ async function fetchAndRenderTasks() {
           el.textContent = t ? t.title || "" : "";
           el.blur();
         }
+      });
+      tkEl.addEventListener("change", function(e) {
+        var el = e.target.closest(".gcal-task-due");
+        if (!el) return;
+        saveGcalTaskDue(el.getAttribute("data-task-id"), el.value);
       });
     }
   } catch(e) {
@@ -5868,6 +5922,21 @@ async function saveGcalTaskTitle(taskId, newTitle, el) {
   });
 }
 
+async function saveGcalTaskDue(taskId, dateVal) {
+  var task = _gcalTasksById[taskId];
+  if (!task) return;
+  var due = dateVal ? dateVal + "T00:00:00.000Z" : null;
+  if (due === (task.due || null)) return;
+  task.due = due;
+  var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
+  await _gcalAuthedFetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ due: due })
+  });
+  fetchAndRenderTasks(); // re-render so the week grouping picks up the new date
+}
+
 async function deleteGcalTask(taskId) {
   var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
   await _gcalAuthedFetch(url, { method: "DELETE" });
@@ -5876,14 +5945,17 @@ async function deleteGcalTask(taskId) {
 
 async function addGcalTask() {
   var inputEl = document.getElementById("gcalNewTaskInput");
+  var dateEl  = document.getElementById("gcalNewTaskDate");
   if (!inputEl) return;
   var title = inputEl.value.trim();
   if (!title) return;
+  var body = { title: title };
+  if (dateEl && dateEl.value) body.due = dateEl.value + "T00:00:00.000Z";
   var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks";
   await _gcalAuthedFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: title })
+    body: JSON.stringify(body)
   });
   fetchAndRenderTasks();
 }
