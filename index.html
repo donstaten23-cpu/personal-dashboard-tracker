@@ -5522,6 +5522,7 @@ function renderGcalCard() {
       '<span class="gauge-label mono" style="letter-spacing:.12em;">UPCOMING EVENTS</span>' +
       (connected
         ? '<div style="display:flex;gap:8px;">' +
+            '<button id="gcalRefreshBtn" onclick="refreshGcalData()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">&#8635; Refresh</button>' +
             '<button onclick="openGcalEventForm()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ New event</button>' +
             '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' +
           '</div>'
@@ -5538,6 +5539,14 @@ function renderGcalCard() {
   "</div>";
 
   if (connected) { fetchAndRenderCalendarEvents(); fetchAndRenderTasks(); }
+}
+
+async function refreshGcalData() {
+  var btn = document.getElementById("gcalRefreshBtn");
+  if (btn) { btn.disabled = true; btn.innerHTML = "&#8635; Refreshing&hellip;"; }
+  await Promise.all([fetchAndRenderCalendarEvents(), fetchAndRenderTasks()]);
+  var btn2 = document.getElementById("gcalRefreshBtn");
+  if (btn2) { btn2.disabled = false; btn2.innerHTML = "&#8635; Refresh"; }
 }
 
 function openGcalEventForm(eventId) {
