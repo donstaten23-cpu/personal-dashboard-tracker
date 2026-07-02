@@ -5314,7 +5314,7 @@ function renderGuidePage() {
         ['sessionStorage["gcal-token"]',    'Caches the current short-lived access token client-side so most page loads don\'t need a round trip to the Edge Function.'],
       ]) +
       '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management) and <code>tasks.readonly</code> (for the Tasks sync list) — requested together in one consent screen.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management) and <code>tasks</code> (read/write, for the Tasks sync list) — requested together in one consent screen.</div>' +
       '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>'
     ) +
 
@@ -5387,8 +5387,9 @@ function _guideStep(num, body) {
 var _gcalToken       = null;
 var _gcalTokenExpiry = 0;
 var _gcalClient      = null;
-var _gcalScopes      = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks.readonly";
+var _gcalScopes      = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks";
 var _gcalEventsById  = {};
+var _gcalTasksById   = {};
 
 // All calls to the google-oauth Supabase Edge Function go through here.
 // The function verifies the caller via this Supabase session JWT, then
@@ -5742,26 +5743,61 @@ async function fetchAndRenderTasks() {
 
     var json  = await resp.json();
     var tasks = (json.items || []).filter(function(t) { return t.status !== "completed"; });
-
-    if (!tasks.length) { tkEl.innerHTML = ""; return; }
+    _gcalTasksById = {};
+    tasks.forEach(function(t) { _gcalTasksById[t.id] = t; });
 
     tkEl.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;">' +
         '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">TASKS</span>' +
         '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
       '</div>' +
-      tasks.map(function(t) {
+      (tasks.length ? tasks.map(function(t) {
         return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;">' +
-          '<span style="color:#5A6168;font-size:13px;line-height:1.4;">&#9675;</span>' +
+          '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:#5A6168;font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="color:var(--text-1);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
             (t.due ? '<div style="color:#5A6168;font-size:11px;">Due ' + new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>' : '') +
           '</div>' +
+          '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
         '</div>';
-      }).join('');
+      }).join('') : '') +
+      '<div style="display:flex;gap:6px;margin-top:6px;">' +
+        '<input id="gcalNewTaskInput" placeholder="Add a task…" style="flex:1;min-width:0;background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')addGcalTask();" />' +
+        '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ Add</button>' +
+      '</div>';
   } catch(e) {
     tkEl.innerHTML = "";
   }
+}
+
+async function toggleGcalTaskDone(taskId) {
+  var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
+  await _gcalAuthedFetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "completed" })
+  });
+  fetchAndRenderTasks();
+}
+
+async function deleteGcalTask(taskId) {
+  var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
+  await _gcalAuthedFetch(url, { method: "DELETE" });
+  fetchAndRenderTasks();
+}
+
+async function addGcalTask() {
+  var inputEl = document.getElementById("gcalNewTaskInput");
+  if (!inputEl) return;
+  var title = inputEl.value.trim();
+  if (!title) return;
+  var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks";
+  await _gcalAuthedFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: title })
+  });
+  fetchAndRenderTasks();
 }
 
 /* ---------------- boot ---------------- */
