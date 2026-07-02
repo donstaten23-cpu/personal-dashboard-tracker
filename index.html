@@ -319,6 +319,14 @@
   .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 4px; }
   .checkbox { flex-shrink: 0; height: 17px; width: 17px; }
 
+  /* Google Tasks — completion animation + inline-editable title */
+  .gcal-task-row { transition: opacity .25s ease, transform .25s ease, max-height .25s ease, margin .25s ease; max-height: 40px; overflow: hidden; }
+  .gcal-task-row.gcal-task-fading { opacity: 0; transform: translateX(8px); max-height: 0; margin: 0; }
+  .gcal-task-title.gcal-task-done { text-decoration: line-through; color: #5A6168; }
+  .gcal-task-title[contenteditable="true"] { cursor: text; border-radius: 3px; padding: 1px 2px; margin: -1px -2px; }
+  .gcal-task-title[contenteditable="true"]:hover { box-shadow: 0 0 0 1px #2A313A; }
+  .gcal-task-title[contenteditable="true"]:focus { outline: none; box-shadow: 0 0 0 1px var(--accent); }
+
   .item-edit { display: flex; flex-direction: column; gap: 8px; }
   .edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
@@ -5732,6 +5740,38 @@ async function fetchAndRenderCalendarEvents() {
   }
 }
 
+var GCAL_TASK_BUCKETS = [
+  { id: "overdue",  label: "OVERDUE",     color: "#D9667A" },
+  { id: "thisweek", label: "THIS WEEK",   color: "#5A6168" },
+  { id: "nextweek", label: "NEXT WEEK",   color: "#5A6168" },
+  { id: "later",    label: "LATER",       color: "#5A6168" },
+  { id: "nodate",   label: "NO DUE DATE", color: "#5A6168" }
+];
+
+function _gcalTaskBucket(due) {
+  if (!due) return "nodate";
+  var dueDay = due.slice(0, 10);
+  var today = todayISO();
+  if (dueDay < today) return "overdue";
+  var dueWeek  = weekKeyForDate(dueDay);
+  var thisWeek = todayWeekKey();
+  var nextWeek = addDaysISO(thisWeek, 7);
+  if (dueWeek === thisWeek) return "thisweek";
+  if (dueWeek === nextWeek) return "nextweek";
+  return "later";
+}
+
+function _gcalTaskRowHtml(t) {
+  return '<div class="gcal-task-row" data-task-id="' + t.id + '" style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;">' +
+    '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:#5A6168;font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
+    '<div style="flex:1;min-width:0;">' +
+      '<div class="gcal-task-title" contenteditable="true" data-task-id="' + t.id + '" style="color:var(--text-1);font-size:13px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
+      (t.due ? '<div style="color:#5A6168;font-size:11px;">Due ' + new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>' : '') +
+    '</div>' +
+    '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
+  '</div>';
+}
+
 async function fetchAndRenderTasks() {
   var tkEl = document.getElementById("gcalTasks");
   if (!tkEl || !_gcalToken) return;
@@ -5746,38 +5786,86 @@ async function fetchAndRenderTasks() {
     _gcalTasksById = {};
     tasks.forEach(function(t) { _gcalTasksById[t.id] = t; });
 
+    var buckets = {};
+    tasks.forEach(function(t) {
+      var b = _gcalTaskBucket(t.due);
+      (buckets[b] = buckets[b] || []).push(t);
+    });
+
+    var groupsHtml = GCAL_TASK_BUCKETS.map(function(b) {
+      var list = buckets[b.id];
+      if (!list || !list.length) return "";
+      return '<div style="margin-top:10px;">' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:' + b.color + ';margin-bottom:2px;">' + b.label + '</div>' +
+        list.map(_gcalTaskRowHtml).join('') +
+      '</div>';
+    }).join('');
+
     tkEl.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;">' +
         '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">TASKS</span>' +
         '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
       '</div>' +
-      (tasks.length ? tasks.map(function(t) {
-        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;">' +
-          '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:#5A6168;font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="color:var(--text-1);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
-            (t.due ? '<div style="color:#5A6168;font-size:11px;">Due ' + new Date(t.due).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + '</div>' : '') +
-          '</div>' +
-          '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
-        '</div>';
-      }).join('') : '') +
-      '<div style="display:flex;gap:6px;margin-top:6px;">' +
+      groupsHtml +
+      '<div style="display:flex;gap:6px;margin-top:10px;">' +
         '<input id="gcalNewTaskInput" placeholder="Add a task…" style="flex:1;min-width:0;background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')addGcalTask();" />' +
         '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ Add</button>' +
       '</div>';
+
+    if (!tkEl._gcalTitleEditsBound) {
+      tkEl._gcalTitleEditsBound = true;
+      tkEl.addEventListener("focusout", function(e) {
+        var el = e.target.closest(".gcal-task-title[contenteditable]");
+        if (!el) return;
+        saveGcalTaskTitle(el.getAttribute("data-task-id"), el.textContent.trim(), el);
+      });
+      tkEl.addEventListener("keydown", function(e) {
+        var el = e.target.closest(".gcal-task-title[contenteditable]");
+        if (!el) return;
+        if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+        else if (e.key === "Escape") {
+          e.preventDefault();
+          var t = _gcalTasksById[el.getAttribute("data-task-id")];
+          el.textContent = t ? t.title || "" : "";
+          el.blur();
+        }
+      });
+    }
   } catch(e) {
     tkEl.innerHTML = "";
   }
 }
 
 async function toggleGcalTaskDone(taskId) {
+  var row = document.querySelector('.gcal-task-row[data-task-id="' + taskId + '"]');
+  var titleEl = row ? row.querySelector(".gcal-task-title") : null;
+  if (titleEl) titleEl.classList.add("gcal-task-done");
+  setTimeout(function() {
+    if (row) row.classList.add("gcal-task-fading");
+    setTimeout(async function() {
+      var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
+      await _gcalAuthedFetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "completed" })
+      });
+      fetchAndRenderTasks();
+    }, 260);
+  }, 220);
+}
+
+async function saveGcalTaskTitle(taskId, newTitle, el) {
+  var task = _gcalTasksById[taskId];
+  if (!task) return;
+  if (!newTitle) { if (el) el.textContent = task.title || ""; return; }
+  if (newTitle === task.title) return;
+  task.title = newTitle;
   var url = "https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + taskId;
   await _gcalAuthedFetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: "completed" })
+    body: JSON.stringify({ title: newTitle })
   });
-  fetchAndRenderTasks();
 }
 
 async function deleteGcalTask(taskId) {
