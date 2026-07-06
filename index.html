@@ -349,7 +349,7 @@
   }
   @keyframes fadeIn {
     from { opacity: 0; }
-    to   { opacity: 1.1; }
+    to   { opacity: 1; }
   }
   @keyframes slideRight {
     from { opacity: 0; transform: translateX(-14px); }
@@ -452,6 +452,10 @@
       <button class="sidebar-item" data-page="workouts">
         <span class="s-icon">&#9651;</span> Workouts
       </button>
+      <div class="sidebar-section-label" style="margin-top:8px;">Hobbies</div>
+      <button class="sidebar-item" data-page="chess">
+        <span class="s-icon">&#9823;</span> Chess
+      </button>
       <div class="sidebar-section-label" style="margin-top:8px;">Portfolio</div>
       <button class="sidebar-item" data-page="portfolio">
         <span class="s-icon">&#9632;</span> Work Portfolio
@@ -516,14 +520,20 @@
           <div style="border-top:1px solid #1E2530;padding-top:14px;">
             <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
             <p style="color:#8A919C;font-size:14px;line-height:1.7;margin:0;">
-              A personal dashboard — built to keep travel plans, monthly finances, workout progress, and daily habits all in one place, synced across devices in real time.
-              Use the sidebar to navigate between your dashboard tabs, workouts log, and portfolio pages.
+              A personal dashboard — built to keep travel plans, finances, workouts, daily routines, hobbies, and career tracking all in one place, synced across devices in real time.
+              Use the sidebar to navigate between your dashboard tabs, portfolio pages, and trackers.
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#E8643A;">&#9783; Travel tracker</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#5BAE7A;">&#9650; Budget &amp; bills</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#D9A441;">&#9671; Daily routines</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#3DBFC4;">&#9651; Workouts</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#8B5E3C;">&#9823; Chess progress</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#5B8FA8;">&#9632; Work portfolio</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#D9667A;">&#9670; Art portfolio</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#9B8AC4;">&#127891; Degree tracker</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#C9A15A;">&#127941; Certifications</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#6B8F71;">&#128188; Job tracker</span>
             </div>
           </div>
         </div>
@@ -553,6 +563,11 @@
       <div class="page-inner">
         <div id="workoutPageRoot"></div>
       </div>
+    </div>
+
+    <!-- Page: Chess Progress -->
+    <div class="page" id="page-chess">
+      <div class="page-inner"></div>
     </div>
 
     <!-- Page: Work Portfolio -->
@@ -822,6 +837,8 @@ var USER_DISPLAY_NAME = "Don";
 var PARTNER_DISPLAY_NAME = "Wife";
 /* Google Calendar OAuth Client ID */
 var GOOGLE_CLIENT_ID = "1017729047706-t51pi0i7k2cgo0g1ggm5ndc1cs8se5qg.apps.googleusercontent.com";
+/* Chess.com username — powers the Chess Progress page (public API, no key needed) */
+var CHESS_USERNAME = "donstaten23";
 
 var supabaseClient = null;
 var currentUserId = null;
@@ -1281,6 +1298,9 @@ function switchPage(page) {
   }
   if (page === "jobs") {
     renderJobsPage();
+  }
+  if (page === "chess") {
+    renderChessPage();
   }
   // Render settings page each visit so it picks up current state
   if (page === "settings") {
@@ -5180,6 +5200,218 @@ async function renderJobsPage() {
 }
 
 /* ============================================================
+   CHESS PROGRESS PAGE
+   ============================================================ */
+
+var _chessProfile     = null;
+var _chessStats       = null;
+var _chessGoalData    = null;
+var _chessLoadError   = null;
+var _chessLoaded      = false;
+var _chessGoalEditing = false;
+
+var CHESS_MODES = [
+  { key: 'chess_daily',  label: 'Daily' },
+  { key: 'chess_rapid',  label: 'Rapid' },
+  { key: 'chess_blitz',  label: 'Blitz' },
+  { key: 'chess_bullet', label: 'Bullet' }
+];
+
+// Rough, informal tiers for chess.com ratings — not tied to any official rating body.
+var CHESS_RATING_TIERS = [
+  { max: 400,      label: 'Just starting out',  blurb: 'Still learning how the pieces move and how to spot a checkmate — everyone starts here.' },
+  { max: 600,      label: 'Beginner',           blurb: 'Comfortable with the rules, but pieces get hung often and there’s no opening plan yet.' },
+  { max: 800,      label: 'Novice',             blurb: 'Starting to spot simple one-move tactics like forks and pins, though blunders are still common.' },
+  { max: 1000,     label: 'Advanced beginner',  blurb: 'Fewer outright blunders, developing pieces with more intention, and recognizing basic tactical patterns.' },
+  { max: 1200,     label: 'Casual club level',  blurb: 'Solid fundamentals and starting to calculate a couple of moves ahead before committing to a plan.' },
+  { max: 1400,     label: 'Solid club player',  blurb: 'Consistent tactical awareness and reasonable endgame technique — a step above most casual players.' },
+  { max: 1600,     label: 'Strong club player', blurb: 'Good positional sense and reliably converts an advantage into a win.' },
+  { max: Infinity, label: 'Advanced player',    blurb: 'Well above typical casual play — approaching expert-level understanding of the game.' }
+];
+
+function _chessTier(rating) {
+  for (var i = 0; i < CHESS_RATING_TIERS.length; i++) {
+    if (rating < CHESS_RATING_TIERS[i].max) return CHESS_RATING_TIERS[i];
+  }
+  return CHESS_RATING_TIERS[CHESS_RATING_TIERS.length - 1];
+}
+
+function _chessRelativeDate(epochSeconds) {
+  if (!epochSeconds) return '—';
+  var d = new Date(epochSeconds * 1000);
+  var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return days + ' days ago';
+  if (days < 60) { var wks = Math.floor(days / 7); return wks + (wks === 1 ? ' week ago' : ' weeks ago'); }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function _chessModeSummaries(stats) {
+  return CHESS_MODES.map(function(m) {
+    var s = stats[m.key];
+    if (!s || !s.last) return { key: m.key, label: m.label, played: false, games: 0, record: { win: 0, loss: 0, draw: 0 } };
+    var rec = s.record || {};
+    return {
+      key: m.key, label: m.label, played: true,
+      rating: s.last.rating,
+      best: (s.best && s.best.rating) || s.last.rating,
+      lastDate: s.last.date || 0,
+      games: (rec.win || 0) + (rec.loss || 0) + (rec.draw || 0),
+      record: rec
+    };
+  });
+}
+
+async function loadChessGoalData() {
+  _chessGoalData = await loadTabData('dashboard-chess-data', { goalRating: 850 });
+}
+async function saveChessGoalData() {
+  await saveTabData('dashboard-chess-data', _chessGoalData);
+}
+
+async function fetchChessLiveData() {
+  _chessLoadError = null;
+  try {
+    var base = 'https://api.chess.com/pub/player/' + CHESS_USERNAME;
+    var results = await Promise.all([fetch(base), fetch(base + '/stats')]);
+    if (!results[0].ok || !results[1].ok) throw new Error('Chess.com API error');
+    _chessProfile = await results[0].json();
+    _chessStats   = await results[1].json();
+  } catch (e) {
+    _chessLoadError = 'Couldn’t reach the Chess.com API. Check your connection and try refreshing.';
+  }
+}
+
+function _chessStatBlock(label, value) {
+  return '<div>' +
+    '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + label + '</div>' +
+    '<div class="mono" style="color:#EDEAE3;font-size:18px;font-weight:700;">' + value + '</div>' +
+  '</div>';
+}
+
+async function renderChessPage(forceRefresh) {
+  var page = document.getElementById('page-chess');
+  if (!page) return;
+  var inner = page.querySelector('.page-inner');
+
+  if (!_chessGoalData) await loadChessGoalData();
+
+  if (!_chessLoaded || forceRefresh) {
+    inner.innerHTML = '<div class="empty-state">Loading chess stats…</div>';
+    await fetchChessLiveData();
+    _chessLoaded = true;
+  }
+
+  if (_chessLoadError && !_chessProfile) {
+    inner.innerHTML =
+      '<div style="padding-top:40px;">' +
+        '<div class="port-eyebrow">Hobbies</div>' +
+        '<div class="serif" style="font-size:30px;color:#EDEAE3;line-height:1.1;margin-bottom:16px;">Chess Progress</div>' +
+        '<div class="card"><div class="error-text" style="margin-bottom:12px;">' + _chessLoadError + '</div>' +
+        '<button class="small-btn" style="background:var(--accent);" onclick="renderChessPage(true)">Retry</button></div>' +
+      '</div>';
+    return;
+  }
+
+  var profile = _chessProfile || {};
+  var stats   = _chessStats || {};
+  var modes   = _chessModeSummaries(stats);
+  var playedModes = modes.filter(function(m) { return m.played; });
+
+  var primary = playedModes.slice().sort(function(a, b) { return b.lastDate - a.lastDate; })[0];
+  var currentRating = primary ? primary.rating : null;
+  var bestRating  = playedModes.reduce(function(max, m) { return Math.max(max, m.best); }, 0);
+  var totalGames  = playedModes.reduce(function(sum, m) { return sum + m.games; }, 0);
+  var totalRecord = playedModes.reduce(function(acc, m) {
+    acc.win += (m.record.win || 0); acc.loss += (m.record.loss || 0); acc.draw += (m.record.draw || 0);
+    return acc;
+  }, { win: 0, loss: 0, draw: 0 });
+
+  var goal  = Number(_chessGoalData.goalRating) || 850;
+  var tier  = currentRating != null ? _chessTier(currentRating) : null;
+  var accent = '#8B5E3C';
+
+  var modeChipsHtml = modes.map(function(m) {
+    var isPrimary = primary && m.key === primary.key;
+    return '<div class="chip" style="' + (isPrimary ? 'border-color:' + accent + ';' : '') + '">' +
+      '<span style="color:#8A919C;">' + m.label + '</span>' +
+      '<span class="mono" style="color:' + (m.played ? '#EDEAE3' : '#5A6168') + ';font-weight:700;">' + (m.played ? m.rating : '—') + '</span>' +
+    '</div>';
+  }).join('');
+
+  var gaugePct = currentRating != null ? Math.min(100, (currentRating / goal) * 100) : 0;
+
+  var goalBodyHtml = _chessGoalEditing
+    ? '<div class="row-gap"><input id="chessGoalDraft" class="small-input" type="number" min="1" placeholder="Goal rating" value="' + escapeHtml(String(goal)) + '" onkeydown="if(event.key===\'Enter\')document.getElementById(\'chessSetGoal\').click();" /><button class="small-btn" id="chessSetGoal" style="background:' + accent + ';">Set</button></div>'
+    : '<div class="gauge-track"><div class="gauge-fill" style="width:' + gaugePct + '%;background:linear-gradient(90deg,' + accent + ',' + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+
+  inner.innerHTML =
+    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
+      '<div>' +
+        '<div class="port-eyebrow">Hobbies</div>' +
+        '<div class="serif" style="font-size:30px;color:#EDEAE3;line-height:1.1;">Chess Progress</div>' +
+        '<div style="color:#8A919C;font-size:14px;margin-top:4px;">' +
+          (profile.name ? escapeHtml(profile.name) + ' · ' : '') +
+          '<a href="' + escapeHtml(profile.url || ('https://www.chess.com/member/' + CHESS_USERNAME)) + '" target="_blank" rel="noopener" style="color:#8A919C;">@' + escapeHtml(CHESS_USERNAME) + ' ↗</a>' +
+        '</div>' +
+        (_chessLoadError ? '<div style="color:#FF8A5C;font-size:12px;margin-top:6px;">' + _chessLoadError + ' Showing last-loaded data.</div>' : '') +
+      '</div>' +
+      '<button class="small-btn" style="background:none;border:1px solid #2A313A;color:#8A919C;" onclick="renderChessPage(true)">↻ Refresh</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="gauge-top">' +
+        '<span class="gauge-label mono">' + (primary ? primary.label.toUpperCase() + ' RATING' : 'RATING') + '</span>' +
+        '<span class="mono" style="color:' + accent + ';">' + (currentRating != null ? currentRating + ' of ' + goal + ' goal' : 'No rated games yet') + '</span>' +
+      '</div>' +
+      goalBodyHtml +
+      (!_chessGoalEditing ? '<div style="margin-top:10px;"><button class="link-btn" id="chessEditGoalBtn" style="color:#8A919C;">Edit goal</button></div>' : '') +
+      '<div class="chips" style="margin-top:16px;margin-bottom:0;">' + modeChipsHtml + '</div>' +
+    '</div>' +
+
+    (tier ? (
+      '<div class="card">' +
+        '<div class="gauge-label mono" style="margin-bottom:8px;">WHAT THIS MEANS</div>' +
+        '<div style="color:#EDEAE3;font-size:16px;font-weight:700;margin-bottom:6px;">' + tier.label + ' (' + primary.label + ')</div>' +
+        '<div style="color:#8A919C;font-size:14px;line-height:1.7;">' + tier.blurb +
+          (bestRating > currentRating ? ' Your best-ever rating was <strong style="color:var(--text-1);">' + bestRating + '</strong> — getting back above that is a good near-term marker.' : '') +
+        '</div>' +
+        '<div style="color:#5A6168;font-size:12px;margin-top:10px;">Rough, informal read on chess.com ratings — actual skill varies by time control and shifts as the rating pool changes.</div>' +
+      '</div>'
+    ) : '') +
+
+    '<div class="card">' +
+      '<div class="gauge-label mono" style="margin-bottom:12px;">PROFILE</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;">' +
+        _chessStatBlock('Games played', totalGames) +
+        _chessStatBlock('Record', totalRecord.win + 'W – ' + totalRecord.loss + 'L – ' + totalRecord.draw + 'D') +
+        _chessStatBlock('Followers', profile.followers != null ? profile.followers : '—') +
+        _chessStatBlock('Last online', _chessRelativeDate(profile.last_online)) +
+        _chessStatBlock('Member since', profile.joined ? new Date(profile.joined * 1000).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—') +
+        _chessStatBlock('Best rating ever', bestRating || '—') +
+      '</div>' +
+    '</div>';
+
+  if (!inner._chessClickAttached) {
+    inner._chessClickAttached = true;
+    inner.addEventListener('click', function(e) {
+      if (e.target.id === 'chessEditGoalBtn') {
+        _chessGoalEditing = true;
+        renderChessPage();
+      } else if (e.target.id === 'chessSetGoal') {
+        var val = Number((document.getElementById('chessGoalDraft') || {}).value);
+        if (val > 0) { _chessGoalData.goalRating = val; saveChessGoalData(); }
+        _chessGoalEditing = false;
+        renderChessPage();
+      }
+    });
+  }
+
+  initScrollAnims();
+}
+
+/* ============================================================
    DEVELOPER GUIDE PAGE
    ============================================================ */
 
@@ -5212,7 +5444,10 @@ function renderGuidePage() {
   el.innerHTML =
     '<div class="port-edit-bar" style="margin-bottom:4px;">' +
       '<button onclick="switchPage(\'settings\')" style="background:none;border:1px solid var(--border-2);color:#8A919C;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;">&#8592; Back to Settings</button>' +
-      '<button class="port-edit-btn locked" id="guideEditBtn" onclick="toggleGuideEdit()">&#128274; Locked</button>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button class="port-edit-btn" id="guideResetBtn" style="font-size:12px;padding:4px 12px;" onclick="resetGuideContent()" title="Wipe any saved custom edits and restore the built-in guide text">Reset to default</button>' +
+        '<button class="port-edit-btn locked" id="guideEditBtn" onclick="toggleGuideEdit()">&#128274; Locked</button>' +
+      '</div>' +
     '</div>' +
     '<div data-guide-key="body">' +
     '<div class="port-eyebrow" style="margin-top:20px;">Developer Reference</div>' +
@@ -5239,6 +5474,7 @@ function renderGuidePage() {
         ['USER_DISPLAY_NAME',     'Your first name, shown in the greeting ("Good morning, Don").'],
         ['PARTNER_DISPLAY_NAME',  'Label used in Budget\'s pay schedule (e.g. "Wife").'],
         ['GOOGLE_CLIENT_ID',      'OAuth 2.0 Client ID for Google Calendar integration.'],
+        ['CHESS_USERNAME',        'Chess.com username that powers the Chess Progress page (public API, no key needed).'],
       ])
     ) +
 
@@ -5255,6 +5491,7 @@ function renderGuidePage() {
         ['dashboard-education-data','Degree program, courses, grades'],
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
+        ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
         ['portfolio-img-{key}',     'One row per image. data.src = base64 data URL'],
         ['art-content',             'All text/captions on the Art Portfolio page'],
@@ -5323,7 +5560,20 @@ function renderGuidePage() {
       ]) +
       '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
       '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management) and <code>tasks</code> (read/write, for the Tasks sync list) — requested together in one consent screen.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>'
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Events are fetched once for a 14-day window (this week + next, Monday-start) and split into two labeled sections in the UI — no separate call per week.</div>'
+    ) +
+
+    sec('Chess.com Integration') +
+    card(
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">The Chess Progress page reads directly from Chess.com\'s <strong style="color:var(--text-1);">public player API</strong> — no login, API key, or Edge Function needed, since the endpoints are unauthenticated and CORS-open.</div>' +
+      tbl([
+        ['GET /pub/player/{username}',       'Profile: name, avatar, followers, joined date, last online.'],
+        ['GET /pub/player/{username}/stats', 'Ratings + win/loss/draw record for each time control (daily, rapid, blitz, bullet).'],
+      ]) +
+      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On first visit, <code>fetchChessLiveData()</code> hits both endpoints and caches the result in memory for the session — revisiting the page re-renders from cache instead of re-fetching; the &#8617; Refresh button forces a re-fetch. The "current" rating shown is whichever time control was played most recently, not a fixed one, so it follows however you actually play.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">The rating goal (default 850) is the only piece of data actually stored in Supabase, under <code>dashboard-chess-data</code> — everything else is always live from Chess.com.</div>' +
+      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>fetchChessLiveData()</code> · <code>renderChessPage(forceRefresh)</code> · <code>_chessTier(rating)</code> (the "what this means" blurb) · <code>_chessModeSummaries(stats)</code></div>'
     ) +
 
     '<div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border-2);color:#3A4250;font-size:12px;padding-bottom:40px;">' +
@@ -5383,9 +5633,38 @@ async function saveGuideContent() {
   } catch(e) { console.error("Guide content save error", e); }
 }
 
+var _guideResetConfirm = false;
+function resetGuideContent() {
+  var btn = document.getElementById("guideResetBtn");
+  if (!btn) return;
+  if (!_guideResetConfirm) {
+    _guideResetConfirm = true;
+    btn.textContent = "Click again to reset";
+    btn.style.color = "#FF8A5C";
+    setTimeout(function () {
+      _guideResetConfirm = false;
+      if (document.getElementById("guideResetBtn")) { btn.textContent = "Reset to default"; btn.style.color = "#8A919C"; }
+    }, 4000);
+    return;
+  }
+  _guideResetConfirm = false;
+  (async function () {
+    if (currentUserId) {
+      try {
+        await supabaseClient.from("dashboard_data").delete()
+          .eq("user_id", currentUserId).eq("tab_key", "dashboard-guide-content");
+      } catch(e) { console.error("Guide reset error", e); }
+    }
+    var gRoot = document.getElementById("guidePageInner");
+    if (gRoot) gRoot._loaded = false;
+    renderGuidePage();
+    loadGuideContent();
+  })();
+}
+
 function _guideStep(num, body) {
   return '<div style="width:24px;height:24px;background:var(--accent)22;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;margin-top:2px;">' + num + '</div>' +
-    '<div style="color:#8A919C;font-size:13px;line-height:1.6;margin-bottom:8px;">' + body + '</div>';
+    '<div style="color:#8A919C;font-size:13px;line-height:1.6;margin-bottom:8px;min-width:0;overflow-wrap:break-word;">' + body + '</div>';
 }
 
 /* ============================================================
@@ -5700,12 +5979,17 @@ async function fetchAndRenderCalendarEvents() {
   }
 
   try {
-    var now    = new Date().toISOString();
-    var maxEnd = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    // Two-week window, aligned to Monday-start weeks so it splits cleanly into
+    // "This Week" / "Next Week" sections (same week boundaries as the Tasks buckets).
+    var now           = new Date().toISOString();
+    var thisWeekStart = todayWeekKey();
+    var nextWeekStart = addDaysISO(thisWeekStart, 7);
+    var rangeEnd       = addDaysISO(thisWeekStart, 14);
+    var maxEnd         = new Date(rangeEnd + "T00:00:00").toISOString();
     var url = "https://www.googleapis.com/calendar/v3/calendars/primary/events" +
       "?timeMin=" + encodeURIComponent(now) +
       "&timeMax=" + encodeURIComponent(maxEnd) +
-      "&singleEvents=true&orderBy=startTime&maxResults=20";
+      "&singleEvents=true&orderBy=startTime&maxResults=50";
 
     var resp = await _gcalAuthedFetch(url);
 
@@ -5721,11 +6005,6 @@ async function fetchAndRenderCalendarEvents() {
     _gcalEventsById = {};
     events.forEach(function(ev) { _gcalEventsById[ev.id] = ev; });
 
-    if (!events.length) {
-      evEl.innerHTML = '<div style="color:#5A6168;font-size:13px;padding:8px 0;">No upcoming events this week.</div>';
-      return;
-    }
-
     var today    = todayISO();
     var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
@@ -5738,50 +6017,70 @@ async function fetchAndRenderCalendarEvents() {
       groups[dateKey].push(ev);
     });
 
-    var html = dateOrder.map(function(dateKey, groupIdx) {
-      var isToday    = dateKey === today;
-      var isTomorrow = dateKey === tomorrow;
-      var dayAccent  = isToday ? "var(--accent)" : isTomorrow ? "#D9A441" : "#5B8FA8";
+    function renderDayGroups(dateKeys) {
+      return dateKeys.map(function(dateKey, groupIdx) {
+        var isToday    = dateKey === today;
+        var isTomorrow = dateKey === tomorrow;
+        var dayAccent  = isToday ? "var(--accent)" : isTomorrow ? "#D9A441" : "#5B8FA8";
 
-      var d = new Date(dateKey + "T12:00:00");
-      var dayLabel = isToday ? "TODAY"
-        : isTomorrow ? "TOMORROW"
-        : d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase() +
-          " · " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+        var d = new Date(dateKey + "T12:00:00");
+        var dayLabel = isToday ? "TODAY"
+          : isTomorrow ? "TOMORROW"
+          : d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase() +
+            " · " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
 
-      var eventsHtml = groups[dateKey].map(function(ev) {
-        var isAllDay = !ev.start.dateTime;
-        var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
-        var d2       = new Date(rawStart);
-        var timeStr  = _gcalEventSpanLabel(ev, isAllDay, d2);
+        var eventsHtml = groups[dateKey].map(function(ev) {
+          var isAllDay = !ev.start.dateTime;
+          var rawStart = ev.start.dateTime || (ev.start.date + "T00:00:00");
+          var d2       = new Date(rawStart);
+          var timeStr  = _gcalEventSpanLabel(ev, isAllDay, d2);
 
-        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;">' +
-          '<div style="flex-shrink:0;width:64px;text-align:right;padding-top:2px;">' +
-            '<span style="font-size:11px;color:#8A919C;font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;">' +
+            '<div style="flex-shrink:0;width:64px;text-align:right;padding-top:2px;">' +
+              '<span style="font-size:11px;color:#8A919C;font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
+            '</div>' +
+            '<div style="width:2px;min-height:18px;align-self:stretch;background:' + dayAccent + '33;border-radius:2px;flex-shrink:0;margin-top:3px;"></div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="color:var(--text-1);font-size:13px;font-weight:' + (isToday ? "500" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + '</div>' +
+              (ev.location ? '<div style="color:#5A6168;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
+            '</div>' +
+            '<div style="flex-shrink:0;display:flex;gap:4px;">' +
+              '<button onclick="openGcalEventForm(\'' + ev.id + '\')" title="Edit" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&#9998;</button>' +
+              '<button onclick="deleteGcalEvent(\'' + ev.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        var marginTop = groupIdx > 0 ? "margin-top:14px;" : "";
+        return '<div style="' + marginTop + '">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+            '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:' + dayAccent + ';">' + dayLabel + '</span>' +
+            '<div style="flex:1;height:1px;background:' + dayAccent + '25;"></div>' +
           '</div>' +
-          '<div style="width:2px;min-height:18px;align-self:stretch;background:' + dayAccent + '33;border-radius:2px;flex-shrink:0;margin-top:3px;"></div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="color:var(--text-1);font-size:13px;font-weight:' + (isToday ? "500" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + '</div>' +
-            (ev.location ? '<div style="color:#5A6168;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
-          '</div>' +
-          '<div style="flex-shrink:0;display:flex;gap:4px;">' +
-            '<button onclick="openGcalEventForm(\'' + ev.id + '\')" title="Edit" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&#9998;</button>' +
-            '<button onclick="deleteGcalEvent(\'' + ev.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
-          '</div>' +
+          eventsHtml +
         '</div>';
       }).join('');
+    }
 
-      var marginTop = groupIdx > 0 ? "margin-top:14px;" : "";
-      return '<div style="' + marginTop + '">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-          '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:' + dayAccent + ';">' + dayLabel + '</span>' +
-          '<div style="flex:1;height:1px;background:' + dayAccent + '25;"></div>' +
+    function renderWeekSection(label, dateKeys) {
+      var body = dateKeys.length
+        ? renderDayGroups(dateKeys)
+        : '<div style="color:#5A6168;font-size:12px;padding:2px 0;">No events.</div>';
+      return '<div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+          '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">' + label + '</span>' +
+          '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
         '</div>' +
-        eventsHtml +
+        body +
       '</div>';
-    }).join('');
+    }
 
-    evEl.innerHTML = html;
+    var thisWeekDates = dateOrder.filter(function(dk) { return weekKeyForDate(dk) === thisWeekStart; });
+    var nextWeekDates = dateOrder.filter(function(dk) { return weekKeyForDate(dk) === nextWeekStart; });
+
+    evEl.innerHTML =
+      renderWeekSection("THIS WEEK", thisWeekDates) +
+      '<div style="margin-top:16px;">' + renderWeekSection("NEXT WEEK", nextWeekDates) + '</div>';
   } catch(e) {
     var evEl2 = document.getElementById("gcalEvents");
     if (evEl2) evEl2.innerHTML = '<div style="color:#FF8A5C;font-size:13px;">Failed to load events.</div>';
