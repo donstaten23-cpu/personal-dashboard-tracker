@@ -1584,13 +1584,25 @@ async function savePortfolioImages() {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
   if (!data.payPeriods) data.payPeriods = [];
-  if (!data.plannedPurchases) data.plannedPurchases = [];
+  if (!data.plannedGroups) data.plannedGroups = [];
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
   var migratedAny = false;
+
+  // migrate the old flat planned-purchases list into a single group under
+  // the new "goal with line items" shape.
+  if (data.plannedPurchases && data.plannedPurchases.length) {
+    data.plannedGroups.push({
+      id: uid(),
+      name: "Planned purchases",
+      items: data.plannedPurchases.map(function (p) { return { id: p.id, name: p.name, amount: p.amount }; })
+    });
+    data.plannedPurchases = [];
+    migratedAny = true;
+  }
   data.items = (data.items || []).map(function (it) {
     if (it.dueDay !== undefined) return it;
     migratedAny = true;
@@ -1617,6 +1629,8 @@ async function renderSpendTab(root, cfg) {
   var activeCat = cfg.categories[0].id;
   var ownerChoice = "";
   var payPersonChoice = "me";
+  var plannedItemEditId = null;
+  var plannedItemEditForm = {};
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
 
@@ -1658,13 +1672,12 @@ async function renderSpendTab(root, cfg) {
     (cfg.showSavingsGoal ?
       '<div class="card">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">PLANNED PURCHASES</div>' +
-        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Things you\u2019re thinking about buying \u2014 not counted against your budget yet.</div>' +
-        '<div class="row-gap" style="margin-bottom:10px;">' +
-          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="plannedNameInput" placeholder="Item" />' +
-          '<input class="small-input" type="number" min="0" step="0.01" id="plannedAmountInput" placeholder="Est. cost" />' +
-          '<button class="small-btn" id="addPlannedBtn" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
+        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Group things you\u2019re thinking about buying under a goal \u2014 not counted against your budget yet.</div>' +
+        '<div id="plannedGroups"></div>' +
+        '<div class="row-gap" style="margin-top:4px;">' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="plannedGroupNameInput" placeholder="New goal (e.g. New couch)" />' +
+          '<button class="small-btn" id="addPlannedGroupBtn" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add goal</button>' +
         "</div>" +
-        '<div id="plannedList"></div>' +
         '<div style="border-top:1px solid #2A313A;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;">' +
           '<span style="color:#8A919C;font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
         "</div>" +
@@ -1844,37 +1857,121 @@ async function renderSpendTab(root, cfg) {
     }
   }
 
+  function plannedGroupTotal(group) {
+    return (group.items || []).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+  }
+
   function renderPlannedList() {
-    var el = document.getElementById("plannedList");
+    var el = document.getElementById("plannedGroups");
     var totalEl = document.getElementById("plannedTotal");
     if (!el) return;
-    var list = data.plannedPurchases || [];
-    var total = list.reduce(function (s, p) { return s + (Number(p.amount) || 0); }, 0);
-    if (totalEl) totalEl.textContent = formatCurrency(total);
-    if (list.length === 0) {
-      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">Nothing planned yet.</div>';
+    var groups = data.plannedGroups || [];
+    var grandTotal = groups.reduce(function (s, g) { return s + plannedGroupTotal(g); }, 0);
+    if (totalEl) totalEl.textContent = formatCurrency(grandTotal);
+    if (groups.length === 0) {
+      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">No goals yet. Add one below to start grouping purchases.</div>';
       return;
     }
-    el.innerHTML = list.map(function (p) {
-      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(p.name) + (p.notes ? ' <span style="color:#8A919C;">\u00B7 ' + escapeHtml(p.notes) + '</span>' : "") + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-planned" data-id="' + p.id + '">\u2715</button></div>';
+    el.innerHTML = groups.map(function (g) {
+      var items = g.items || [];
+      var itemsHtml = items.length === 0
+        ? '<div style="color:#5A6168;font-size:12px;padding:4px 0;">No items yet.</div>'
+        : items.map(function (it) {
+            if (it.id === plannedItemEditId) {
+              var f = plannedItemEditForm;
+              return '<div class="weight-log-row">' +
+                '<input class="edit-input grow" data-edit="name" placeholder="Item" value="' + escapeHtml(f.name) + '" />' +
+                '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="Cost" value="' + escapeHtml(f.amount) + '" />' +
+                '<button class="icon-btn" data-action="save-planned-item" style="color:' + cfg.accent + ';">\u2713</button>' +
+                '<button class="icon-btn" data-action="cancel-planned-item">\u2715</button>' +
+              "</div>";
+            }
+            return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(it.name) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(it.amount) +
+              '</span><button class="icon-btn" data-action="edit-planned-item" data-group="' + g.id + '" data-id="' + it.id + '">\u270E</button>' +
+              '<button class="icon-btn" data-action="delete-planned-item" data-group="' + g.id + '" data-id="' + it.id + '">\u2715</button></div>';
+          }).join("");
+      return '<div class="planned-group" data-group="' + g.id + '" style="border:1px solid #2A313A;border-radius:10px;padding:10px 12px;margin-bottom:10px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+          '<input class="form-input" style="width:auto;flex:1;font-weight:600;" data-group-name="' + g.id + '" value="' + escapeHtml(g.name) + '" placeholder="Goal name" />' +
+          '<span class="mono" style="color:' + cfg.accent + ';white-space:nowrap;">' + formatCurrency(plannedGroupTotal(g)) + '</span>' +
+          '<button class="icon-btn" data-action="delete-planned-group" data-group="' + g.id + '">\u2715</button>' +
+        "</div>" +
+        '<div class="planned-group-items">' + itemsHtml + "</div>" +
+        '<div class="row-gap" style="margin-top:8px;">' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" data-new-item-name="' + g.id + '" placeholder="Item" />' +
+          '<input class="small-input" type="number" min="0" step="0.01" data-new-item-amount="' + g.id + '" placeholder="Est. cost" />' +
+          '<button class="small-btn" data-action="add-planned-item" data-group="' + g.id + '" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
+        "</div>" +
+      "</div>";
     }).join("");
   }
 
-  function handleAddPlanned() {
-    var nameEl = document.getElementById("plannedNameInput");
-    var amtEl = document.getElementById("plannedAmountInput");
+  function handleAddPlannedGroup() {
+    var nameEl = document.getElementById("plannedGroupNameInput");
+    var name = nameEl.value.trim();
+    if (!name) { nameEl.focus(); return; }
+    data.plannedGroups.push({ id: uid(), name: name, items: [] });
+    save();
+    nameEl.value = "";
+    renderPlannedList();
+  }
+  function handleDeletePlannedGroup(groupId) {
+    data.plannedGroups = (data.plannedGroups || []).filter(function (g) { return g.id !== groupId; });
+    save();
+    renderPlannedList();
+  }
+  function handleRenamePlannedGroup(groupId, name) {
+    var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
+    if (!g) return;
+    g.name = name;
+    save();
+  }
+  function handleAddPlannedItem(groupId) {
+    var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
+    if (!g) return;
+    var nameEl = document.querySelector('[data-new-item-name="' + groupId + '"]');
+    var amtEl = document.querySelector('[data-new-item-amount="' + groupId + '"]');
     var name = nameEl.value.trim();
     if (!name) { nameEl.focus(); return; }
     var amt = amtEl.value === "" ? 0 : Number(amtEl.value);
-    data.plannedPurchases.push({ id: uid(), name: name, amount: amt, notes: "" });
+    if (!g.items) g.items = [];
+    g.items.push({ id: uid(), name: name, amount: amt });
     save();
-    nameEl.value = "";
-    amtEl.value = "";
     renderPlannedList();
   }
-  function handleDeletePlanned(id) {
-    data.plannedPurchases = (data.plannedPurchases || []).filter(function (p) { return p.id !== id; });
+  function handleDeletePlannedItem(groupId, itemId) {
+    var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
+    if (!g) return;
+    g.items = (g.items || []).filter(function (it) { return it.id !== itemId; });
+    if (plannedItemEditId === itemId) plannedItemEditId = null;
     save();
+    renderPlannedList();
+  }
+  function startPlannedItemEdit(groupId, itemId) {
+    var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
+    var it = g && (g.items || []).find(function (it) { return it.id === itemId; });
+    if (!it) return;
+    plannedItemEditId = itemId;
+    plannedItemEditForm = { name: it.name, amount: String(it.amount) };
+    renderPlannedList();
+  }
+  function cancelPlannedItemEdit() {
+    plannedItemEditId = null;
+    renderPlannedList();
+  }
+  function savePlannedItemEdit() {
+    if (!plannedItemEditForm.name || !plannedItemEditForm.name.trim()) return;
+    if (plannedItemEditForm.amount === "" || isNaN(Number(plannedItemEditForm.amount))) return;
+    for (var i = 0; i < (data.plannedGroups || []).length; i++) {
+      var g = data.plannedGroups[i];
+      var idx = (g.items || []).findIndex(function (it) { return it.id === plannedItemEditId; });
+      if (idx !== -1) {
+        g.items[idx] = Object.assign({}, g.items[idx], { name: plannedItemEditForm.name.trim(), amount: Number(plannedItemEditForm.amount) });
+        break;
+      }
+    }
+    save();
+    plannedItemEditId = null;
     renderPlannedList();
   }
 
@@ -2136,7 +2233,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [] };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedGroups: [] };
     save();
     editRowId = null;
     confirmReset = false;
@@ -2203,13 +2300,40 @@ async function renderSpendTab(root, cfg) {
     renderPayPersonPills();
     renderPayPeriodsList();
 
-    document.getElementById("addPlannedBtn").addEventListener("click", handleAddPlanned);
-    ["plannedNameInput", "plannedAmountInput"].forEach(function (id) {
-      document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPlanned(); });
+    document.getElementById("addPlannedGroupBtn").addEventListener("click", handleAddPlannedGroup);
+    document.getElementById("plannedGroupNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPlannedGroup(); });
+    document.getElementById("plannedGroups").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var groupId = btn.getAttribute("data-group");
+      var id = btn.getAttribute("data-id");
+      if (action === "add-planned-item") handleAddPlannedItem(groupId);
+      else if (action === "delete-planned-item") handleDeletePlannedItem(groupId, id);
+      else if (action === "edit-planned-item") startPlannedItemEdit(groupId, id);
+      else if (action === "save-planned-item") savePlannedItemEdit();
+      else if (action === "cancel-planned-item") cancelPlannedItemEdit();
+      else if (action === "delete-planned-group") handleDeletePlannedGroup(groupId);
     });
-    document.getElementById("plannedList").addEventListener("click", function (e) {
-      var btn = e.target.closest('[data-action="delete-planned"]');
-      if (btn) handleDeletePlanned(btn.getAttribute("data-id"));
+    document.getElementById("plannedGroups").addEventListener("input", function (e) {
+      var t = e.target;
+      if (!t.getAttribute) return;
+      var groupNameId = t.getAttribute("data-group-name");
+      if (groupNameId) { handleRenamePlannedGroup(groupNameId, t.value); return; }
+      var field = t.getAttribute("data-edit");
+      if (field) plannedItemEditForm[field] = t.value;
+    });
+    document.getElementById("plannedGroups").addEventListener("keydown", function (e) {
+      var t = e.target;
+      if (!t.getAttribute) return;
+      if (t.getAttribute("data-new-item-name") || t.getAttribute("data-new-item-amount")) {
+        if (e.key === "Enter") handleAddPlannedItem(t.getAttribute("data-new-item-name") || t.getAttribute("data-new-item-amount"));
+        return;
+      }
+      if (t.getAttribute("data-edit")) {
+        if (e.key === "Enter") savePlannedItemEdit();
+        if (e.key === "Escape") cancelPlannedItemEdit();
+      }
     });
     renderOwnerPills();
   }
@@ -2335,11 +2459,13 @@ async function renderTravelTab(root) {
         '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Tracks your overall savings balance from the Budget tab against a goal for this trip.</div>' +
       "</div>" +
       '<div class="card">' +
-        '<div class="gauge-label mono" style="margin-bottom:10px;">HOTEL &amp; STAY LINKS</div>' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">HOTEL OPTIONS</div>' +
+        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Compare a few stays, then pick one — only the picked hotel’s cost counts toward your budget above.</div>' +
         '<div id="ttHotelLinks"></div>' +
         '<div class="row-gap" style="margin-top:8px;">' +
           '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="ttHotelName" placeholder="Hotel / stay name" />' +
           '<input class="form-input" style="width:auto;flex:1;min-width:140px;" id="ttHotelUrl" placeholder="Booking link (URL)" />' +
+          '<input class="small-input" type="number" min="0" step="0.01" id="ttHotelAmount" placeholder="Cost" />' +
           '<button class="small-btn" id="ttHotelAddBtn" style="background:#E8643A;flex-shrink:0;">+ Add</button>' +
         "</div>" +
       "</div>" +
@@ -2442,8 +2568,14 @@ async function renderTravelTab(root) {
       window._countdownInterval = countdownInterval;
     }
 
+    function selectedHotel() {
+      return (trip.hotelLinks || []).find(function (l) { return l.selected; }) || null;
+    }
+
     function renderGauge() {
       var totalSpent = trip.items.reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+      var hotel = selectedHotel();
+      if (hotel) totalSpent += Number(hotel.amount) || 0;
       var budgetNum = Number(trip.budget) || 0;
       var amountEl = document.getElementById("ttGaugeAmount");
       var bodyEl = document.getElementById("ttGaugeBody");
@@ -2589,12 +2721,16 @@ async function renderTravelTab(root) {
       if (!el) return;
       var links = trip.hotelLinks || [];
       if (links.length === 0) {
-        el.innerHTML = '<div style="color:#5A6168;font-size:13px;">No links saved yet — add a booking page below to find it fast later.</div>';
+        el.innerHTML = '<div style="color:#5A6168;font-size:13px;">No options saved yet — add a booking page below to find it fast later.</div>';
         return;
       }
       el.innerHTML = links.map(function (l) {
+        var picked = !!l.selected;
         return '<div class="weight-log-row">' +
+          '<button class="icon-btn" data-action="select-hotel" data-id="' + l.id + '" title="' + (picked ? "Selected — counts toward budget" : "Select this hotel") + '" style="color:' + (picked ? "#5BAE7A" : "#5A6168") + ';flex-shrink:0;">' + (picked ? "◉" : "○") + '</button>' +
           '<a href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener" style="color:var(--text-1);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(l.name || l.url) + ' ↗</a>' +
+          '<span class="mono" style="color:#E8643A;white-space:nowrap;">' + formatCurrency(l.amount) + "</span>" +
+          (picked ? '<span style="background:#5BAE7A22;color:#5BAE7A;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">IN BUDGET</span>' : "") +
           '<button class="icon-btn" data-action="delete-hotel-link" data-id="' + l.id + '">✕</button>' +
         "</div>";
       }).join("");
@@ -2603,21 +2739,32 @@ async function renderTravelTab(root) {
     function handleAddHotelLink() {
       var nameEl = document.getElementById("ttHotelName");
       var urlEl  = document.getElementById("ttHotelUrl");
+      var amtEl  = document.getElementById("ttHotelAmount");
       var name = nameEl.value.trim();
       var url  = urlEl.value.trim();
       if (!url) { urlEl.focus(); return; }
       if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+      var amt = amtEl.value === "" ? 0 : Number(amtEl.value);
       if (!trip.hotelLinks) trip.hotelLinks = [];
-      trip.hotelLinks.push({ id: uid(), name: name, url: url });
+      trip.hotelLinks.push({ id: uid(), name: name, url: url, amount: amt, selected: trip.hotelLinks.length === 0 });
       save();
       nameEl.value = "";
       urlEl.value = "";
+      amtEl.value = "";
       renderHotelLinks();
+      renderGauge();
     }
     function handleDeleteHotelLink(id) {
       trip.hotelLinks = (trip.hotelLinks || []).filter(function (l) { return l.id !== id; });
       save();
       renderHotelLinks();
+      renderGauge();
+    }
+    function handleSelectHotel(id) {
+      (trip.hotelLinks || []).forEach(function (l) { l.selected = l.id === id ? !l.selected : false; });
+      save();
+      renderHotelLinks();
+      renderGauge();
     }
 
     function renderDynamic() {
@@ -2763,12 +2910,16 @@ async function renderTravelTab(root) {
     document.getElementById("ttResetBtn").addEventListener("click", handleResetAll);
     document.getElementById("ttDeleteTripBtn").addEventListener("click", handleDeleteTrip);
     document.getElementById("ttHotelAddBtn").addEventListener("click", handleAddHotelLink);
-    ["ttHotelName", "ttHotelUrl"].forEach(function (id) {
+    ["ttHotelName", "ttHotelUrl", "ttHotelAmount"].forEach(function (id) {
       document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddHotelLink(); });
     });
     document.getElementById("ttHotelLinks").addEventListener("click", function (e) {
-      var btn = e.target.closest('[data-action="delete-hotel-link"]');
-      if (btn) handleDeleteHotelLink(btn.getAttribute("data-id"));
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "delete-hotel-link") handleDeleteHotelLink(id);
+      else if (action === "select-hotel") handleSelectHotel(id);
     });
 
     renderNights();
@@ -5029,6 +5180,42 @@ function _jobStage(id) {
   return JOB_STAGES.find(function(s) { return s.id === id; }) || JOB_STAGES[0];
 }
 
+var JOB_WEEKLY_GOAL_MIN = 15;
+var JOB_WEEKLY_GOAL_MAX = 17;
+var JOB_DAILY_MIN = 3;
+
+function _jobStageDonut(counts, total) {
+  var cx = 100, cy = 100, r = 78, ri = 54;
+  var segments = JOB_STAGES.map(function(s) { return { value: counts[s.id] || 0, color: s.color }; });
+  var nonZero = segments.filter(function(s) { return s.value > 0; });
+  var shape;
+  if (total === 0) {
+    shape = '<circle cx="100" cy="100" r="78" fill="#2A313A"/>';
+  } else if (nonZero.length === 1) {
+    shape = '<circle cx="100" cy="100" r="78" fill="' + nonZero[0].color + '"/>';
+  } else {
+    var a = -Math.PI / 2;
+    shape = segments.map(function(seg) {
+      if (!seg.value) return '';
+      var slice = (seg.value / total) * 2 * Math.PI;
+      var ea = a + slice, la = slice > Math.PI ? 1 : 0;
+      var f = function(n) { return n.toFixed(2); };
+      var d = 'M' + f(cx + r  * Math.cos(a))  + ',' + f(cy + r  * Math.sin(a))  +
+              ' A' + r  + ',' + r  + ' 0 ' + la + ',1 ' + f(cx + r  * Math.cos(ea)) + ',' + f(cy + r  * Math.sin(ea)) +
+              ' L' + f(cx + ri * Math.cos(ea)) + ',' + f(cy + ri * Math.sin(ea)) +
+              ' A' + ri + ',' + ri + ' 0 ' + la + ',0 ' + f(cx + ri * Math.cos(a))  + ',' + f(cy + ri * Math.sin(a)) + 'Z';
+      a = ea;
+      return '<path d="' + d + '" fill="' + seg.color + '"/>';
+    }).join('');
+  }
+  return '<svg viewBox="0 0 200 200" width="160" height="160" style="display:block;flex-shrink:0;">' +
+    shape +
+    '<circle cx="100" cy="100" r="' + ri + '" fill="var(--bg-card)"/>' +
+    '<text x="100" y="106" text-anchor="middle" fill="#EDEAE3" font-size="30" font-weight="800" font-family="ui-monospace,monospace">' + total + '</text>' +
+    '<text x="100" y="126" text-anchor="middle" fill="#8A919C" font-size="11" font-family="ui-monospace,monospace">TOTAL</text>' +
+  '</svg>';
+}
+
 async function loadJobData() {
   if (!currentUserId) return;
   var def = { jobs: [] };
@@ -5079,6 +5266,43 @@ async function renderJobsPage() {
       '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#8A919C;margin-top:4px;">' + s.label + '</div>' +
     '</button>';
   }).join('');
+
+  // Breakdown-by-stage chart
+  var breakdownHtml =
+    '<div class="card" style="margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;">' +
+      _jobStageDonut(counts, jobs.length) +
+      '<div style="flex:1;min-width:140px;">' +
+        JOB_STAGES.map(function(s) {
+          var pct = jobs.length > 0 ? Math.round((counts[s.id] / jobs.length) * 100) : 0;
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">' +
+            '<span style="width:10px;height:10px;border-radius:50%;background:' + s.color + ';flex-shrink:0;"></span>' +
+            '<span style="color:#EDEAE3;flex:1;">' + s.label + '</span>' +
+            '<span class="mono" style="color:#8A919C;">' + counts[s.id] + (jobs.length ? ' · ' + pct + '%' : '') + '</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+
+  // Weekly / daily application pace against goal (15–17/week, 3/day minimum)
+  var appliedDates = jobs.map(function(j) { return j.dateApplied; }).filter(Boolean);
+  var todayStr = todayISO();
+  var thisWeekKey = todayWeekKey();
+  var weekCount = appliedDates.filter(function(d) { return weekKeyForDate(d) === thisWeekKey; }).length;
+  var todayCount = appliedDates.filter(function(d) { return d === todayStr; }).length;
+  var weekColor = weekCount >= JOB_WEEKLY_GOAL_MIN ? '#5BAE7A' : (weekCount > 0 ? '#D9A441' : '#5A6168');
+  var weekPct = Math.min(100, (weekCount / JOB_WEEKLY_GOAL_MAX) * 100);
+  var todayColor = todayCount >= JOB_DAILY_MIN ? '#5BAE7A' : (todayCount > 0 ? '#D9A441' : '#D9667A');
+
+  var paceHtml =
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-top"><span class="gauge-label mono">WEEKLY PACE</span><span class="mono" style="color:' + weekColor + ';">' + weekCount + ' of ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + '</span></div>' +
+      '<div class="gauge-track"><div class="gauge-fill" style="width:' + weekPct + '%;background:' + weekColor + ';box-shadow:0 0 14px ' + weekColor + '55;"></div></div>' +
+      '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Goal: ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + ' applications this week</div>' +
+      '<div style="border-top:1px solid var(--border-2);margin-top:12px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="color:#8A919C;font-size:12px;">Today · daily minimum ' + JOB_DAILY_MIN + '</span>' +
+        '<span class="mono" style="color:' + todayColor + ';font-weight:600;">' + todayCount + ' of ' + JOB_DAILY_MIN + '</span>' +
+      '</div>' +
+    '</div>';
 
   var filtered = _jobStageFilter === 'all' ? jobs : jobs.filter(function(j) { return (j.stage || 'saved') === _jobStageFilter; });
   // Sort: newest applied date first, then by creation order
@@ -5164,6 +5388,9 @@ async function renderJobsPage() {
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Job Tracker</div>' +
       '<div style="color:#8A919C;font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
     '</div>' +
+
+    breakdownHtml +
+    paceHtml +
 
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;" id="jobSummaryCards">' + summaryHtml + '</div>' +
 
