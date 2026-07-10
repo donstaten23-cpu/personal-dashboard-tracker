@@ -940,6 +940,12 @@ function weekKeyForDate(iso) {
   return d.toISOString().slice(0, 10);
 }
 function todayWeekKey() { return weekKeyForDate(todayISO()); }
+// days from today until the next occurrence of a given day-of-month (1-31),
+// wrapping to next month once today's date has passed it.
+function daysUntilDueDay(day) {
+  var todayDay = new Date().getDate();
+  return day >= todayDay ? day - todayDay : (31 - todayDay) + day;
+}
 function computeWeekStreak(weekKeySet) {
   var count = 0;
   var cursor = todayWeekKey();
@@ -1631,6 +1637,7 @@ async function renderSpendTab(root, cfg) {
   var payPersonChoice = "me";
   var plannedItemEditId = null;
   var plannedItemEditForm = {};
+  var billsPersonFilter = null;
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
 
@@ -1698,6 +1705,7 @@ async function renderSpendTab(root, cfg) {
       '<div class="form-actions"><span class="error-text" id="stFormError"></span><button class="add-btn" id="stAddBtn" style="background:' + cfg.accent + ';">+ Add</button></div>' +
     "</div>" +
     (cfg.enableSelection ? '<div class="card select-bar" id="stSelectBar"></div>' : "") +
+    (cfg.showSavingsGoal ? '<div class="pills" id="stPersonFilterRow"></div>' : "") +
     '<div class="sort-row">' +
       '<span class="entry-count mono" id="stEntryCount"></span>' +
       '<div class="sort-toggle"><button class="sort-btn active" id="stSortDate">By due day</button><button class="sort-btn" id="stSortCat">By category</button></div>' +
@@ -1828,12 +1836,50 @@ async function renderSpendTab(root, cfg) {
     amtEl.value = "";
     renderPayPeriodsList();
     renderBeforePay();
+    if (billsPersonFilter) renderList();
   }
   function handleDeletePayPeriod(id) {
     data.payPeriods = (data.payPeriods || []).filter(function (p) { return p.id !== id; });
     save();
     renderPayPeriodsList();
     renderBeforePay();
+    if (billsPersonFilter) renderList();
+  }
+
+  // soonest "days from today" among a person's paydays, or null if they
+  // haven't added one yet
+  function personNextPaydayCutoff(person) {
+    var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); });
+    if (periods.length === 0) return null;
+    return Math.min.apply(null, periods.map(function (p) { return daysUntilDueDay(Number(p.day)); }));
+  }
+
+  function renderPersonFilterRow() {
+    var el = document.getElementById("stPersonFilterRow");
+    if (!el) return;
+    var options = [
+      { id: "me", label: "1 · " + USER_DISPLAY_NAME + " — until payday" },
+      { id: "partner", label: "2 · " + PARTNER_DISPLAY_NAME + " — until payday" }
+    ];
+    el.innerHTML = options.map(function (o) {
+      var active = billsPersonFilter === o.id;
+      return '<button class="pill" data-person-filter="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
+    }).join("") + (billsPersonFilter ? '<button class="pill" id="stClearPersonFilter" style="border-color:#5A6168;color:#8A919C;">Clear</button>' : "");
+    var pills = el.querySelectorAll("[data-person-filter]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) {
+        var p = e.currentTarget.getAttribute("data-person-filter");
+        billsPersonFilter = billsPersonFilter === p ? null : p;
+        renderPersonFilterRow();
+        renderList();
+      });
+    }
+    var clearBtn = document.getElementById("stClearPersonFilter");
+    if (clearBtn) clearBtn.addEventListener("click", function () {
+      billsPersonFilter = null;
+      renderPersonFilterRow();
+      renderList();
+    });
   }
 
   function ownerLabel(o) {
@@ -2048,6 +2094,17 @@ async function renderSpendTab(root, cfg) {
 
   function getSortedItems() {
     var copy = data.items.slice();
+    if (billsPersonFilter) {
+      var cutoff = personNextPaydayCutoff(billsPersonFilter);
+      copy = copy.filter(function (it) {
+        if (it.category === "savings") return false;
+        if (it.owner !== billsPersonFilter) return false;
+        if (it.dueDay === "" || it.dueDay == null) return false;
+        if (isCurrentlyPaid(it)) return false;
+        if (cutoff == null) return true;
+        return daysUntilDueDay(Number(it.dueDay)) <= cutoff;
+      });
+    }
     if (sortBy === "date") {
       copy.sort(function (a, b) {
         var da = a.dueDay === "" || a.dueDay == null ? 99 : Number(a.dueDay);
@@ -2099,10 +2156,12 @@ async function renderSpendTab(root, cfg) {
 
   function renderList() {
     var sorted = getSortedItems();
-    document.getElementById("stEntryCount").textContent = data.items.length + (data.items.length === 1 ? " entry" : " entries");
+    document.getElementById("stEntryCount").textContent = billsPersonFilter
+      ? sorted.length + (sorted.length === 1 ? " bill" : " bills") + " for " + personLabel(billsPersonFilter) + " before payday"
+      : data.items.length + (data.items.length === 1 ? " entry" : " entries");
     var listEl = document.getElementById("stList");
     if (sorted.length === 0) {
-      listEl.innerHTML = '<div class="empty-state">' + escapeHtml(cfg.emptyText) + "</div>";
+      listEl.innerHTML = '<div class="empty-state">' + (billsPersonFilter ? "Nothing due for " + escapeHtml(personLabel(billsPersonFilter)) + " before their next payday. ✨" : escapeHtml(cfg.emptyText)) + "</div>";
       return;
     }
     var sel = new Set(data.selectedIds || []);
@@ -2336,6 +2395,7 @@ async function renderSpendTab(root, cfg) {
       }
     });
     renderOwnerPills();
+    renderPersonFilterRow();
   }
 
   renderPills();
