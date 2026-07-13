@@ -23,7 +23,7 @@
     --bg-card: #1B2027;
     --border: #1E2530;
     --border-2: #2A313A;
-    --accent: #E8643A;
+    --accent: #e83b3b;
     --text-1: #EDEAE3;
     --text-2: #8A919C;
     --text-3: #5A6168;
@@ -77,7 +77,7 @@
     border-left: 3px solid transparent;
   }
   .sidebar-item:hover { background: #1B2027; color: #EDEAE3; }
-  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: #E8643A; }
+  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: var(--accent); }
   .sidebar-item .s-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
   .sidebar-footer {
     padding: 16px 20px; border-top: 1px solid #1E2530;
@@ -111,7 +111,7 @@
 
   /* portfolio page styles */
   .port-hero { padding: 40px 0 28px; border-bottom: 1px solid #2A313A; margin-bottom: 28px; }
-  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
   .port-title { font-size: 36px; font-weight: 800; color: #EDEAE3; line-height: 1.1; margin-bottom: 6px; }
   .port-subtitle { color: #8A919C; font-size: 14px; }
   .port-intro { color: #EDEAE3; font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
@@ -120,45 +120,45 @@
     font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 32px 0 20px;
   }
   .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
-  [data-art-key][contenteditable="true"] { outline: 1px dashed #E8643A44; border-radius: 3px; cursor: text; padding: 0 4px; }
+  [data-art-key][contenteditable="true"] { outline: 1px dashed color-mix(in srgb, var(--accent) 27%, transparent); border-radius: 3px; cursor: text; padding: 0 4px; }
   [data-guide-key][contenteditable="true"] {
     outline: none;
     border-radius: 4px;
-    box-shadow: 0 0 0 1px #E8643A55;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 33%, transparent);
     cursor: text;
   }
   .port-card {
     background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px;
     margin-bottom: 20px; transition: border-color 0.2s;
   }
-  .port-card:hover { border-color: #E8643A44; }
+  .port-card:hover { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
 
   /* edit mode */
   .port-edit-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
   .port-edit-btn { border:1px solid #2A313A; background:#1B2027; color:#8A919C; border-radius:999px; padding:7px 16px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s,color 0.15s,border-color 0.15s; }
   .port-edit-btn:hover { background:#2A313A; color:#EDEAE3; }
-  .port-edit-btn.editing { background:#E8643A; border-color:#E8643A; color:#12151A; }
+  .port-edit-btn.editing { background:var(--accent); border-color:var(--accent); color:#12151A; }
   [data-port-key][contenteditable="true"] {
     outline: none;
     border-radius: 4px;
     padding: 2px 4px;
     margin: -2px -4px;
     background: #12151A;
-    box-shadow: 0 0 0 1px #E8643A55;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 33%, transparent);
     cursor: text;
   }
   .port-edit-hint { color:#5A6168; font-size:12px; }
   /* disable placeholder clicks when locked */
   .port-placeholder.locked { pointer-events: none; cursor: default; }
   .port-placeholder.locked .ph-overlay { display: none; }
-  .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #E8643A; font-weight: 700; margin-bottom: 8px; }
+  .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
   .port-card h2 { font-size: 22px; font-weight: 700; color: #EDEAE3; margin-bottom: 4px; }
   .port-meta { color: #5A6168; font-size: 13px; margin-bottom: 14px; }
   .port-card p { color: #8A919C; font-size: 15px; line-height: 1.65; margin-bottom: 12px; }
   .port-card ul { margin: 0 0 14px 18px; }
   .port-card li { color: #8A919C; font-size: 15px; margin-bottom: 6px; line-height: 1.5; }
   .port-metrics { display: flex; gap: 24px; flex-wrap: wrap; margin: 18px 0; padding: 16px 0; border-top: 1px solid #2A313A; border-bottom: 1px solid #2A313A; }
-  .port-metric-num { font-size: 26px; font-weight: 800; color: #E8643A; display: block; line-height: 1; font-family: ui-monospace,'SF Mono',monospace; }
+  .port-metric-num { font-size: 26px; font-weight: 800; color: var(--accent); display: block; line-height: 1; font-family: ui-monospace,'SF Mono',monospace; }
   .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
   .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
   .port-tool { background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
@@ -168,7 +168,7 @@
     margin-top: 16px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
     position: relative; overflow: hidden;
   }
-  .port-placeholder:hover { border-color: #E8643A66; background: #1B2027; color: #8A919C; }
+  .port-placeholder:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: #1B2027; color: #8A919C; }
   .port-placeholder img { width: 100%; border-radius: 6px; display: block; }
   .port-placeholder .ph-overlay {
     position: absolute; inset: 0; background: rgba(0,0,0,0.6);
@@ -182,7 +182,7 @@
   .art-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
   .art-cell-wrap { display: flex; flex-direction: column; }
   .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
-  .art-cell:not(.locked):hover { border-color: #E8643A44; }
+  .art-cell:not(.locked):hover { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
   .art-cell.locked { cursor: default; }
   .art-cell.has-image:not([class*="locked"]) { cursor: zoom-in; }
   .art-cell-inner { text-align: center; padding: 16px; }
@@ -196,7 +196,7 @@
   .art-cell:not(.locked):hover .ph-overlay { opacity: 1; }
   .art-caption { font-size: 12px; color: #8A919C; text-align: center; padding: 5px 4px 0; }
   .art-caption:empty:not([contenteditable]) { display: none; }
-  .art-caption[contenteditable="true"] { outline: 1px dashed #E8643A44; border-radius: 3px; min-height: 18px; cursor: text; padding: 3px 4px; }
+  .art-caption[contenteditable="true"] { outline: 1px dashed color-mix(in srgb, var(--accent) 27%, transparent); border-radius: 3px; min-height: 18px; cursor: text; padding: 3px 4px; }
   .art-tabs { display: flex; gap: 6px; margin: 12px 0 20px; flex-wrap: wrap; }
   .art-tab { border: 1px solid #2A313A; background: transparent; color: #8A919C; border-radius: 999px; padding: 7px 18px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background .15s, color .15s, border-color .15s; }
   .art-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -224,10 +224,10 @@
   .wrap { min-height: 100vh; padding: 0; }
   .inner { max-width: 720px; margin: 0 auto; padding: 0; }
 
-  .hero-band { background: linear-gradient(135deg, #FF8A5C 0%, #E8643A 45%, #B23A1C 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
+  .hero-band { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, white) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 65%, black) 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
   .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
   .hero-name { color: #fff; font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
-  .tab-eyebrow { color: #E8643A; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+  .tab-eyebrow { color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
 
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
   .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
@@ -374,7 +374,7 @@
 
   /* CSS variable defaults — prevents flash before JS applySettings() runs */
   :root {
-    --accent: #E8643A; --bg: #12151A; --bg-card: #1B2027; --text-1: #EDEAE3;
+    --accent: #e83b3b; --bg: #12151A; --bg-card: #1B2027; --text-1: #EDEAE3;
     --bg-sidebar: #0E1117; --border: #1E2530; --border-2: #2A313A; --content-zoom: 1;
   }
   /* settings-panel theme overrides — reference CSS vars so JS can update them live */
@@ -419,7 +419,7 @@
       <div class="form-actions">
         <span class="error-text" id="authError"></span>
         <button type="button" class="link-btn" id="authSignUpBtn" style="color:#8A919C;">Create account</button>
-        <button type="submit" class="add-btn" id="authSignInBtn" style="background:#E8643A;">Sign in</button>
+        <button type="submit" class="add-btn" id="authSignInBtn" style="background:var(--accent);">Sign in</button>
       </div>
     </form>
   </div>
@@ -489,7 +489,7 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <span class="error-text" id="changePasswordError" style="flex:1;font-size:11px;"></span>
-          <button type="submit" class="small-btn" id="updatePasswordBtn" style="background:#E8643A;">Update</button>
+          <button type="submit" class="small-btn" id="updatePasswordBtn" style="background:var(--accent);">Update</button>
         </div>
       </form>
       <button id="changePasswordBtn">Change password</button>
@@ -524,7 +524,7 @@
               Use the sidebar to navigate between your dashboard tabs, portfolio pages, and trackers.
             </p>
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
-              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#E8643A;">&#9783; Travel tracker</span>
+              <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:var(--accent);">&#9783; Travel tracker</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#5BAE7A;">&#9650; Budget &amp; bills</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#D9A441;">&#9671; Daily routines</span>
               <span style="background:#1B2027;border:1px solid #2A313A;border-radius:999px;padding:5px 12px;font-size:12px;color:#3DBFC4;">&#9651; Workouts</span>
@@ -589,7 +589,7 @@
         </div>
 
         <p class="port-intro" data-port-key="port-intro">
-          A working record of the systems implementations, platform integrations, and process automation projects I&#8217;ve owned end-to-end &#8212; built to show <span style="color:#E8643A;">how</span> I approach problems, not just what&#8217;s on a resume line.
+          A working record of the systems implementations, platform integrations, and process automation projects I&#8217;ve owned end-to-end &#8212; built to show <span style="color:var(--accent);">how</span> I approach problems, not just what&#8217;s on a resume line.
         </p>
 
         <div class="port-section-label">Featured Projects</div>
@@ -670,7 +670,7 @@
         </div>
 
         <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;" data-port-key="port-footer">
-          Donovan Staten &#8212; <a href="mailto:donstaten23@gmail.com" style="color:#E8643A;text-decoration:none;">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href="https://linkedin.com/in/donovanstaten" style="color:#E8643A;text-decoration:none;" target="_blank">LinkedIn</a>
+          Donovan Staten &#8212; <a href="mailto:donstaten23@gmail.com" style="color:var(--accent);text-decoration:none;">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href="https://linkedin.com/in/donovanstaten" style="color:var(--accent);text-decoration:none;" target="_blank">LinkedIn</a>
         </div>
       </div>
     </div>
@@ -848,7 +848,7 @@ var currentUserId = null;
 var TABS = [];  // travel + budget moved to sidebar pages; routines rendered inline
 
 var TRAVEL_CATEGORIES = [
-  { id: "flights", label: "Flights", color: "#E8643A", glyph: "\u2708" },
+  { id: "flights", label: "Flights", color: "#e83b3b", glyph: "\u2708" },
   { id: "stay", label: "Stay", color: "#D9A441", glyph: "\u2302" },
   { id: "activities", label: "Activities", color: "#7FA37A", glyph: "\u25C8" },
   { id: "food", label: "Food", color: "#D9667A", glyph: "\u2726" },
@@ -921,7 +921,7 @@ function _matchLiftTags(name) {
   return { muscleGroup: "other", trainingStyles: [] };
 }
 
-var ROUTINE_COLORS = ["#E8643A", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
+var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
 
 var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
 
@@ -2686,9 +2686,9 @@ async function renderTravelTab(root) {
     var sw = document.getElementById("tripSwitcher");
     sw.innerHTML = raw.trips.map(function (t) {
       var active = t.id === raw.activeTripId;
-      var style = active ? "background:#E8643A;border-color:#E8643A;color:#12151A;" : "";
+      var style = active ? "background:var(--accent);border-color:var(--accent);color:#12151A;" : "";
       return '<button class="trip-pill" data-trip="' + t.id + '" style="' + style + '">' + escapeHtml(t.title || "Untitled trip") + "</button>";
-    }).join("") + '<button class="trip-pill" id="newTripBtn" style="color:#E8643A;border-color:#E8643A;">+ New trip</button>';
+    }).join("") + '<button class="trip-pill" id="newTripBtn" style="color:var(--accent);border-color:var(--accent);">+ New trip</button>';
 
     var pills = sw.querySelectorAll("[data-trip]");
     for (var i = 0; i < pills.length; i++) {
@@ -2749,7 +2749,7 @@ async function renderTravelTab(root) {
           '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="ttHotelName" placeholder="Hotel / stay name" />' +
           '<input class="form-input" style="width:auto;flex:1;min-width:140px;" id="ttHotelUrl" placeholder="Booking link (URL)" />' +
           '<input class="small-input" type="number" min="0" step="0.01" id="ttHotelAmount" placeholder="Cost" />' +
-          '<button class="small-btn" id="ttHotelAddBtn" style="background:#E8643A;flex-shrink:0;">+ Add</button>' +
+          '<button class="small-btn" id="ttHotelAddBtn" style="background:var(--accent);flex-shrink:0;">+ Add</button>' +
         "</div>" +
       "</div>" +
       '<div class="chips" id="ttChips"></div>' +
@@ -2763,7 +2763,7 @@ async function renderTravelTab(root) {
           "</div>" +
         "</div>" +
         '<input class="form-input" id="ttNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
-        '<div class="form-actions"><span class="error-text" id="ttFormError"></span><button class="add-btn" id="ttAddBtn" style="background:#E8643A;">+ Add</button></div>' +
+        '<div class="form-actions"><span class="error-text" id="ttFormError"></span><button class="add-btn" id="ttAddBtn" style="background:var(--accent);">+ Add</button></div>' +
       "</div>" +
       '<div class="sort-row">' +
         '<span class="entry-count mono" id="ttEntryCount"></span>' +
@@ -2811,7 +2811,7 @@ async function renderTravelTab(root) {
           '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
             ['days','hrs','min','sec'].map(function (label) {
               return '<div style="flex:1;text-align:center;background:#12151A;border-radius:8px;padding:10px 4px;">' +
-                '<div class="mono cd-' + label + '" style="color:#E8643A;font-size:22px;font-weight:700;">--</div>' +
+                '<div class="mono cd-' + label + '" style="color:var(--accent);font-size:22px;font-weight:700;">--</div>' +
                 '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
               "</div>";
             }).join("") +
@@ -2825,7 +2825,7 @@ async function renderTravelTab(root) {
         if (diff <= 0) {
           w2.innerHTML = '<div class="card" style="margin-bottom:16px;text-align:center;">' +
             '<div class="gauge-label mono" style="margin-bottom:6px;">TRIP DAY</div>' +
-            '<div class="serif" style="color:#E8643A;font-size:28px;">It\u2019s time! \u2708</div>' +
+            '<div class="serif" style="color:var(--accent);font-size:28px;">It\u2019s time! \u2708</div>' +
           "</div>";
           clearInterval(window._countdownInterval);
           window._countdownInterval = null;
@@ -2865,15 +2865,15 @@ async function renderTravelTab(root) {
       if (budgetNum > 0) {
         var pct = Math.min(100, (totalSpent / budgetNum) * 100);
         var over = totalSpent > budgetNum;
-        amountEl.style.color = over ? "#FF8A5C" : "#E8643A";
+        amountEl.style.color = over ? "#FF8A5C" : "var(--accent)";
         amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
-        var grad = over ? "linear-gradient(90deg,#8a2e18,#E8643A)" : "linear-gradient(90deg,#E8643A,#FF8A5Ccc)";
-        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px #E8643A55;"></div></div>';
+        var grad = over ? "linear-gradient(90deg,color-mix(in srgb, var(--accent) 55%, black),var(--accent))" : "linear-gradient(90deg,var(--accent),color-mix(in srgb, var(--accent) 70%, white))";
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, var(--accent) 33%, transparent);"></div></div>';
       } else {
-        amountEl.style.color = "#E8643A";
+        amountEl.style.color = "var(--accent)";
         amountEl.textContent = formatCurrency(totalSpent);
         if (showBudgetInput) {
-          bodyEl.innerHTML = '<div class="row-gap"><input id="ttBudgetDraft" class="small-input" type="number" min="0" placeholder="Trip budget" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="ttSetBudget" style="background:#E8643A;">Set</button></div>';
+          bodyEl.innerHTML = '<div class="row-gap"><input id="ttBudgetDraft" class="small-input" type="number" min="0" placeholder="Trip budget" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="ttSetBudget" style="background:var(--accent);">Set</button></div>';
           var bd = document.getElementById("ttBudgetDraft");
           bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
           bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); });
@@ -2926,7 +2926,7 @@ async function renderTravelTab(root) {
         return Object.assign({}, cat, { total: total, idx: i });
       }).filter(function (c) { return c.total > 0; });
       document.getElementById("ttChips").innerHTML = totals.map(function (cat) {
-        return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:#E8643A;">' + formatCurrency(cat.total) + "</span></span>";
+        return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:var(--accent);">' + formatCurrency(cat.total) + "</span></span>";
       }).join("");
     }
 
@@ -2978,7 +2978,7 @@ async function renderTravelTab(root) {
             '<input class="edit-input amt" type="number" min="0" step="0.01" data-edit="amount" placeholder="Cost" value="' + escapeHtml(f.amount) + '" />' +
             '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
             (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
-            '<button class="icon-btn" data-action="save-row" style="color:#E8643A;">\u2713</button>' +
+            '<button class="icon-btn" data-action="save-row" style="color:var(--accent);">\u2713</button>' +
             '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
             "</div></div></div>";
         }
@@ -2987,7 +2987,7 @@ async function renderTravelTab(root) {
           '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
           '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
           '<div class="item-sub">' + formatDateShort(item.date) + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
-          '<div class="item-amount mono" style="color:#E8643A;">' + formatCurrency(item.amount) + "</div>" +
+          '<div class="item-amount mono" style="color:var(--accent);">' + formatCurrency(item.amount) + "</div>" +
           '<div class="item-actions"><button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
           '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
           "</div></div>";
@@ -3012,7 +3012,7 @@ async function renderTravelTab(root) {
         return '<div class="weight-log-row">' +
           '<button class="icon-btn" data-action="select-hotel" data-id="' + l.id + '" title="' + (picked ? "Selected — counts toward budget" : "Select this hotel") + '" style="color:' + (picked ? "#5BAE7A" : "#5A6168") + ';flex-shrink:0;">' + (picked ? "◉" : "○") + '</button>' +
           '<a href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener" style="color:var(--text-1);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(l.name || l.url) + ' ↗</a>' +
-          '<span class="mono" style="color:#E8643A;white-space:nowrap;">' + formatCurrency(l.amount) + "</span>" +
+          '<span class="mono" style="color:var(--accent);white-space:nowrap;">' + formatCurrency(l.amount) + "</span>" +
           (picked ? '<span style="background:#5BAE7A22;color:#5BAE7A;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">IN BUDGET</span>' : "") +
           '<button class="icon-btn" data-action="delete-hotel-link" data-id="' + l.id + '">✕</button>' +
         "</div>";
@@ -4762,14 +4762,14 @@ var _settings = null;
 var _defaultPageApplied = false;
 
 var THEMES = [
-  { id: 'dark',     name: 'Dark',          accent: '#E8643A', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', sidebarColor: '#0E1117', borderColor: '#2A313A' },
+  { id: 'dark',     name: 'Dark',          accent: '#e83b3b', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', sidebarColor: '#0E1117', borderColor: '#2A313A' },
   { id: 'warm',     name: 'Warm Dark',     accent: '#D4A853', bgColor: '#1A1410', cardColor: '#241C14', textColor: '#F0E6D3', sidebarColor: '#120E09', borderColor: '#3A2818' },
-  { id: 'light',    name: 'Light',         accent: '#E8643A', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
+  { id: 'light',    name: 'Light',         accent: '#e83b3b', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
   { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', sidebarColor: '#050505', borderColor: '#2A2A2A' }
 ];
 
 var SETTINGS_DEFAULTS = {
-  accent: '#E8643A',
+  accent: '#e83b3b',
   bgColor: '#12151A',
   cardColor: '#1B2027',
   textColor: '#EDEAE3',
@@ -5529,7 +5529,7 @@ async function renderEducationPage() {
   var groupsHtml = data.groups.map(function(group) {
     var isEditingGroupName = _eduEditGroupId === group.id;
     var groupLabel = isEditingGroupName
-      ? '<input type="text" id="eduGroupNameInput" value="' + escapeHtml(group.name) + '" style="background:#12151A;color:#EDEAE3;border:1px solid #E8643A55;border-radius:4px;padding:2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;width:150px;" />' +
+      ? '<input type="text" id="eduGroupNameInput" value="' + escapeHtml(group.name) + '" style="background:#12151A;color:#EDEAE3;border:1px solid color-mix(in srgb, var(--accent) 33%, transparent);border-radius:4px;padding:2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;width:150px;" />' +
         '<button class="icon-btn" data-action="save-group-name" data-group="' + group.id + '" style="color:#5BAE7A;">✓</button>' +
         '<button class="icon-btn" data-action="cancel-group-edit">✕</button>'
       : '<span>' + escapeHtml(group.name) + '</span>' +
@@ -6722,7 +6722,7 @@ function renderGuidePage() {
     card(
       '<div style="color:#8A919C;font-size:13px;margin-bottom:10px;">Set on <code>:root</code> by <code>applySettings()</code> when the user changes their theme. Use these in any new code you add.</div>' +
       tbl([
-        ['--accent',        'Buttons, highlights, active states (#E8643A by default)'],
+        ['--accent',        'Buttons, highlights, active states (#e83b3b by default)'],
         ['--bg',            'Page background'],
         ['--bg-card',       'Card backgrounds'],
         ['--bg-sidebar',    'Sidebar background'],
