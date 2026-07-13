@@ -873,6 +873,54 @@ var WORKOUT_CATEGORIES = [
   { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
 ];
 
+var MUSCLE_GROUPS = [
+  { id: "legs", label: "Legs", color: "#3DBFC4", glyph: "▲" },
+  { id: "chest", label: "Chest", color: "#E1543F", glyph: "■" },
+  { id: "back", label: "Back", color: "#5BAE7A", glyph: "▣" },
+  { id: "shoulders", label: "Shoulders", color: "#D9A441", glyph: "◆" },
+  { id: "arms", label: "Arms", color: "#C97FBF", glyph: "●" },
+  { id: "core", label: "Core", color: "#5B8FA8", glyph: "◉" },
+  { id: "full-body", label: "Full Body", color: "#D9667A", glyph: "✦" },
+  { id: "conditioning", label: "Conditioning", color: "#7187E0", glyph: "★" },
+  { id: "other", label: "Other", color: "#8FA8AC", glyph: "···" }
+];
+
+var TRAINING_STYLES = [
+  { id: "football-strength", label: "Football / Strength", color: "#E1543F", glyph: "▲" },
+  { id: "basketball", label: "Basketball", color: "#D9A441", glyph: "●" },
+  { id: "sprint", label: "Sprint", color: "#3DBFC4", glyph: "★" }
+];
+
+// Ordered keyword map used to auto-tag a lift's muscle group + training style(s) from its
+// freeform name. Order matters: entries are scanned top to bottom and the first keyword hit
+// wins, so more specific / earlier-claimed phrases should stay ahead of generic ones.
+var _LIFT_KEYWORD_MAP = [
+  { keywords: ["front squat", "back squat", "bulgarian split squat", "goblet squat", "hack squat", "squat", "lunge", "leg press", "hip thrust", "romanian deadlift", "rdl", "stiff leg deadlift", "deadlift", "leg curl", "leg extension", "calf raise"], muscleGroup: "legs", trainingStyles: ["football-strength"] },
+  { keywords: ["incline bench", "decline bench", "close grip bench", "bench press", "bench", "dumbbell press", "chest press", "chest fly", "cable fly", "push up", "pushup", "dip"], muscleGroup: "chest", trainingStyles: ["football-strength"] },
+  { keywords: ["bent over row", "pendlay row", "barbell row", "dumbbell row", "cable row", "seated row", "t-bar row", "row", "pull up", "pullup", "chin up", "chinup", "lat pulldown"], muscleGroup: "back", trainingStyles: ["football-strength"] },
+  { keywords: ["overhead press", "push press", "shoulder press", "military press", "arnold press", "ohp", "lateral raise", "front raise", "rear delt fly", "face pull"], muscleGroup: "shoulders", trainingStyles: ["football-strength"] },
+  { keywords: ["bicep curl", "hammer curl", "preacher curl", "curl", "tricep extension", "tricep pushdown", "skull crusher", "triceps"], muscleGroup: "arms", trainingStyles: ["football-strength"] },
+  { keywords: ["plank", "sit up", "situp", "crunch", "russian twist", "ab wheel", "hanging leg raise", "leg raise", "core work"], muscleGroup: "core", trainingStyles: ["football-strength"] },
+  { keywords: ["power clean", "hang clean", "clean and jerk", "clean", "snatch", "thruster", "burpee", "farmers carry", "farmer's carry"], muscleGroup: "full-body", trainingStyles: ["football-strength"] },
+  { keywords: ["40 yard", "40-yard", "flying sprint", "hill sprint", "sled push", "sled drag", "sprint", "dash", "shuttle run"], muscleGroup: "conditioning", trainingStyles: ["sprint"] },
+  { keywords: ["agility ladder", "cone drill", "cone drills", "suicides", "suicide run"], muscleGroup: "conditioning", trainingStyles: ["sprint", "basketball"] },
+  { keywords: ["box jump", "vertical jump", "broad jump", "jump shot", "free throw", "layup", "layups", "defensive slide", "defensive slides", "full court", "half court", "dribbling", "ball handling", "crossover"], muscleGroup: "conditioning", trainingStyles: ["basketball"] },
+  { keywords: ["treadmill", "jogging", "running", "stationary bike", "cycling", "rowing machine", "elliptical", "swim", "swimming"], muscleGroup: "conditioning", trainingStyles: [] }
+];
+
+function _matchLiftTags(name) {
+  var n = String(name || "").toLowerCase();
+  for (var i = 0; i < _LIFT_KEYWORD_MAP.length; i++) {
+    var entry = _LIFT_KEYWORD_MAP[i];
+    for (var j = 0; j < entry.keywords.length; j++) {
+      if (n.indexOf(entry.keywords[j]) !== -1) {
+        return { muscleGroup: entry.muscleGroup, trainingStyles: entry.trainingStyles.slice() };
+      }
+    }
+  }
+  return { muscleGroup: "other", trainingStyles: [] };
+}
+
 var ROUTINE_COLORS = ["#E8643A", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
 
 var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
@@ -972,6 +1020,181 @@ function getTimeGreeting() {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+/* ---------------- workout lift/set math helpers ---------------- */
+
+function normalizeLiftName(name) { return String(name || "").trim().toLowerCase(); }
+function workingSets(lift) { return (lift.sets || []).filter(function (s) { return !s.isWarmup; }); }
+function liftVolume(lift) {
+  return workingSets(lift).reduce(function (sum, s) {
+    var w = Number(s.weight) || 0, r = Number(s.reps) || 0;
+    return sum + (w > 0 ? w * r : r);
+  }, 0);
+}
+function liftTopSet(lift) {
+  var sets = workingSets(lift);
+  var best = null;
+  sets.forEach(function (s) {
+    var w = Number(s.weight) || 0;
+    if (!best || w > (Number(best.weight) || 0)) best = s;
+  });
+  return best;
+}
+function estOneRM(weight, reps) {
+  var w = Number(weight) || 0, r = Number(reps) || 0;
+  if (w <= 0 || r <= 0) return 0;
+  return w * (1 + r / 30);
+}
+function isSetPR(rec, weight, reps, oneRM) {
+  if (weight > rec.bestWeight) return "weight";
+  if (weight === rec.bestWeight && weight > 0 && reps > rec.bestRepsAtBestWeight) return "reps";
+  if (oneRM > rec.bestEst1RM) return "1rm";
+  return null;
+}
+var PR_LABELS = { weight: "Weight PR", reps: "Reps PR", "1rm": "Est. 1RM PR" };
+// Scans every logged (non-warmup) set in chronological order and flags the first time each
+// normalized lift name hits a new best weight, new best reps at its best weight, or a new best
+// estimated 1RM (checked in that priority order — only the highest-priority type is flagged).
+function computePRs(items) {
+  var sorted = (items || []).slice().filter(function (it) { return it.date; }).sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); });
+  var byLift = {};
+  var bySetId = {};
+  sorted.forEach(function (it) {
+    (it.lifts || []).forEach(function (lift) {
+      var key = normalizeLiftName(lift.name);
+      if (!key) return;
+      if (!byLift[key]) byLift[key] = { displayName: lift.name, muscleGroup: lift.muscleGroup, trainingStyles: lift.trainingStyles, bestWeight: 0, bestRepsAtBestWeight: 0, bestEst1RM: 0, prCount: 0, prDates: [] };
+      var rec = byLift[key];
+      rec.displayName = lift.name;
+      workingSets(lift).forEach(function (s) {
+        var w = Number(s.weight) || 0, r = Number(s.reps) || 0;
+        if (w <= 0 && r <= 0) return;
+        var oneRM = estOneRM(w, r);
+        var prType = isSetPR(rec, w, r, oneRM);
+        if (prType) {
+          bySetId[s.id] = { type: prType, label: PR_LABELS[prType] };
+          rec.prCount++;
+          rec.prDates.push(it.date);
+        }
+        if (w > rec.bestWeight) { rec.bestWeight = w; rec.bestRepsAtBestWeight = r; }
+        else if (w === rec.bestWeight && r > rec.bestRepsAtBestWeight) { rec.bestRepsAtBestWeight = r; }
+        if (oneRM > rec.bestEst1RM) rec.bestEst1RM = oneRM;
+      });
+    });
+  });
+  return { bySetId: bySetId, byLift: byLift };
+}
+
+function computeMuscleGroupVolume(items, weekStartISO, weekEndISO) {
+  var totals = {};
+  MUSCLE_GROUPS.forEach(function (mg) { totals[mg.id] = 0; });
+  (items || []).forEach(function (it) {
+    if (!it.date || it.date < weekStartISO || it.date > weekEndISO) return;
+    (it.lifts || []).forEach(function (lift) {
+      var mg = lift.muscleGroup || "other";
+      if (totals[mg] == null) totals[mg] = 0;
+      totals[mg] += liftVolume(lift);
+    });
+  });
+  return totals;
+}
+
+// A lift tagged with multiple training styles splits its volume evenly across each tagged
+// style, so the resulting breakdown always sums to the total (rather than double-counting).
+function classifyTrainingStyle(items, weekStartISO, weekEndISO) {
+  var totals = {};
+  TRAINING_STYLES.forEach(function (ts) { totals[ts.id] = 0; });
+  (items || []).forEach(function (it) {
+    if (!it.date || it.date < weekStartISO || it.date > weekEndISO) return;
+    (it.lifts || []).forEach(function (lift) {
+      var styles = lift.trainingStyles || [];
+      if (!styles.length) return;
+      var share = liftVolume(lift) / styles.length;
+      styles.forEach(function (sid) { if (totals[sid] != null) totals[sid] += share; });
+    });
+  });
+  return totals;
+}
+
+function _weekTonnage(items, weekKey) {
+  var start = weekKey, end = addDaysISO(start, 6);
+  var total = 0;
+  (items || []).forEach(function (it) {
+    if (!it.date || it.date < start || it.date > end) return;
+    (it.lifts || []).forEach(function (lift) {
+      workingSets(lift).forEach(function (s) {
+        var w = Number(s.weight) || 0, r = Number(s.reps) || 0;
+        if (w > 0) total += w * r;
+      });
+    });
+  });
+  return total;
+}
+
+// A week is "hard" if its tonnage is >=15% above the average of the preceding 4 classifiable
+// weeks (needs at least 2 of those to have any tonnage). 3 hard weeks in a row (current + 2
+// preceding) trigger the deload suggestion, dismissible per triggering week.
+function computeDeloadStatus(items, dismissedWeeks) {
+  var curWeekKey = todayWeekKey();
+  var weekKeys = [];
+  var cursor = curWeekKey;
+  for (var i = 0; i < 10; i++) {
+    weekKeys.unshift(cursor);
+    var d = new Date(cursor + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    cursor = d.toISOString().slice(0, 10);
+  }
+  var tonnageByWeek = {};
+  weekKeys.forEach(function (wk) { tonnageByWeek[wk] = _weekTonnage(items, wk); });
+  function isHard(weekKey) {
+    var idx = weekKeys.indexOf(weekKey);
+    if (idx < 4) return false;
+    var prior = weekKeys.slice(idx - 4, idx).map(function (wk) { return tonnageByWeek[wk]; }).filter(function (t) { return t > 0; });
+    if (prior.length < 2) return false;
+    var avg = prior.reduce(function (a, b) { return a + b; }, 0) / prior.length;
+    return tonnageByWeek[weekKey] >= avg * 1.15;
+  }
+  var last3 = weekKeys.slice(-3);
+  var allHard = last3.length === 3 && last3.every(isHard);
+  var dismissed = (dismissedWeeks || []).indexOf(curWeekKey) !== -1;
+  return { triggered: allHard && !dismissed, weekKeys: weekKeys, tonnageByWeek: tonnageByWeek, currentWeekKey: curWeekKey };
+}
+
+// Skill level per training style over a trailing 8-week window: consistency (weeks with any
+// logged volume in that style) plus PR frequency for that style's lifts. No absolute-volume
+// benchmark is used since nothing in the app can ground one (per product decision).
+function assessSkillLevel(items, styleId, prData) {
+  var weeks = [];
+  var cursor = todayWeekKey();
+  for (var i = 0; i < 8; i++) {
+    weeks.unshift(cursor);
+    var d = new Date(cursor + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    cursor = d.toISOString().slice(0, 10);
+  }
+  var weeksTrained = 0;
+  weeks.forEach(function (wk) {
+    var end = addDaysISO(wk, 6);
+    var hasVolume = (items || []).some(function (it) {
+      if (!it.date || it.date < wk || it.date > end) return false;
+      return (it.lifts || []).some(function (lift) { return (lift.trainingStyles || []).indexOf(styleId) !== -1 && liftVolume(lift) > 0; });
+    });
+    if (hasVolume) weeksTrained++;
+  });
+  var windowStart = weeks[0];
+  var prCount = 0;
+  Object.keys(prData.byLift).forEach(function (key) {
+    var rec = prData.byLift[key];
+    if ((rec.trainingStyles || []).indexOf(styleId) === -1) return;
+    prCount += (rec.prDates || []).filter(function (d) { return d >= windowStart; }).length;
+  });
+  var level;
+  if (weeksTrained < 2) level = "new";
+  else if (weeksTrained >= 7 && prCount >= 1) level = "advanced";
+  else if (weeksTrained < 4 && prCount === 0) level = "beginner";
+  else level = "intermediate";
+  return { level: level, weeksTrained: weeksTrained, prCount: prCount, windowWeeks: weeks.length };
 }
 
 async function loadTabData(key, defaultData) {
@@ -2995,14 +3218,108 @@ async function renderTravelTab(root) {
 
 /* ---------------- workouts tab ---------------- */
 
+function _liftLineChart(points, metricLabel) {
+  var w = 560, h = 220, padL = 44, padR = 16, padT = 20, padB = 28;
+  var plotW = w - padL - padR, plotH = h - padT - padB;
+  if (!points.length) {
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="display:block;max-width:560px;"><text x="' + (w / 2) + '" y="' + (h / 2) + '" text-anchor="middle" fill="#8A919C" font-size="13">Not enough history yet.</text></svg>';
+  }
+  var values = points.map(function (p) { return p.value; });
+  var maxV = Math.max.apply(null, values);
+  var minV = Math.min(0, Math.min.apply(null, values));
+  if (maxV === minV) maxV = minV + 1;
+  function px(i) { return points.length === 1 ? padL + plotW / 2 : padL + (i / (points.length - 1)) * plotW; }
+  function py(v) { return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+  var linePath = points.map(function (p, i) { return (i === 0 ? "M" : "L") + px(i).toFixed(1) + "," + py(p.value).toFixed(1); }).join(" ");
+  var dots = points.map(function (p, i) { return '<circle cx="' + px(i).toFixed(1) + '" cy="' + py(p.value).toFixed(1) + '" r="3.5" fill="#3DBFC4"/>'; }).join("");
+  var labelEvery = Math.max(1, Math.ceil(points.length / 6));
+  var xLabels = points.map(function (p, i) {
+    if (i % labelEvery !== 0 && i !== points.length - 1) return "";
+    return '<text x="' + px(i).toFixed(1) + '" y="' + (h - 8) + '" text-anchor="middle" fill="#5A6168" font-size="10" font-family="ui-monospace,monospace">' + formatDateShort(p.date) + '</text>';
+  }).join("");
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" style="display:block;max-width:560px;">' +
+    '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (padL + plotW) + '" y2="' + (padT + plotH) + '" stroke="#2A313A" stroke-width="1"/>' +
+    '<text x="' + padL + '" y="12" fill="#8A919C" font-size="10" font-family="ui-monospace,monospace">' + escapeHtml(metricLabel) + '</text>' +
+    '<path d="' + linePath + '" fill="none" stroke="#3DBFC4" stroke-width="2"/>' +
+    dots + xLabels +
+  '</svg>';
+}
+
+function _trainingStyleDonut(counts, total) {
+  var cx = 100, cy = 100, r = 78, ri = 54;
+  var segments = TRAINING_STYLES.map(function (s) { return { value: counts[s.id] || 0, color: s.color }; });
+  var nonZero = segments.filter(function (s) { return s.value > 0; });
+  var shape;
+  if (!total) {
+    shape = '<circle cx="100" cy="100" r="78" fill="#2A313A"/>';
+  } else if (nonZero.length === 1) {
+    shape = '<circle cx="100" cy="100" r="78" fill="' + nonZero[0].color + '"/>';
+  } else {
+    var a = -Math.PI / 2;
+    shape = segments.map(function (seg) {
+      if (!seg.value) return "";
+      var slice = (seg.value / total) * 2 * Math.PI;
+      var ea = a + slice, la = slice > Math.PI ? 1 : 0;
+      var f = function (n) { return n.toFixed(2); };
+      var d = "M" + f(cx + r * Math.cos(a)) + "," + f(cy + r * Math.sin(a)) +
+        " A" + r + "," + r + " 0 " + la + ",1 " + f(cx + r * Math.cos(ea)) + "," + f(cy + r * Math.sin(ea)) +
+        " L" + f(cx + ri * Math.cos(ea)) + "," + f(cy + ri * Math.sin(ea)) +
+        " A" + ri + "," + ri + " 0 " + la + ",0 " + f(cx + ri * Math.cos(a)) + "," + f(cy + ri * Math.sin(a)) + "Z";
+      a = ea;
+      return '<path d="' + d + '" fill="' + seg.color + '"/>';
+    }).join("");
+  }
+  return '<svg viewBox="0 0 200 200" width="160" height="160" style="display:block;flex-shrink:0;">' +
+    shape +
+    '<circle cx="100" cy="100" r="' + ri + '" fill="var(--bg-card)"/>' +
+    '<text x="100" y="106" text-anchor="middle" fill="#EDEAE3" font-size="22" font-weight="800" font-family="ui-monospace,monospace">' + Math.round(total) + '</text>' +
+    '<text x="100" y="126" text-anchor="middle" fill="#8A919C" font-size="10" font-family="ui-monospace,monospace">VOLUME</text>' +
+  '</svg>';
+}
+
+function _renderWorkoutCalendarGrid(year, month, items) {
+  var byDate = {};
+  (items || []).forEach(function (it) {
+    if (!it.date) return;
+    if (!byDate[it.date]) byDate[it.date] = [];
+    byDate[it.date].push(it.category);
+  });
+  var first = new Date(year, month, 1);
+  var startWeekday = first.getDay();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var todayStr = todayISO();
+  var cells = [];
+  for (var i = 0; i < startWeekday; i++) cells.push("<div></div>");
+  for (var d = 1; d <= daysInMonth; d++) {
+    var mm = String(month + 1).padStart(2, "0"), dd = String(d).padStart(2, "0");
+    var dateStr = year + "-" + mm + "-" + dd;
+    var cats = byDate[dateStr] || [];
+    var uniqueCats = cats.filter(function (c, idx) { return cats.indexOf(c) === idx; });
+    var bg = "transparent", border = "#2A313A";
+    if (uniqueCats.length === 1) {
+      var cat = categoryById(WORKOUT_CATEGORIES, uniqueCats[0]);
+      bg = cat.color + "33"; border = cat.color;
+    } else if (uniqueCats.length > 1) {
+      bg = "#8A919C33"; border = "#8A919C";
+    }
+    var isToday = dateStr === todayStr;
+    cells.push('<div style="aspect-ratio:1;border-radius:8px;border:1px solid ' + border + ';background:' + bg + ';display:flex;align-items:center;justify-content:center;font-size:12px;color:#EDEAE3;' + (isToday ? "box-shadow:0 0 0 2px #3DBFC4 inset;" : "") + '">' + d + "</div>");
+  }
+  return '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">' +
+    ["S", "M", "T", "W", "T", "F", "S"].map(function (dl) { return '<div style="text-align:center;font-size:11px;color:#8A919C;padding-bottom:4px;">' + dl + "</div>"; }).join("") +
+    cells.join("") +
+  "</div>";
+}
+
 async function renderWorkoutsTab(root) {
   root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
   var accent = "#3DBFC4";
-  var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [] };
+  var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
   var data = await loadTabData("dashboard-workouts-data", defaultData);
+  var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
+  var splitsData = await loadTabData("dashboard-workouts-splits", { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
 
-  // migrate any old-shape items (liftWeight/sets/reps directly on the item)
-  // into the new shape (a session with a nested lifts array)
+  // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
   var migratedAny = false;
   data.items = (data.items || []).map(function (it) {
     if (it.lifts) return it;
@@ -3021,6 +3338,34 @@ async function renderWorkoutsTab(root) {
     return { id: it.id, category: it.category, name: it.name, date: it.date, duration: it.duration, notes: it.notes, lifts: lifts };
   });
 
+  // v2 migration: flat lift {weight, sets(number), reps} -> per-set {sets:[{id,weight,reps,isWarmup}]} + auto tags
+  var migratedLiftsAny = false;
+  data.items.forEach(function (it) {
+    it.lifts = (it.lifts || []).map(function (lift) {
+      if (Array.isArray(lift.sets)) {
+        if (lift.muscleGroup == null) {
+          migratedLiftsAny = true;
+          var tags = _matchLiftTags(lift.name);
+          lift.muscleGroup = tags.muscleGroup;
+          lift.trainingStyles = tags.trainingStyles;
+          lift.tagSource = "auto";
+        }
+        return lift;
+      }
+      migratedLiftsAny = true;
+      var n = Number(lift.sets) || 1;
+      var setsArr = [];
+      for (var i = 0; i < n; i++) {
+        setsArr.push({ id: uid(), weight: (lift.weight === "" || lift.weight == null) ? "" : lift.weight, reps: (lift.reps === "" || lift.reps == null) ? "" : lift.reps, isWarmup: false });
+      }
+      var tags2 = _matchLiftTags(lift.name);
+      return { id: lift.id, name: lift.name, muscleGroup: tags2.muscleGroup, trainingStyles: tags2.trainingStyles, tagSource: "auto", sets: setsArr };
+    });
+  });
+  if (!data.dismissedDeloadWeeks) data.dismissedDeloadWeeks = [];
+  if (!templatesData.templates) templatesData.templates = [];
+  if (!splitsData.days) splitsData.days = { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" };
+
   var sortBy = "date";
   var activeCat = "strength";
   var editRowId = null;
@@ -3033,36 +3378,60 @@ async function renderWorkoutsTab(root) {
   var editingLiftItemId = null;
   var editingLiftId = null;
   var editingLiftForm = {};
+  var editingSetItemId = null;
+  var editingSetLiftId = null;
+  var editingSetId = null;
+  var editingSetForm = {};
+  var showTemplatePicker = false;
+  var activeSection = "log";
+  var historyLiftName = "";
+  var historyMetric = "topWeight";
+  var calYear = new Date().getFullYear();
+  var calMonth = new Date().getMonth();
+  var templateAddMode = false;
+  var templateDraft = null;
+  var confirmResetTemplates = false;
 
   function save() { saveTabData("dashboard-workouts-data", data); }
-  if (migratedAny) save();
+  function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
+  function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
+  if (migratedAny || migratedLiftsAny) save();
+
+  function weekStart() { return addDaysISO(todayISO(), -6); }
+
+  var SECTIONS = [
+    { id: "log", label: "Log" },
+    { id: "templates", label: "Templates" },
+    { id: "history", label: "History & PRs" },
+    { id: "analysis", label: "Analysis" },
+    { id: "calendar", label: "Calendar & Splits" }
+  ];
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
-    '<div class="card">' +
-      '<div class="weight-row"><span class="gauge-label mono">CURRENT WEIGHT</span></div>' +
-      '<div class="weight-current mono" id="wkCurrentWeight" style="color:' + accent + ';"></div>' +
-      '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
-      '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
-    "</div>" +
-    '<div class="card"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span class="mono" id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
-    '<div class="chips" id="wkChips"></div>' +
-    '<div class="card">' +
-      '<div class="pills" id="wkPills"></div>' +
-      '<div class="form-row">' +
-        '<input class="form-input" id="wkName" placeholder="Type of workout, e.g. Leg Day" />' +
-        '<div class="form-row-split"><input class="form-input" type="date" id="wkDate" /><input class="form-input" type="number" min="0" id="wkDuration" placeholder="Minutes (optional)" /></div>' +
-      "</div>" +
-      '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
-      '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
-    "</div>" +
-    '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div class="sort-toggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div></div>' +
-    '<div class="list-card" id="wkList"></div>' +
-    '<div class="footer-row"><span class="footer-label">Total logged</span><span class="footer-total mono" id="wkFooterTotal"></span></div>' +
-    '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
+    '<div class="pills" id="wkSectionPills"></div>' +
+    '<div id="wkSectionBody"></div>';
 
-  function weekStart() { return addDaysISO(todayISO(), -6); }
+  function renderSectionPills() {
+    document.getElementById("wkSectionPills").innerHTML = SECTIONS.map(function (s) {
+      var active = s.id === activeSection;
+      return '<button class="pill" data-section="' + s.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(s.label) + "</button>";
+    }).join("");
+    var pills = document.getElementById("wkSectionPills").querySelectorAll("[data-section]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { activeSection = e.currentTarget.getAttribute("data-section"); renderSectionPills(); renderSection(); });
+    }
+  }
+
+  function renderSection() {
+    if (activeSection === "log") renderLogSection();
+    else if (activeSection === "templates") renderTemplatesSection();
+    else if (activeSection === "history") renderHistorySection();
+    else if (activeSection === "analysis") renderAnalysisSection();
+    else if (activeSection === "calendar") renderCalendarSplitSection();
+    initScrollAnims();
+  }
 
   function renderStreak() {
     var dateSet = new Set(data.items.filter(function (it) { return it.date; }).map(function (it) { return it.date; }));
@@ -3070,410 +3439,897 @@ async function renderWorkoutsTab(root) {
     document.getElementById("wkStreak").textContent = streak > 0 ? streak + " day streak" : "";
   }
 
-  function renderWeight() {
-    var sorted = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
-    var current = sorted[0];
-    document.getElementById("wkCurrentWeight").textContent = current ? current.weight + " lbs" : "Not logged yet";
-    var logEl = document.getElementById("wkWeightLog");
-    if (sorted.length === 0) { logEl.innerHTML = ""; return; }
-    logEl.innerHTML = sorted.slice(0, 5).map(function (w) {
-      return '<div class="weight-log-row"><span style="color:#8A919C;">' + formatDateShort(w.date) + '</span><span class="mono" style="color:' + accent + ';">' + w.weight + " lbs</span><button class=\"icon-btn\" data-action=\"delete-weight\" data-id=\"" + w.id + "\">\u2715</button></div>";
-    }).join("");
-  }
+  /* ---------------- Log section ---------------- */
 
-  function handleLogWeight() {
-    var val = document.getElementById("wkWeightDraft").value;
-    if (val === "" || isNaN(Number(val))) return;
-    if (!data.bodyWeightLog) data.bodyWeightLog = [];
-    data.bodyWeightLog.push({ id: uid(), date: todayISO(), weight: Number(val) });
-    save();
-    document.getElementById("wkWeightDraft").value = "";
-    renderWeight();
-  }
-  function handleDeleteWeight(id) {
-    data.bodyWeightLog = (data.bodyWeightLog || []).filter(function (w) { return w.id !== id; });
-    save();
-    renderWeight();
-  }
+  function renderLogSection() {
+    var deload = computeDeloadStatus(data.items, data.dismissedDeloadWeeks);
+    var bodyEl = document.getElementById("wkSectionBody");
+    bodyEl.innerHTML =
+      (deload.triggered ?
+        '<div class="card" style="border-color:#D9A441;background:#D9A44118;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+            '<div><div style="color:#D9A441;font-weight:700;font-size:14px;margin-bottom:2px;">Consider a lighter week</div>' +
+            '<div style="color:#8A919C;font-size:13px;">3 tough training weeks in a row \u2014 tonnage has stayed well above your recent average. A deload week can help you keep progressing.</div></div>' +
+            '<button class="icon-btn" id="wkDismissDeload" style="flex-shrink:0;">\u2715</button>' +
+          "</div></div>" : "") +
+      '<div class="card">' +
+        '<div class="weight-row"><span class="gauge-label mono">CURRENT WEIGHT</span></div>' +
+        '<div class="weight-current mono" id="wkCurrentWeight" style="color:' + accent + ';"></div>' +
+        '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
+        '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
+      "</div>" +
+      '<div class="card"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span class="mono" id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
+      '<div class="chips" id="wkChips"></div>' +
+      '<div class="card">' +
+        '<div class="pills" id="wkPills"></div>' +
+        '<div class="row-gap" style="margin-bottom:12px;flex-direction:column;align-items:stretch;">' +
+          '<button class="link-btn" id="wkUseTemplateBtn" style="color:' + accent + ';text-align:left;">' + (showTemplatePicker ? "Hide templates" : "Start from a template\u2026") + "</button>" +
+          (showTemplatePicker ? (templatesData.templates.length ?
+            '<div class="row-gap" style="flex-wrap:wrap;">' + templatesData.templates.map(function (t) {
+              return '<button class="pill" data-action="use-template" data-template="' + t.id + '" style="border-color:' + accent + ";color:" + accent + ';">' + escapeHtml(t.name) + "</button>";
+            }).join("") + "</div>"
+            : '<div style="color:#8A919C;font-size:13px;">No templates saved yet \u2014 create one in the Templates tab.</div>') : "") +
+        "</div>" +
+        '<div class="form-row">' +
+          '<input class="form-input" id="wkName" placeholder="Type of workout, e.g. Leg Day" />' +
+          '<div class="form-row-split"><input class="form-input" type="date" id="wkDate" /><input class="form-input" type="number" min="0" id="wkDuration" placeholder="Minutes (optional)" /></div>' +
+        "</div>" +
+        '<input class="form-input" id="wkNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
+        '<div class="form-actions"><span class="error-text" id="wkFormError"></span><button class="add-btn" id="wkAddBtn" style="background:' + accent + ';">+ Add</button></div>' +
+      "</div>" +
+      '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div class="sort-toggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div></div>' +
+      '<div class="list-card" id="wkList"></div>' +
+      '<div class="footer-row"><span class="footer-label">Total logged</span><span class="footer-total mono" id="wkFooterTotal"></span></div>' +
+      '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
 
-  function renderGauge() {
-    var ws = weekStart();
-    var thisWeek = data.items.filter(function (it) { return it.date && it.date >= ws && it.date <= todayISO(); });
-    var goalNum = Number(data.weeklyGoal) || 0;
-    var amountEl = document.getElementById("wkGaugeAmount");
-    var bodyEl = document.getElementById("wkGaugeBody");
-    amountEl.style.color = accent;
-    if (goalNum > 0) {
-      var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
-      amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts";
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:linear-gradient(90deg," + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
-    } else {
-      amountEl.textContent = thisWeek.length + " workouts";
-      if (showGoalInput) {
-        bodyEl.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
-        var gd = document.getElementById("wkGoalDraft");
-        gd.addEventListener("input", function (e) { goalDraft = e.target.value; });
-        gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitGoal(); });
-        gd.focus();
-        document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
-      } else {
-        bodyEl.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:#8A919C;">Set a weekly goal to track against</button>';
-        document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
-      }
-    }
-  }
-  function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
-
-  function renderChips() {
-    var counts = WORKOUT_CATEGORIES.map(function (cat, i) {
-      return Object.assign({}, cat, { count: data.items.filter(function (it) { return it.category === cat.id; }).length, idx: i });
-    }).filter(function (c) { return c.count > 0; });
-    document.getElementById("wkChips").innerHTML = counts.map(function (cat) {
-      return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + '</span> ' + escapeHtml(cat.label) + ' <span class="mono" style="color:' + accent + ';">\u00D7 ' + cat.count + "</span></span>";
-    }).join("");
-  }
-
-  function renderPills() {
-    document.getElementById("wkPills").innerHTML = WORKOUT_CATEGORIES.map(function (cat) {
-      var active = cat.id === activeCat;
-      return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
-    }).join("");
-    var pills = document.getElementById("wkPills").querySelectorAll(".pill");
-    for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
-    }
-  }
-
-  function getSortedItems() {
-    var copy = data.items.slice();
-    if (sortBy === "date") {
-      copy.sort(function (a, b) { return (b.date || "0000").localeCompare(a.date || "0000"); });
-    } else {
-      var order = WORKOUT_CATEGORIES.map(function (c) { return c.id; });
-      copy.sort(function (a, b) {
-        var d = order.indexOf(a.category) - order.indexOf(b.category);
-        if (d !== 0) return d;
-        return (b.date || "0000").localeCompare(a.date || "0000");
+    if (deload.triggered) {
+      document.getElementById("wkDismissDeload").addEventListener("click", function () {
+        data.dismissedDeloadWeeks.push(deload.currentWeekKey);
+        save();
+        renderLogSection();
       });
     }
-    return copy;
-  }
 
-  function renderLiftsBlock(item) {
-    var lifts = item.lifts || [];
-    var liftRows = lifts.map(function (l) {
-      if (editingLiftItemId === item.id && editingLiftId === l.id) {
-        var ef = editingLiftForm;
-        return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
-          '<input class="edit-input grow" style="min-width:80px;" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" />' +
-          '<input class="edit-input amt" type="number" min="0" step="0.5" data-lift-edit="weight" placeholder="Lbs" value="' + escapeHtml(ef.weight) + '" />' +
-          '<input class="edit-input amt" type="number" min="0" data-lift-edit="sets" placeholder="Sets" value="' + escapeHtml(ef.sets) + '" />' +
-          '<input class="edit-input amt" type="number" min="0" data-lift-edit="reps" placeholder="Reps" value="' + escapeHtml(ef.reps) + '" />' +
-          '<button class="icon-btn" data-action="save-lift" style="color:' + accent + ';">\u2713</button>' +
-          '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
-        "</div>";
-      }
-      var bits = [];
-      if (l.weight !== "" && l.weight != null) bits.push(l.weight + " lbs");
-      if (l.sets !== "" && l.sets != null) bits.push(l.sets + " sets");
-      if (l.reps !== "" && l.reps != null) bits.push(l.reps + " reps");
-      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(l.name) + '</span><span class="mono" style="color:' + accent + ';">' + bits.join(" \u00D7 ") + '</span>' +
-        '<span style="display:flex;gap:4px;flex-shrink:0;">' +
-        '<button class="icon-btn" data-action="edit-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
-        '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
-        "</span></div>";
-    }).join("");
-    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
-      (liftRows || '<div style="color:#8A919C;font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
-      '<div class="row-gap" style="margin-top:8px;">' +
-        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" />' +
-        '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
-        '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Sets" data-lift-field="sets" data-item="' + item.id + '" />' +
-        '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
-        '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+</button>' +
-      "</div>" +
-    "</div>";
-  }
-
-
-  function renderList() {
-    var sorted = getSortedItems();
-    document.getElementById("wkEntryCount").textContent = data.items.length + (data.items.length === 1 ? " workout" : " workouts");
-    var listEl = document.getElementById("wkList");
-    if (sorted.length === 0) {
-      listEl.innerHTML = '<div class="empty-state">Nothing logged yet. Add your first workout below and start a streak.</div>';
-      return;
+    function renderWeight() {
+      var sorted = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+      var current = sorted[0];
+      document.getElementById("wkCurrentWeight").textContent = current ? current.weight + " lbs" : "Not logged yet";
+      var logEl = document.getElementById("wkWeightLog");
+      if (sorted.length === 0) { logEl.innerHTML = ""; return; }
+      logEl.innerHTML = sorted.slice(0, 5).map(function (w) {
+        return '<div class="weight-log-row"><span style="color:#8A919C;">' + formatDateShort(w.date) + '</span><span class="mono" style="color:' + accent + ';">' + w.weight + " lbs</span><button class=\"icon-btn\" data-action=\"delete-weight\" data-id=\"" + w.id + "\">\u2715</button></div>";
+      }).join("");
     }
-    listEl.innerHTML = sorted.map(function (item) {
-      var cat = categoryById(WORKOUT_CATEGORIES, item.category);
-      if (item.id === editRowId) {
-        var f = editRowForm;
-        return '<div class="item-row"><div class="item-edit">' +
-          '<div class="edit-line">' +
-          '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
-          '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
-          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
-          "</div>" +
-          '<div class="edit-line">' +
-          '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
-          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
-          (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
-          '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
-          '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
-          "</div></div></div>";
+
+    function handleLogWeight() {
+      var val = document.getElementById("wkWeightDraft").value;
+      if (val === "" || isNaN(Number(val))) return;
+      if (!data.bodyWeightLog) data.bodyWeightLog = [];
+      data.bodyWeightLog.push({ id: uid(), date: todayISO(), weight: Number(val) });
+      save();
+      document.getElementById("wkWeightDraft").value = "";
+      renderWeight();
+    }
+    function handleDeleteWeight(id) {
+      data.bodyWeightLog = (data.bodyWeightLog || []).filter(function (w) { return w.id !== id; });
+      save();
+      renderWeight();
+    }
+
+    function renderGauge() {
+      var ws = weekStart();
+      var thisWeek = data.items.filter(function (it) { return it.date && it.date >= ws && it.date <= todayISO(); });
+      var goalNum = Number(data.weeklyGoal) || 0;
+      var amountEl = document.getElementById("wkGaugeAmount");
+      var bodyEl2 = document.getElementById("wkGaugeBody");
+      amountEl.style.color = accent;
+      if (goalNum > 0) {
+        var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
+        amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts";
+        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:linear-gradient(90deg," + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+      } else {
+        amountEl.textContent = thisWeek.length + " workouts";
+        if (showGoalInput) {
+          bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
+          var gd = document.getElementById("wkGoalDraft");
+          gd.addEventListener("input", function (e) { goalDraft = e.target.value; });
+          gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitGoal(); });
+          gd.focus();
+          document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
+        } else {
+          bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:#8A919C;">Set a weekly goal to track against</button>';
+          document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
+        }
       }
-      var expanded = expandedIds.has(item.id);
+    }
+    function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
+
+    function renderChips() {
+      var counts = WORKOUT_CATEGORIES.map(function (cat, i) {
+        return Object.assign({}, cat, { count: data.items.filter(function (it) { return it.category === cat.id; }).length, idx: i });
+      }).filter(function (c) { return c.count > 0; });
+      document.getElementById("wkChips").innerHTML = counts.map(function (cat) {
+        return '<span class="chip"><span class="chip-num" style="color:' + cat.color + '">' + numLabel(cat.idx) + "</span> " + escapeHtml(cat.label) + ' <span class="mono" style="color:' + accent + ';">\u00D7 ' + cat.count + "</span></span>";
+      }).join("");
+    }
+
+    function renderPills() {
+      document.getElementById("wkPills").innerHTML = WORKOUT_CATEGORIES.map(function (cat) {
+        var active = cat.id === activeCat;
+        return '<button class="pill" data-cat="' + cat.id + '" style="background:' + (active ? cat.color : "transparent") + ";border-color:" + cat.color + ";color:" + (active ? "#12151A" : cat.color) + ';">' + cat.glyph + " " + escapeHtml(cat.label) + "</button>";
+      }).join("");
+      var pills = document.getElementById("wkPills").querySelectorAll(".pill");
+      for (var i = 0; i < pills.length; i++) {
+        pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
+      }
+    }
+
+    function getSortedItems() {
+      var copy = data.items.slice();
+      if (sortBy === "date") {
+        copy.sort(function (a, b) { return (b.date || "0000").localeCompare(a.date || "0000"); });
+      } else {
+        var order = WORKOUT_CATEGORIES.map(function (c) { return c.id; });
+        copy.sort(function (a, b) {
+          var d = order.indexOf(a.category) - order.indexOf(b.category);
+          if (d !== 0) return d;
+          return (b.date || "0000").localeCompare(a.date || "0000");
+        });
+      }
+      return copy;
+    }
+
+    function tagOptionsHtml(selectedId) {
+      return MUSCLE_GROUPS.map(function (mg) {
+        return '<option value="' + mg.id + '"' + (mg.id === selectedId ? " selected" : "") + ">" + escapeHtml(mg.label) + "</option>";
+      }).join("");
+    }
+    function styleTogglePillsHtml(itemId, liftId, selectedStyles) {
+      return TRAINING_STYLES.map(function (ts) {
+        var active = (selectedStyles || []).indexOf(ts.id) !== -1;
+        return '<button type="button" class="pill" data-action="toggle-lift-style" data-item="' + itemId + '" data-lift="' + liftId + '" data-style="' + ts.id + '" style="padding:4px 10px;font-size:12px;background:' + (active ? ts.color : "transparent") + ";border-color:" + ts.color + ";color:" + (active ? "#12151A" : ts.color) + ';">' + ts.glyph + " " + escapeHtml(ts.label) + "</button>";
+      }).join("");
+    }
+
+    function renderLiftsBlock(item, prData) {
       var lifts = item.lifts || [];
-      var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
-      var displayRow = '<div class="item-display">' +
-        '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
-        '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
-        '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
-        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
-        '<div class="item-actions">' +
-        '<button class="icon-btn" data-action="toggle-expand" data-id="' + item.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>" +
-        '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
-        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+      var liftRows = lifts.map(function (l) {
+        var isEditingName = editingLiftItemId === item.id && editingLiftId === l.id;
+        var header;
+        if (isEditingName) {
+          var ef = editingLiftForm;
+          header = '<div class="edit-line">' +
+            '<input class="edit-input grow" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" />' +
+            '<button class="icon-btn" data-action="save-lift-name" style="color:' + accent + ';">\u2713</button>' +
+            '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
+          "</div>";
+        } else {
+          header = '<div class="edit-line" style="justify-content:space-between;">' +
+            '<span style="color:#EDEAE3;font-weight:600;">' + escapeHtml(l.name) + "</span>" +
+            '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+              '<button class="icon-btn" data-action="edit-lift-name" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
+              '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
+            "</span></div>";
+        }
+        var tagRow = '<div class="edit-line" style="margin-top:4px;">' +
+          '<select class="edit-select" data-action="set-muscle-group" data-item="' + item.id + '" data-lift="' + l.id + '">' + tagOptionsHtml(l.muscleGroup) + "</select>" +
+          styleTogglePillsHtml(item.id, l.id, l.trainingStyles) +
         "</div>";
-      var liftsBlock = expanded ? renderLiftsBlock(item) : "";
-      return '<div class="item-row">' + displayRow + liftsBlock + "</div>";
-    }).join("");
-  }
 
-  function renderFooter() {
-    var totalMinutes = data.items.reduce(function (s, it) { return s + (Number(it.duration) || 0); }, 0);
-    document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "");
-  }
+        var setRows = (l.sets || []).map(function (s, idx) {
+          if (editingSetItemId === item.id && editingSetLiftId === l.id && editingSetId === s.id) {
+            var sf = editingSetForm;
+            return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
+              '<span style="color:#8A919C;width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
+              '<input class="edit-input amt" type="number" min="0" step="0.5" data-set-edit="weight" placeholder="Lbs" value="' + escapeHtml(sf.weight) + '" />' +
+              '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />' +
+              '<button class="icon-btn" data-action="save-set" style="color:' + accent + ';">\u2713</button>' +
+              '<button class="icon-btn" data-action="cancel-set-edit">\u2715</button>' +
+            "</div>";
+          }
+          var pr = prData.bySetId[s.id];
+          var bits = [];
+          if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
+          if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
+          return '<div class="weight-log-row">' +
+            '<span style="color:#8A919C;width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
+            '<span class="mono" style="color:' + accent + ';flex:1;">' + bits.join(" \u00D7 ") + "</span>" +
+            (s.isWarmup ? '<span class="chip" style="padding:2px 8px;font-size:11px;color:#8A919C;">Warm-up</span>' : "") +
+            (pr ? '<span class="chip" style="padding:2px 8px;font-size:11px;background:#D9A441;color:#12151A;border-color:#D9A441;">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
+            '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+              '<button class="icon-btn" data-action="toggle-warmup" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" title="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";" : "") + '">W</button>' +
+              '<button class="icon-btn" data-action="edit-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u270E</button>' +
+              '<button class="icon-btn" data-action="delete-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u2715</button>' +
+            "</span></div>";
+        }).join("");
 
-  function renderDynamic() { renderStreak(); renderWeight(); renderGauge(); renderChips(); renderList(); renderFooter(); }
+        return '<div style="padding:10px 0;border-bottom:1px solid #2A313A;">' +
+          header + tagRow +
+          '<div style="margin-top:6px;">' + (setRows || '<div style="color:#8A919C;font-size:12px;">No sets logged yet.</div>') + "</div>" +
+          '<div class="row-gap" style="margin-top:6px;">' +
+            '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#8A919C;"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>' +
+            '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">+ Add set</button>' +
+          "</div></div>";
+      }).join("");
 
-  function resetForm() {
-    document.getElementById("wkName").value = "";
-    document.getElementById("wkDate").value = todayISO();
-    document.getElementById("wkDuration").value = "";
-    document.getElementById("wkNotes").value = "";
-    document.getElementById("wkFormError").textContent = "";
-  }
+      return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
+        (liftRows || '<div style="color:#8A919C;font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
+        '<div class="row-gap" style="margin-top:8px;">' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" />' +
+          '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
+          '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#8A919C;"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
+          '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add lift</button>' +
+        "</div></div>";
+    }
 
-  function handleAdd() {
-    var name = document.getElementById("wkName").value.trim();
-    var dateVal = document.getElementById("wkDate").value;
-    var durationVal = document.getElementById("wkDuration").value;
-    var notesVal = document.getElementById("wkNotes").value;
-    var errEl = document.getElementById("wkFormError");
-    if (!name) { errEl.textContent = "Give it a name first."; return; }
-    errEl.textContent = "";
-    var newItem = { id: uid(), category: activeCat, name: name, date: dateVal, duration: durationVal === "" ? "" : Number(durationVal), notes: notesVal, lifts: [] };
-    data.items.push(newItem);
-    expandedIds.add(newItem.id);
-    save();
-    resetForm();
-    renderDynamic();
-  }
+    function renderList() {
+      var prData = computePRs(data.items);
+      var sorted = getSortedItems();
+      document.getElementById("wkEntryCount").textContent = data.items.length + (data.items.length === 1 ? " workout" : " workouts");
+      var listEl = document.getElementById("wkList");
+      if (sorted.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">Nothing logged yet. Add your first workout below and start a streak.</div>';
+        return;
+      }
+      listEl.innerHTML = sorted.map(function (item) {
+        var cat = categoryById(WORKOUT_CATEGORIES, item.category);
+        if (item.id === editRowId) {
+          var f = editRowForm;
+          return '<div class="item-row"><div class="item-edit">' +
+            '<div class="edit-line">' +
+            '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+            '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+            '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+            "</div>" +
+            '<div class="edit-line">' +
+            '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
+            '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+            (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+            '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
+            '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
+            "</div></div></div>";
+        }
+        var expanded = expandedIds.has(item.id);
+        var lifts = item.lifts || [];
+        var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
+        var displayRow = '<div class="item-display">' +
+          '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+          '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+          '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+          '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+          '<div class="item-actions">' +
+          '<button class="icon-btn" data-action="toggle-expand" data-id="' + item.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>" +
+          '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+          '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+          "</div>";
+        var liftsBlock = expanded ? renderLiftsBlock(item, prData) : "";
+        return '<div class="item-row">' + displayRow + liftsBlock + "</div>";
+      }).join("");
+    }
 
-  function toggleExpand(id) {
-    if (expandedIds.has(id)) {
+    function renderFooter() {
+      var totalMinutes = data.items.reduce(function (s, it) { return s + (Number(it.duration) || 0); }, 0);
+      document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "");
+    }
+
+    function renderDynamic() { renderStreak(); renderWeight(); renderGauge(); renderChips(); renderList(); renderFooter(); }
+
+    function resetForm() {
+      document.getElementById("wkName").value = "";
+      document.getElementById("wkDate").value = todayISO();
+      document.getElementById("wkDuration").value = "";
+      document.getElementById("wkNotes").value = "";
+      document.getElementById("wkFormError").textContent = "";
+    }
+
+    function handleAdd() {
+      var name = document.getElementById("wkName").value.trim();
+      var dateVal = document.getElementById("wkDate").value;
+      var durationVal = document.getElementById("wkDuration").value;
+      var notesVal = document.getElementById("wkNotes").value;
+      var errEl = document.getElementById("wkFormError");
+      if (!name) { errEl.textContent = "Give it a name first."; return; }
+      errEl.textContent = "";
+      var newItem = { id: uid(), category: activeCat, name: name, date: dateVal, duration: durationVal === "" ? "" : Number(durationVal), notes: notesVal, lifts: [] };
+      data.items.push(newItem);
+      expandedIds.add(newItem.id);
+      save();
+      resetForm();
+      renderDynamic();
+    }
+
+    function handleStartFromTemplate(templateId) {
+      var tpl = (templatesData.templates || []).find(function (t) { return t.id === templateId; });
+      if (!tpl) return;
+      var lifts = (tpl.lifts || []).map(function (pl) {
+        var setsArr = [];
+        var n = Number(pl.targetSets) || 1;
+        for (var i = 0; i < n; i++) {
+          setsArr.push({ id: uid(), weight: pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight, reps: pl.targetReps === "" || pl.targetReps == null ? "" : pl.targetReps, isWarmup: false });
+        }
+        return { id: uid(), name: pl.name, muscleGroup: pl.muscleGroup, trainingStyles: (pl.trainingStyles || []).slice(), tagSource: pl.tagSource || "auto", sets: setsArr };
+      });
+      var newItem = { id: uid(), category: tpl.category || activeCat, name: tpl.name, date: todayISO(), duration: "", notes: "", lifts: lifts };
+      data.items.push(newItem);
+      expandedIds.add(newItem.id);
+      showTemplatePicker = false;
+      save();
+      renderLogSection();
+    }
+
+    function toggleExpand(id) {
+      if (expandedIds.has(id)) {
+        expandedIds.delete(id);
+        if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
+        if (editingSetItemId === id) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
+      } else {
+        expandedIds.add(id);
+      }
+      renderList();
+    }
+
+    function handleAddLift(itemId) {
+      var nameEl = document.querySelector('[data-lift-field="name"][data-item="' + itemId + '"]');
+      var weightEl = document.querySelector('[data-lift-field="weight"][data-item="' + itemId + '"]');
+      var repsEl = document.querySelector('[data-lift-field="reps"][data-item="' + itemId + '"]');
+      var warmupEl = document.querySelector('[data-lift-field="warmup"][data-item="' + itemId + '"]');
+      if (!nameEl) return;
+      var name = nameEl.value.trim();
+      if (!name) { nameEl.focus(); return; }
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      if (!item.lifts) item.lifts = [];
+      var tags = _matchLiftTags(name);
+      item.lifts.push({
+        id: uid(), name: name, muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto",
+        sets: [{ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) }]
+      });
+      save();
+      renderList();
+    }
+    function handleDeleteLift(itemId, liftId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      item.lifts = (item.lifts || []).filter(function (l) { return l.id !== liftId; });
+      if (editingLiftItemId === itemId && editingLiftId === liftId) { editingLiftItemId = null; editingLiftId = null; }
+      if (editingSetItemId === itemId && editingSetLiftId === liftId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
+      save();
+      renderList();
+    }
+
+    function startLiftEdit(itemId, liftId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      editingLiftItemId = itemId;
+      editingLiftId = liftId;
+      editingLiftForm = { name: lift.name };
+      renderList();
+    }
+    function cancelLiftEdit() { editingLiftItemId = null; editingLiftId = null; renderList(); }
+    function saveLiftEdit() {
+      var item = data.items.find(function (it) { return it.id === editingLiftItemId; });
+      if (!item || !editingLiftForm.name || !editingLiftForm.name.trim()) { cancelLiftEdit(); return; }
+      var lift = (item.lifts || []).find(function (l) { return l.id === editingLiftId; });
+      if (lift) {
+        lift.name = editingLiftForm.name.trim();
+        if (lift.tagSource !== "manual") {
+          var tags = _matchLiftTags(lift.name);
+          lift.muscleGroup = tags.muscleGroup;
+          lift.trainingStyles = tags.trainingStyles;
+        }
+      }
+      save();
+      editingLiftItemId = null;
+      editingLiftId = null;
+      renderList();
+    }
+
+    function handleSetMuscleGroup(itemId, liftId, value) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      lift.muscleGroup = value;
+      lift.tagSource = "manual";
+      save();
+      renderList();
+    }
+    function handleToggleLiftStyle(itemId, liftId, styleId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      if (!lift.trainingStyles) lift.trainingStyles = [];
+      var idx = lift.trainingStyles.indexOf(styleId);
+      if (idx === -1) lift.trainingStyles.push(styleId); else lift.trainingStyles.splice(idx, 1);
+      lift.tagSource = "manual";
+      save();
+      renderList();
+    }
+
+    function handleAddSet(itemId, liftId) {
+      var weightEl = document.querySelector('[data-set-field="weight"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+      var repsEl = document.querySelector('[data-set-field="reps"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+      var warmupEl = document.querySelector('[data-set-field="warmup"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      if (!lift.sets) lift.sets = [];
+      lift.sets.push({ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) });
+      save();
+      renderList();
+    }
+    function handleDeleteSet(itemId, liftId, setId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      lift.sets = (lift.sets || []).filter(function (s) { return s.id !== setId; });
+      if (editingSetItemId === itemId && editingSetLiftId === liftId && editingSetId === setId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
+      save();
+      renderList();
+    }
+    function handleToggleWarmup(itemId, liftId, setId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      var s = (lift.sets || []).find(function (s2) { return s2.id === setId; });
+      if (!s) return;
+      s.isWarmup = !s.isWarmup;
+      save();
+      renderList();
+    }
+    function startSetEdit(itemId, liftId, setId) {
+      var item = data.items.find(function (it) { return it.id === itemId; });
+      if (!item) return;
+      var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
+      if (!lift) return;
+      var s = (lift.sets || []).find(function (s2) { return s2.id === setId; });
+      if (!s) return;
+      editingSetItemId = itemId; editingSetLiftId = liftId; editingSetId = setId;
+      editingSetForm = { weight: s.weight === "" || s.weight == null ? "" : String(s.weight), reps: s.reps === "" || s.reps == null ? "" : String(s.reps) };
+      renderList();
+    }
+    function cancelSetEdit() { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; renderList(); }
+    function saveSetEdit() {
+      var item = data.items.find(function (it) { return it.id === editingSetItemId; });
+      if (!item) { cancelSetEdit(); return; }
+      var lift = (item.lifts || []).find(function (l) { return l.id === editingSetLiftId; });
+      if (!lift) { cancelSetEdit(); return; }
+      lift.sets = (lift.sets || []).map(function (s) {
+        if (s.id !== editingSetId) return s;
+        return { id: s.id, weight: editingSetForm.weight === "" ? "" : Number(editingSetForm.weight), reps: editingSetForm.reps === "" ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
+      });
+      save();
+      editingSetItemId = null; editingSetLiftId = null; editingSetId = null;
+      renderList();
+    }
+
+    function startRowEdit(id) {
+      var item = data.items.find(function (it) { return it.id === id; });
+      if (!item) return;
+      if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
+      editRowId = id;
+      editRowForm = {
+        category: item.category, name: item.name, date: item.date,
+        duration: item.duration === "" || item.duration == null ? "" : String(item.duration),
+        notes: item.notes || ""
+      };
+      editRowError = "";
+      renderList();
+    }
+    function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
+    function saveRowEdit() {
+      if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
+      data.items = data.items.map(function (it) {
+        if (it.id !== editRowId) return it;
+        return Object.assign({}, it, editRowForm, {
+          duration: editRowForm.duration === "" ? "" : Number(editRowForm.duration)
+        });
+      });
+      save();
+      editRowId = null;
+      editRowError = "";
+      renderDynamic();
+    }
+    function handleDelete(id) {
+      data.items = data.items.filter(function (it) { return it.id !== id; });
       expandedIds.delete(id);
       if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
-    } else {
-      expandedIds.add(id);
+      if (editingSetItemId === id) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
+      save();
+      if (editRowId === id) editRowId = null;
+      renderDynamic();
     }
-    renderList();
-  }
+    function handleResetAll() {
+      var btn = document.getElementById("wkResetBtn");
+      if (!confirmReset) {
+        confirmReset = true;
+        btn.textContent = "Click again to clear everything";
+        btn.style.color = "#FF8A5C";
+        setTimeout(function () { confirmReset = false; if (document.getElementById("wkResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
+        return;
+      }
+      data = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
+      save();
+      editRowId = null;
+      expandedIds.clear();
+      editingLiftItemId = null;
+      editingLiftId = null;
+      editingSetItemId = null;
+      editingSetLiftId = null;
+      editingSetId = null;
+      confirmReset = false;
+      resetForm();
+      renderDynamic();
+    }
 
-  function handleAddLift(itemId) {
-    var nameEl = document.querySelector('[data-lift-field="name"][data-item="' + itemId + '"]');
-    var weightEl = document.querySelector('[data-lift-field="weight"][data-item="' + itemId + '"]');
-    var setsEl = document.querySelector('[data-lift-field="sets"][data-item="' + itemId + '"]');
-    var repsEl = document.querySelector('[data-lift-field="reps"][data-item="' + itemId + '"]');
-    if (!nameEl) return;
-    var name = nameEl.value.trim();
-    if (!name) { nameEl.focus(); return; }
-    var item = data.items.find(function (it) { return it.id === itemId; });
-    if (!item) return;
-    if (!item.lifts) item.lifts = [];
-    item.lifts.push({
-      id: uid(),
-      name: name,
-      weight: weightEl.value === "" ? "" : Number(weightEl.value),
-      sets: setsEl.value === "" ? "" : Number(setsEl.value),
-      reps: repsEl.value === "" ? "" : Number(repsEl.value)
+    document.getElementById("wkLogWeightBtn").addEventListener("click", handleLogWeight);
+    document.getElementById("wkWeightDraft").addEventListener("keydown", function (e) { if (e.key === "Enter") handleLogWeight(); });
+    document.getElementById("wkWeightLog").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action='delete-weight']");
+      if (btn) handleDeleteWeight(btn.getAttribute("data-id"));
     });
-    save();
-    renderList();
-  }
-  function handleDeleteLift(itemId, liftId) {
-    var item = data.items.find(function (it) { return it.id === itemId; });
-    if (!item) return;
-    item.lifts = (item.lifts || []).filter(function (l) { return l.id !== liftId; });
-    if (editingLiftItemId === itemId && editingLiftId === liftId) { editingLiftItemId = null; editingLiftId = null; }
-    save();
-    renderList();
-  }
-
-  function startLiftEdit(itemId, liftId) {
-    var item = data.items.find(function (it) { return it.id === itemId; });
-    if (!item) return;
-    var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
-    if (!lift) return;
-    editingLiftItemId = itemId;
-    editingLiftId = liftId;
-    editingLiftForm = {
-      name: lift.name,
-      weight: lift.weight === "" || lift.weight == null ? "" : String(lift.weight),
-      sets: lift.sets === "" || lift.sets == null ? "" : String(lift.sets),
-      reps: lift.reps === "" || lift.reps == null ? "" : String(lift.reps)
-    };
-    renderList();
-  }
-  function cancelLiftEdit() {
-    editingLiftItemId = null;
-    editingLiftId = null;
-    renderList();
-  }
-  function saveLiftEdit() {
-    var item = data.items.find(function (it) { return it.id === editingLiftItemId; });
-    if (!item || !editingLiftForm.name || !editingLiftForm.name.trim()) { cancelLiftEdit(); return; }
-    item.lifts = (item.lifts || []).map(function (l) {
-      if (l.id !== editingLiftId) return l;
-      return {
-        id: l.id,
-        name: editingLiftForm.name,
-        weight: editingLiftForm.weight === "" ? "" : Number(editingLiftForm.weight),
-        sets: editingLiftForm.sets === "" ? "" : Number(editingLiftForm.sets),
-        reps: editingLiftForm.reps === "" ? "" : Number(editingLiftForm.reps)
-      };
+    document.getElementById("wkUseTemplateBtn").addEventListener("click", function () { showTemplatePicker = !showTemplatePicker; renderLogSection(); });
+    bodyEl.querySelectorAll("[data-action='use-template']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) { handleStartFromTemplate(e.currentTarget.getAttribute("data-template")); });
     });
-    save();
-    editingLiftItemId = null;
-    editingLiftId = null;
-    renderList();
+    document.getElementById("wkAddBtn").addEventListener("click", handleAdd);
+    ["wkName", "wkDuration", "wkNotes"].forEach(function (id) {
+      document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
+    });
+    document.getElementById("wkSortDate").addEventListener("click", function () {
+      sortBy = "date";
+      document.getElementById("wkSortDate").classList.add("active");
+      document.getElementById("wkSortCat").classList.remove("active");
+      renderList();
+    });
+    document.getElementById("wkSortCat").addEventListener("click", function () {
+      sortBy = "category";
+      document.getElementById("wkSortCat").classList.add("active");
+      document.getElementById("wkSortDate").classList.remove("active");
+      renderList();
+    });
+    document.getElementById("wkList").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "edit") startRowEdit(id);
+      else if (action === "delete") handleDelete(id);
+      else if (action === "save-row") saveRowEdit();
+      else if (action === "cancel-row") cancelRowEdit();
+      else if (action === "toggle-expand") toggleExpand(id);
+      else if (action === "add-lift") handleAddLift(btn.getAttribute("data-item"));
+      else if (action === "delete-lift") handleDeleteLift(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
+      else if (action === "edit-lift-name") startLiftEdit(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
+      else if (action === "save-lift-name") saveLiftEdit();
+      else if (action === "cancel-lift-edit") cancelLiftEdit();
+      else if (action === "toggle-lift-style") handleToggleLiftStyle(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-style"));
+      else if (action === "add-set") handleAddSet(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
+      else if (action === "delete-set") handleDeleteSet(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
+      else if (action === "edit-set") startSetEdit(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
+      else if (action === "save-set") saveSetEdit();
+      else if (action === "cancel-set-edit") cancelSetEdit();
+      else if (action === "toggle-warmup") handleToggleWarmup(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
+    });
+    document.getElementById("wkList").addEventListener("input", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+      if (field) editRowForm[field] = e.target.value;
+      var liftField = e.target.getAttribute && e.target.getAttribute("data-lift-edit");
+      if (liftField) editingLiftForm[liftField] = e.target.value;
+      var setField = e.target.getAttribute && e.target.getAttribute("data-set-edit");
+      if (setField) editingSetForm[setField] = e.target.value;
+    });
+    document.getElementById("wkList").addEventListener("change", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-edit");
+      if (field) editRowForm[field] = e.target.value;
+      if (e.target.getAttribute && e.target.getAttribute("data-action") === "set-muscle-group") {
+        handleSetMuscleGroup(e.target.getAttribute("data-item"), e.target.getAttribute("data-lift"), e.target.value);
+      }
+    });
+    document.getElementById("wkList").addEventListener("keydown", function (e) {
+      if (e.target.getAttribute && e.target.getAttribute("data-lift-field") === "name" && e.key === "Enter") {
+        handleAddLift(e.target.getAttribute("data-item"));
+        return;
+      }
+      if (e.target.getAttribute && e.target.getAttribute("data-set-field") && e.key === "Enter") {
+        handleAddSet(e.target.getAttribute("data-item"), e.target.getAttribute("data-lift"));
+        return;
+      }
+      if (e.target.getAttribute && e.target.getAttribute("data-lift-edit")) {
+        if (e.key === "Enter") saveLiftEdit();
+        if (e.key === "Escape") cancelLiftEdit();
+        return;
+      }
+      if (e.target.getAttribute && e.target.getAttribute("data-set-edit")) {
+        if (e.key === "Enter") saveSetEdit();
+        if (e.key === "Escape") cancelSetEdit();
+        return;
+      }
+      if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
+      if (e.key === "Enter") saveRowEdit();
+      if (e.key === "Escape") cancelRowEdit();
+    });
+    document.getElementById("wkResetBtn").addEventListener("click", handleResetAll);
+
+    document.getElementById("wkDate").value = todayISO();
+    renderPills();
+    renderDynamic();
   }
 
-  function startRowEdit(id) {
-    var item = data.items.find(function (it) { return it.id === id; });
-    if (!item) return;
-    if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
-    editRowId = id;
-    editRowForm = {
-      category: item.category, name: item.name, date: item.date,
-      duration: item.duration === "" || item.duration == null ? "" : String(item.duration),
-      notes: item.notes || ""
-    };
-    editRowError = "";
-    renderList();
-  }
-  function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
-  function saveRowEdit() {
-    if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
-    data.items = data.items.map(function (it) {
-      if (it.id !== editRowId) return it;
-      return Object.assign({}, it, editRowForm, {
-        duration: editRowForm.duration === "" ? "" : Number(editRowForm.duration)
+  /* ---------------- Templates section ---------------- */
+
+  function renderTemplatesSection() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var templates = templatesData.templates || [];
+
+    function templateFormHtml() {
+      var t = templateDraft;
+      return '<div class="card">' +
+        '<div class="form-row"><input class="form-input" id="wkTplName" placeholder="Template name, e.g. Push Day" value="' + escapeHtml(t.name) + '" /></div>' +
+        '<div class="pills" id="wkTplCatPills">' + WORKOUT_CATEGORIES.map(function (c) {
+          var active = c.id === t.category;
+          return '<button class="pill" data-tpl-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
+        }).join("") + "</div>" +
+        '<div style="margin:12px 0;">' +
+          (t.lifts.length === 0 ? '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
+            return '<div class="weight-log-row"><span style="color:#EDEAE3;flex:1;">' + escapeHtml(pl.name) + "</span>" +
+              '<span class="mono" style="color:' + accent + ';">' + (pl.targetSets || "?") + " \u00D7 " + (pl.targetReps || "?") + (pl.targetWeight !== "" && pl.targetWeight != null ? " @ " + pl.targetWeight + " lbs" : "") + "</span>" +
+              '<button class="icon-btn" data-action="remove-tpl-lift" data-idx="' + i + '">\u2715</button></div>';
+          }).join("")) +
+        "</div>" +
+        '<div class="row-gap" style="margin-bottom:12px;">' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkTplLiftName" placeholder="Lift name" />' +
+          '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
+          '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftReps" placeholder="Reps" />' +
+          '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" id="wkTplLiftWeight" placeholder="Lbs" />' +
+          '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+</button>' +
+        "</div>" +
+        '<div class="form-actions"><span class="error-text" id="wkTplError"></span>' +
+          '<button class="link-btn" id="wkTplCancelBtn" style="color:#8A919C;">Cancel</button>' +
+          '<button class="add-btn" id="wkTplSaveBtn" style="background:' + accent + ';">Save Template</button>' +
+        "</div></div>";
+    }
+
+    bodyEl.innerHTML =
+      '<div class="list-card" style="margin-bottom:16px;">' +
+        (templates.length === 0 ? '<div class="empty-state">No templates yet. Save a routine below to reuse it later.</div>' :
+          templates.map(function (t) {
+            var liftCount = (t.lifts || []).length;
+            return '<div class="item-row"><div class="item-display">' +
+              '<div class="item-main"><div class="item-name">' + escapeHtml(t.name) + "</div>" +
+              '<div class="item-sub">' + liftCount + (liftCount === 1 ? " planned lift" : " planned lifts") + (t.category ? " \u00B7 " + escapeHtml(categoryById(WORKOUT_CATEGORIES, t.category).label) : "") + "</div></div>" +
+              '<div class="item-actions"><button class="icon-btn" data-action="delete-template" data-id="' + t.id + '">\u2715</button></div>' +
+            "</div></div>";
+          }).join("")) +
+      "</div>" +
+      (templateAddMode ? templateFormHtml() : '<button class="add-btn" id="wkNewTemplateBtn" style="background:' + accent + ';">+ New Template</button>') +
+      '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:#8A919C;">Clear all templates</button></div>';
+
+    if (templateAddMode) {
+      document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
+      document.getElementById("wkTplCatPills").querySelectorAll("[data-tpl-cat]").forEach(function (btn) {
+        btn.addEventListener("click", function (e) { templateDraft.category = e.currentTarget.getAttribute("data-tpl-cat"); renderTemplatesSection(); });
+      });
+      document.getElementById("wkTplAddLiftBtn").addEventListener("click", function () {
+        var nameEl = document.getElementById("wkTplLiftName");
+        var name = nameEl.value.trim();
+        if (!name) { nameEl.focus(); return; }
+        var tags = _matchLiftTags(name);
+        templateDraft.lifts.push({
+          name: name,
+          targetSets: document.getElementById("wkTplLiftSets").value || "",
+          targetReps: document.getElementById("wkTplLiftReps").value || "",
+          targetWeight: document.getElementById("wkTplLiftWeight").value === "" ? "" : Number(document.getElementById("wkTplLiftWeight").value),
+          muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto"
+        });
+        renderTemplatesSection();
+      });
+      bodyEl.querySelectorAll("[data-action='remove-tpl-lift']").forEach(function (btn) {
+        btn.addEventListener("click", function (e) { templateDraft.lifts.splice(Number(e.currentTarget.getAttribute("data-idx")), 1); renderTemplatesSection(); });
+      });
+      document.getElementById("wkTplCancelBtn").addEventListener("click", function () { templateAddMode = false; templateDraft = null; renderTemplatesSection(); });
+      document.getElementById("wkTplSaveBtn").addEventListener("click", function () {
+        if (!templateDraft.name.trim()) { document.getElementById("wkTplError").textContent = "Give it a name first."; return; }
+        templatesData.templates.push({ id: uid(), name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
+        saveTemplates();
+        templateAddMode = false;
+        templateDraft = null;
+        renderTemplatesSection();
+      });
+    } else {
+      document.getElementById("wkNewTemplateBtn").addEventListener("click", function () {
+        templateAddMode = true;
+        templateDraft = { name: "", category: "strength", lifts: [] };
+        renderTemplatesSection();
+      });
+    }
+    bodyEl.querySelectorAll("[data-action='delete-template']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        templatesData.templates = (templatesData.templates || []).filter(function (t) { return t.id !== e.currentTarget.getAttribute("data-id"); });
+        saveTemplates();
+        renderTemplatesSection();
       });
     });
-    save();
-    editRowId = null;
-    editRowError = "";
-    renderDynamic();
-  }
-  function handleDelete(id) {
-    data.items = data.items.filter(function (it) { return it.id !== id; });
-    expandedIds.delete(id);
-    if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
-    save();
-    if (editRowId === id) editRowId = null;
-    renderDynamic();
-  }
-  function handleResetAll() {
-    var btn = document.getElementById("wkResetBtn");
-    if (!confirmReset) {
-      confirmReset = true;
-      btn.textContent = "Click again to clear everything";
-      btn.style.color = "#FF8A5C";
-      setTimeout(function () { confirmReset = false; if (document.getElementById("wkResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
-      return;
-    }
-    data = { weeklyGoal: "", items: [], bodyWeightLog: [] };
-    save();
-    editRowId = null;
-    expandedIds.clear();
-    editingLiftItemId = null;
-    editingLiftId = null;
-    confirmReset = false;
-    resetForm();
-    renderDynamic();
+    document.getElementById("wkResetTemplatesBtn").addEventListener("click", function () {
+      var btn = document.getElementById("wkResetTemplatesBtn");
+      if (!confirmResetTemplates) {
+        confirmResetTemplates = true;
+        btn.textContent = "Click again to clear all templates";
+        btn.style.color = "#FF8A5C";
+        setTimeout(function () { confirmResetTemplates = false; if (document.getElementById("wkResetTemplatesBtn")) { btn.textContent = "Clear all templates"; btn.style.color = "#8A919C"; } }, 4000);
+        return;
+      }
+      templatesData.templates = [];
+      confirmResetTemplates = false;
+      saveTemplates();
+      renderTemplatesSection();
+    });
   }
 
-  document.getElementById("wkLogWeightBtn").addEventListener("click", handleLogWeight);
-  document.getElementById("wkWeightDraft").addEventListener("keydown", function (e) { if (e.key === "Enter") handleLogWeight(); });
-  document.getElementById("wkWeightLog").addEventListener("click", function (e) {
-    var btn = e.target.closest("[data-action='delete-weight']");
-    if (btn) handleDeleteWeight(btn.getAttribute("data-id"));
-  });
-  document.getElementById("wkAddBtn").addEventListener("click", handleAdd);
-  ["wkName", "wkDuration", "wkNotes"].forEach(function (id) {
-    document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
-  });
-  document.getElementById("wkSortDate").addEventListener("click", function () {
-    sortBy = "date";
-    document.getElementById("wkSortDate").classList.add("active");
-    document.getElementById("wkSortCat").classList.remove("active");
-    renderList();
-  });
-  document.getElementById("wkSortCat").addEventListener("click", function () {
-    sortBy = "category";
-    document.getElementById("wkSortCat").classList.add("active");
-    document.getElementById("wkSortDate").classList.remove("active");
-    renderList();
-  });
-  document.getElementById("wkList").addEventListener("click", function (e) {
-    var btn = e.target.closest("[data-action]");
-    if (!btn) return;
-    var action = btn.getAttribute("data-action");
-    var id = btn.getAttribute("data-id");
-    if (action === "edit") startRowEdit(id);
-    else if (action === "delete") handleDelete(id);
-    else if (action === "save-row") saveRowEdit();
-    else if (action === "cancel-row") cancelRowEdit();
-    else if (action === "toggle-expand") toggleExpand(id);
-    else if (action === "add-lift") handleAddLift(btn.getAttribute("data-item"));
-    else if (action === "delete-lift") handleDeleteLift(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
-    else if (action === "edit-lift") startLiftEdit(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
-    else if (action === "save-lift") saveLiftEdit();
-    else if (action === "cancel-lift-edit") cancelLiftEdit();
-  });
-  document.getElementById("wkList").addEventListener("input", function (e) {
-    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
-    if (field) editRowForm[field] = e.target.value;
-    var liftField = e.target.getAttribute && e.target.getAttribute("data-lift-edit");
-    if (liftField) editingLiftForm[liftField] = e.target.value;
-  });
-  document.getElementById("wkList").addEventListener("change", function (e) {
-    var field = e.target.getAttribute && e.target.getAttribute("data-edit");
-    if (field) editRowForm[field] = e.target.value;
-  });
-  document.getElementById("wkList").addEventListener("keydown", function (e) {
-    if (e.target.getAttribute && e.target.getAttribute("data-lift-field") === "name" && e.key === "Enter") {
-      handleAddLift(e.target.getAttribute("data-item"));
-      return;
-    }
-    if (e.target.getAttribute && e.target.getAttribute("data-lift-edit")) {
-      if (e.key === "Enter") saveLiftEdit();
-      if (e.key === "Escape") cancelLiftEdit();
-      return;
-    }
-    if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
-    if (e.key === "Enter") saveRowEdit();
-    if (e.key === "Escape") cancelRowEdit();
-  });
-  document.getElementById("wkResetBtn").addEventListener("click", handleResetAll);
+  /* ---------------- History & PRs section ---------------- */
 
-  document.getElementById("wkDate").value = todayISO();
-  renderPills();
-  renderDynamic();
-  initScrollAnims();
+  function renderHistorySection() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var prData = computePRs(data.items);
+    var liftNames = Object.keys(prData.byLift).sort(function (a, b) { return prData.byLift[a].displayName.localeCompare(prData.byLift[b].displayName); });
+    if ((!historyLiftName || liftNames.indexOf(historyLiftName) === -1) && liftNames.length) historyLiftName = liftNames[0];
 
+    var metricOptions = [{ id: "topWeight", label: "Top set weight" }, { id: "volume", label: "Volume" }, { id: "est1rm", label: "Est. 1RM" }];
+
+    var chartHtml;
+    if (historyLiftName && liftNames.length) {
+      var points = [];
+      data.items.slice().filter(function (it) { return it.date; }).sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).forEach(function (it) {
+        (it.lifts || []).forEach(function (lift) {
+          if (normalizeLiftName(lift.name) !== historyLiftName) return;
+          var sets = workingSets(lift);
+          if (!sets.length) return;
+          var value;
+          if (historyMetric === "volume") value = liftVolume(lift);
+          else if (historyMetric === "est1rm") value = Math.max.apply(null, sets.map(function (s) { return estOneRM(s.weight, s.reps); }));
+          else { var top = liftTopSet(lift); value = top ? Number(top.weight) || 0 : 0; }
+          points.push({ date: it.date, value: value });
+        });
+      });
+      chartHtml = '<div class="card">' +
+        '<div class="sort-row"><span class="gauge-label mono">' + escapeHtml(prData.byLift[historyLiftName].displayName) + "</span>" +
+        '<div class="sort-toggle">' + metricOptions.map(function (m) {
+          return '<button class="sort-btn' + (historyMetric === m.id ? " active" : "") + '" data-metric="' + m.id + '">' + m.label + "</button>";
+        }).join("") + "</div></div>" +
+        _liftLineChart(points, metricOptions.find(function (m) { return m.id === historyMetric; }).label) +
+      "</div>";
+    } else {
+      chartHtml = '<div class="empty-state">Log a few sessions with lifts to see progression here.</div>';
+    }
+
+    var prBoardHtml = liftNames.length === 0 ? "" :
+      '<div class="list-card">' + liftNames.map(function (key) {
+        var rec = prData.byLift[key];
+        return '<div class="item-row"><div class="item-display"><div class="item-main"><div class="item-name">' + escapeHtml(rec.displayName) + "</div>" +
+          '<div class="item-sub">Best: ' + rec.bestWeight + " lbs \u00D7 " + rec.bestRepsAtBestWeight + " \u00B7 Est. 1RM " + Math.round(rec.bestEst1RM) + " lbs" + (rec.prCount ? " \u00B7 " + rec.prCount + " PR" + (rec.prCount === 1 ? "" : "s") + " logged" : "") + "</div></div></div></div>";
+      }).join("") + "</div>";
+
+    bodyEl.innerHTML =
+      '<div class="card"><div class="gauge-label mono" style="margin-bottom:8px;">PICK A LIFT</div>' +
+        (liftNames.length === 0 ? '<div style="color:#8A919C;font-size:13px;">No lifts logged yet.</div>' :
+          '<select class="edit-select" id="wkHistoryLiftSelect" style="width:100%;">' + liftNames.map(function (key) {
+            return '<option value="' + escapeHtml(key) + '"' + (key === historyLiftName ? " selected" : "") + ">" + escapeHtml(prData.byLift[key].displayName) + "</option>";
+          }).join("") + "</select>") +
+      "</div>" +
+      chartHtml +
+      '<div class="tab-eyebrow" style="margin-top:8px;">ALL-TIME PRs</div>' +
+      (prBoardHtml || '<div class="empty-state">No personal records yet.</div>');
+
+    if (liftNames.length) {
+      document.getElementById("wkHistoryLiftSelect").addEventListener("change", function (e) { historyLiftName = e.target.value; renderHistorySection(); });
+    }
+    bodyEl.querySelectorAll("[data-metric]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) { historyMetric = e.currentTarget.getAttribute("data-metric"); renderHistorySection(); });
+    });
+  }
+
+  /* ---------------- Analysis section ---------------- */
+
+  function renderAnalysisSection() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var ws = weekStart(), we = todayISO();
+    var mgVolume = computeMuscleGroupVolume(data.items, ws, we);
+    var maxMgVol = Math.max.apply(null, MUSCLE_GROUPS.map(function (mg) { return mgVolume[mg.id] || 0; }).concat([1]));
+    var styleVolume = classifyTrainingStyle(data.items, ws, we);
+    var styleTotal = TRAINING_STYLES.reduce(function (s, ts) { return s + (styleVolume[ts.id] || 0); }, 0);
+    var prData = computePRs(data.items);
+    var anyMgVolume = MUSCLE_GROUPS.some(function (mg) { return (mgVolume[mg.id] || 0) > 0; });
+
+    var mgHtml = '<div class="card">' +
+      '<div class="gauge-label mono" style="margin-bottom:10px;">MUSCLE GROUPS HIT THIS WEEK</div>' +
+      (anyMgVolume ? MUSCLE_GROUPS.map(function (mg) {
+        var v = mgVolume[mg.id] || 0;
+        if (v === 0) return "";
+        var pct = Math.round((v / maxMgVol) * 100);
+        return '<div style="margin-bottom:8px;">' +
+          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span style="color:#EDEAE3;">' + mg.glyph + " " + escapeHtml(mg.label) + '</span><span class="mono" style="color:' + mg.color + ';">' + Math.round(v) + "</span></div>" +
+          '<div class="gauge-track" style="height:10px;"><div class="gauge-fill" style="width:' + pct + "%;background:" + mg.color + ';height:100%;"></div></div></div>';
+      }).join("") : '<div style="color:#8A919C;font-size:13px;">Nothing logged this week yet.</div>') +
+    "</div>";
+
+    var styleHtml = '<div class="card" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">' +
+      _trainingStyleDonut(styleVolume, styleTotal) +
+      '<div style="flex:1;min-width:160px;">' +
+        '<div class="gauge-label mono" style="margin-bottom:8px;">TRAINING STYLE THIS WEEK</div>' +
+        TRAINING_STYLES.map(function (ts) {
+          var v = styleVolume[ts.id] || 0;
+          var pct = styleTotal > 0 ? Math.round((v / styleTotal) * 100) : 0;
+          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">' +
+            '<span style="width:10px;height:10px;border-radius:50%;background:' + ts.color + ';flex-shrink:0;"></span>' +
+            '<span style="color:#EDEAE3;flex:1;">' + escapeHtml(ts.label) + "</span>" +
+            '<span class="mono" style="color:#8A919C;">' + (styleTotal ? pct + "%" : "\u2013") + "</span></div>";
+        }).join("") +
+      "</div></div>";
+
+    var skillHtml = '<div class="gauge-label mono" style="margin:16px 0 10px;">SKILL LEVEL PER STYLE</div>' +
+      '<div style="display:flex;gap:12px;flex-wrap:wrap;">' +
+      TRAINING_STYLES.map(function (ts) {
+        var skill = assessSkillLevel(data.items, ts.id, prData);
+        var levelLabel = { "new": "Not enough data yet", beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" }[skill.level];
+        var levelColor = { "new": "#5A6168", beginner: "#D9667A", intermediate: "#D9A441", advanced: "#5BAE7A" }[skill.level];
+        return '<div class="card" style="flex:1;min-width:160px;margin-bottom:0;">' +
+          '<div style="color:#8A919C;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">' + escapeHtml(ts.label) + "</div>" +
+          '<div style="font-weight:700;font-size:16px;color:' + levelColor + ';margin-bottom:8px;">' + levelLabel + "</div>" +
+          '<div style="color:#8A919C;font-size:12px;">' + skill.weeksTrained + "/" + skill.windowWeeks + " weeks trained \u00B7 " + skill.prCount + " PR" + (skill.prCount === 1 ? "" : "s") + "</div></div>";
+      }).join("") +
+      "</div>";
+
+    bodyEl.innerHTML = mgHtml + styleHtml + skillHtml;
+  }
+
+  /* ---------------- Calendar & Splits section ---------------- */
+
+  function renderCalendarSplitSection() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    var dayLabels = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+
+    bodyEl.innerHTML =
+      '<div class="card">' +
+        '<div class="sort-row"><button class="icon-btn" id="wkCalPrev">\u2039</button><span class="gauge-label mono">' + monthNames[calMonth] + " " + calYear + '</span><button class="icon-btn" id="wkCalNext">\u203A</button></div>' +
+        _renderWorkoutCalendarGrid(calYear, calMonth, data.items) +
+      "</div>" +
+      '<div class="tab-eyebrow" style="margin-top:8px;">WEEKLY SPLIT</div>' +
+      '<div class="card">' +
+        dayKeys.map(function (dk) {
+          return '<div class="row-gap" style="margin-bottom:8px;"><span style="width:90px;flex-shrink:0;color:#8A919C;font-size:13px;">' + dayLabels[dk] + "</span>" +
+            '<input class="form-input" data-split-day="' + dk + '" placeholder="e.g. Push, Legs, Rest" value="' + escapeHtml(splitsData.days[dk] || "") + '" /></div>';
+        }).join("") +
+      "</div>";
+
+    document.getElementById("wkCalPrev").addEventListener("click", function () {
+      calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+      renderCalendarSplitSection();
+    });
+    document.getElementById("wkCalNext").addEventListener("click", function () {
+      calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+      renderCalendarSplitSection();
+    });
+    bodyEl.querySelectorAll("[data-split-day]").forEach(function (inp) {
+      inp.addEventListener("blur", function (e) {
+        splitsData.days[e.target.getAttribute("data-split-day")] = e.target.value;
+        saveSplits();
+      });
+    });
+  }
+
+  renderSectionPills();
+  renderSection();
 }
 
 /* ---------------- routines tab ---------------- */
