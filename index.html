@@ -218,6 +218,11 @@
     .art-grid { grid-template-columns: 1fr 1fr; }
     .art-tabs { gap: 4px; }
     .art-tab { padding: 5px 12px; font-size: 12px; }
+    /* Story moodboard: freeform drag/resize doesn't work well with touch scrolling,
+       so below this width images just stack full-width in a line instead. */
+    .story-mood-item { position: static !important; width: 100% !important; margin-bottom: 16px; }
+    .story-mood-item:last-child { margin-bottom: 0; }
+    .story-mood-resize { display: none; }
   }
 
   /* legacy tab inner */
@@ -4807,10 +4812,13 @@ async function renderStoryPage(root) {
         '<div id="storyMoodCanvas" style="position:relative;min-height:300px;background:#12151A;">' +
           (images.length === 0 ? '<div class="empty-state">No images yet. Add a few for inspiration.</div>' : "") +
           images.map(function (img) {
-            return '<div class="story-mood-item" data-id="' + img.id + '" style="position:absolute;left:' + img.x + "px;top:" + img.y + "px;width:" + img.w + 'px;cursor:move;">' +
-              '<img src="' + img.src + '" draggable="false" style="width:100%;height:auto;display:block;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;" />' +
-              '<button class="icon-btn story-mood-delete" data-action="delete-image" data-id="' + img.id + '" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border-radius:50%;color:#fff;width:22px;height:22px;padding:0;line-height:22px;text-align:center;font-size:13px;">✕</button>' +
-              '<div class="story-mood-resize" data-id="' + img.id + '" style="position:absolute;bottom:0;right:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,' + accent + ' 50%);border-bottom-right-radius:8px;"></div>' +
+            return '<div class="story-mood-item" data-id="' + img.id + '" style="position:absolute;left:' + img.x + "px;top:" + img.y + 'px;width:' + img.w + 'px;">' +
+              '<div class="story-mood-drag" style="position:relative;cursor:move;">' +
+                '<img src="' + img.src + '" draggable="false" style="width:100%;height:auto;display:block;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;" />' +
+                '<button class="icon-btn story-mood-delete" data-action="delete-image" data-id="' + img.id + '" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border-radius:50%;color:#fff;width:22px;height:22px;padding:0;line-height:22px;text-align:center;font-size:13px;">✕</button>' +
+                '<div class="story-mood-resize" data-id="' + img.id + '" style="position:absolute;bottom:0;right:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,' + accent + ' 50%);border-bottom-right-radius:8px;"></div>' +
+              "</div>" +
+              '<input class="form-input story-mood-caption" data-mood-caption="' + img.id + '" placeholder="What’s this referencing?" value="' + escapeHtml(img.caption || "") + '" style="margin-top:6px;font-size:12px;padding:6px 8px;" />' +
             "</div>";
           }).join("") +
         "</div>" +
@@ -4822,6 +4830,13 @@ async function renderStoryPage(root) {
     canvasEl.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-action='delete-image']");
       if (btn) handleDeleteImage(btn.getAttribute("data-id"));
+    });
+    canvasEl.querySelectorAll("[data-mood-caption]").forEach(function (el) {
+      el.addEventListener("input", function (e) {
+        var img = moodboardData.images.find(function (i) { return i.id === e.target.getAttribute("data-mood-caption"); });
+        if (img) img.caption = e.target.value;
+      });
+      el.addEventListener("blur", saveMoodboard);
     });
     canvasEl.querySelectorAll(".story-mood-item img").forEach(function (imgEl) {
       if (imgEl.complete) updateCanvasHeight();
@@ -4849,7 +4864,7 @@ async function renderStoryPage(root) {
           canvas.getContext("2d").drawImage(imgEl, 0, 0, canvas.width, canvas.height);
           var compressed = canvas.toDataURL("image/jpeg", 0.78);
           var n = moodboardData.images.length;
-          moodboardData.images.push({ id: uid(), src: compressed, x: 20 + (n % 6) * 24, y: 20 + (n % 6) * 24, w: 220 });
+          moodboardData.images.push({ id: uid(), src: compressed, x: 20 + (n % 6) * 24, y: 20 + (n % 6) * 24, w: 220, caption: "" });
           saveMoodboard();
           renderMoodboardSection();
         };
@@ -4867,6 +4882,10 @@ async function renderStoryPage(root) {
   }
 
   function startDragOrResize(e) {
+    // Below the mobile breakpoint, images stack in a plain line (see the mobile media query
+    // in <style>) — bail out entirely so touch drags scroll the page instead of fighting it.
+    if (window.matchMedia("(max-width: 700px)").matches) return;
+    if (e.target.closest(".story-mood-caption")) return;
     var deleteBtn = e.target.closest(".story-mood-delete");
     if (deleteBtn) return;
     var resizeHandle = e.target.closest(".story-mood-resize");
