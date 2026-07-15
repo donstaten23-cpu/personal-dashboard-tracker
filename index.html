@@ -4415,6 +4415,23 @@ async function renderStoryPage(root) {
   function saveCharacters() { saveTabData("dashboard-story-characters", charactersData); }
   function saveMoodboard() { saveTabData("dashboard-story-moodboard", moodboardData); }
 
+  // Grows a textarea to fit its content instead of scrolling internally.
+  function autoGrowTextarea(el) {
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }
+  // Plain <textarea> elements normally move focus to the next control on Tab —
+  // this makes Tab insert a real tab character at the cursor instead, like any text editor.
+  function handleIndentKeydown(e) {
+    if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    var el = e.target;
+    var start = el.selectionStart, end = el.selectionEnd;
+    el.value = el.value.slice(0, start) + "\t" + el.value.slice(end);
+    el.selectionStart = el.selectionEnd = start + 1;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
   var activeSection = "chapters";
   var editCharId = null;
   var editCharForm = {};
@@ -4473,7 +4490,7 @@ async function renderStoryPage(root) {
             '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '">▾</button>' +
             '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '">✕</button>' +
           "</div>" +
-          '<textarea class="form-input" style="min-height:160px;resize:vertical;line-height:1.6;" data-chapter-field="content" data-id="' + c.id + '" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>" +
+          '<textarea class="form-input" style="min-height:160px;resize:none;overflow:hidden;line-height:1.6;tab-size:4;-moz-tab-size:4;" data-chapter-field="content" data-id="' + c.id + '" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>" +
         "</div>";
       }).join("") +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddChapterBtn" style="background:' + accent + ';">+ New chapter</button></div>' +
@@ -4488,12 +4505,16 @@ async function renderStoryPage(root) {
       });
     }
     bodyEl.querySelectorAll("[data-chapter-field]").forEach(function (el) {
+      var isTextarea = el.tagName === "TEXTAREA";
+      if (isTextarea) autoGrowTextarea(el);
       el.addEventListener("input", function (e) {
         var c = chaptersData.chapters.find(function (ch) { return ch.id === e.target.getAttribute("data-id"); });
         if (!c) return;
         c[e.target.getAttribute("data-chapter-field")] = e.target.value;
+        if (isTextarea) autoGrowTextarea(e.target);
       });
       el.addEventListener("blur", saveChapters);
+      if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
     bodyEl.addEventListener("click", function (e) {
       var btn = e.target.closest("[data-action]");
@@ -4555,7 +4576,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       '<div class="card">' +
         '<div class="form-row"><input class="form-input" id="storyCharName" placeholder="Character name" /></div>' +
-        '<textarea class="form-input" id="storyCharNotes" placeholder="Notes (appearance, personality, arc…)" style="min-height:80px;margin-bottom:12px;"></textarea>' +
+        '<textarea class="form-input" id="storyCharNotes" placeholder="Notes (appearance, personality, arc…)" style="min-height:80px;margin-bottom:12px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;"></textarea>' +
         '<div class="form-actions"><span class="error-text" id="storyCharFormError"></span><button class="add-btn" id="storyCharAddBtn" style="background:' + accent + ';">+ Add character</button></div>' +
       "</div>" +
       '<div class="list-card" id="storyCharList"></div>' +
@@ -4572,7 +4593,7 @@ async function renderStoryPage(root) {
           var f = editCharForm;
           return '<div class="item-row"><div class="item-edit">' +
             '<div class="edit-line"><input class="edit-input grow" data-char-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" /></div>' +
-            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;" data-char-edit="notes" placeholder="Notes">' + escapeHtml(f.notes) + "</textarea>" +
+            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;" data-char-edit="notes" placeholder="Notes">' + escapeHtml(f.notes) + "</textarea>" +
             '<button class="icon-btn" data-action="save-char" style="color:' + accent + ';">✓</button>' +
             '<button class="icon-btn" data-action="cancel-char-edit">✕</button>' +
             "</div></div></div>";
@@ -4598,6 +4619,7 @@ async function renderStoryPage(root) {
       saveCharacters();
       nameEl.value = "";
       notesEl.value = "";
+      autoGrowTextarea(notesEl);
       renderList();
     }
     function startCharEdit(id) {
@@ -4625,6 +4647,8 @@ async function renderStoryPage(root) {
 
     document.getElementById("storyCharAddBtn").addEventListener("click", handleAddChar);
     document.getElementById("storyCharName").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddChar(); });
+    document.getElementById("storyCharNotes").addEventListener("input", function (e) { autoGrowTextarea(e.target); });
+    document.getElementById("storyCharNotes").addEventListener("keydown", handleIndentKeydown);
     document.getElementById("storyCharList").addEventListener("click", function (e) {
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
@@ -4638,10 +4662,15 @@ async function renderStoryPage(root) {
     document.getElementById("storyCharList").addEventListener("input", function (e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-char-edit");
       if (field) editCharForm[field] = e.target.value;
+      if (field === "notes") autoGrowTextarea(e.target);
+    });
+    document.getElementById("storyCharList").addEventListener("keydown", function (e) {
+      if (e.target.getAttribute && e.target.getAttribute("data-char-edit") === "notes") handleIndentKeydown(e);
     });
     document.getElementById("storyResetCharactersBtn").addEventListener("click", handleResetCharacters);
 
     renderList();
+    document.getElementById("storyCharList").querySelectorAll("[data-char-edit='notes']").forEach(autoGrowTextarea);
   }
 
   function handleResetCharacters() {
