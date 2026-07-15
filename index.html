@@ -4436,10 +4436,6 @@ async function renderStoryPage(root) {
   }
 
   var activeSection = "chapters";
-  var editCharId = null;
-  var editCharForm = {};
-  var editLoreId = null;
-  var editLoreForm = {};
   var confirmResetChapters = false;
   var confirmResetCharacters = false;
   var confirmResetLore = false;
@@ -4582,105 +4578,49 @@ async function renderStoryPage(root) {
     var bodyEl = document.getElementById("storySectionBody");
     var characters = charactersData.characters;
     bodyEl.innerHTML =
-      '<div class="card">' +
-        '<div class="form-row"><input class="form-input" id="storyCharName" placeholder="Character name" /></div>' +
-        '<textarea class="form-input" id="storyCharNotes" placeholder="Notes (appearance, personality, arc…)" style="min-height:80px;margin-bottom:12px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;"></textarea>' +
-        '<div class="form-actions"><span class="error-text" id="storyCharFormError"></span><button class="add-btn" id="storyCharAddBtn" style="background:' + accent + ';">+ Add character</button></div>' +
-      "</div>" +
-      '<div class="list-card" id="storyCharList"></div>' +
+      (characters.length === 0 ? '<div class="empty-state">No characters yet. Add your first one below.</div>' : "") +
+      characters.map(function (ch) {
+        return '<div class="card">' +
+          '<div class="row-gap" style="margin-bottom:10px;">' +
+            '<input class="form-input" style="flex:1;font-weight:600;" data-character-field="name" data-id="' + ch.id + '" placeholder="Character name" value="' + escapeHtml(ch.name) + '" />' +
+            '<button class="icon-btn" data-action="delete-char" data-id="' + ch.id + '">✕</button>' +
+          "</div>" +
+          '<textarea class="form-input" style="min-height:100px;resize:none;overflow:hidden;line-height:1.6;tab-size:4;-moz-tab-size:4;" data-character-field="notes" data-id="' + ch.id + '" placeholder="Notes (appearance, personality, arc…)">' + escapeHtml(ch.notes) + "</textarea>" +
+        "</div>";
+      }).join("") +
+      '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddCharBtn" style="background:' + accent + ';">+ Add character</button></div>' +
       '<div class="bottom-row"><button class="link-btn" id="storyResetCharactersBtn" style="color:#8A919C;">Clear all characters</button></div>';
 
-    function renderList() {
-      var listEl = document.getElementById("storyCharList");
-      if (characters.length === 0) {
-        listEl.innerHTML = '<div class="empty-state">No characters yet. Add your first one above.</div>';
-        return;
-      }
-      listEl.innerHTML = characters.map(function (ch) {
-        if (ch.id === editCharId) {
-          var f = editCharForm;
-          return '<div class="item-row"><div class="item-edit">' +
-            '<div class="edit-line"><input class="edit-input grow" data-char-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" /></div>' +
-            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;" data-char-edit="notes" placeholder="Notes">' + escapeHtml(f.notes) + "</textarea>" +
-            '<button class="icon-btn" data-action="save-char" style="color:' + accent + ';">✓</button>' +
-            '<button class="icon-btn" data-action="cancel-char-edit">✕</button>' +
-            "</div></div></div>";
-        }
-        return '<div class="item-row"><div class="item-display">' +
-          '<div class="item-main"><div class="item-name">' + escapeHtml(ch.name) + "</div>" +
-          (ch.notes ? '<div class="item-sub" style="white-space:pre-wrap;">' + escapeHtml(ch.notes) + "</div>" : "") + "</div>" +
-          '<div class="item-actions">' +
-            '<button class="icon-btn" data-action="edit-char" data-id="' + ch.id + '">✎</button>' +
-            '<button class="icon-btn" data-action="delete-char" data-id="' + ch.id + '">✕</button>' +
-          "</div></div></div>";
-      }).join("");
-    }
-
-    function handleAddChar() {
-      var nameEl = document.getElementById("storyCharName");
-      var notesEl = document.getElementById("storyCharNotes");
-      var name = nameEl.value.trim();
-      var errEl = document.getElementById("storyCharFormError");
-      if (!name) { errEl.textContent = "Give them a name first."; return; }
-      errEl.textContent = "";
-      charactersData.characters.push({ id: uid(), name: name, notes: notesEl.value.trim() });
-      saveCharacters();
-      nameEl.value = "";
-      notesEl.value = "";
-      autoGrowTextarea(notesEl);
-      renderList();
-    }
-    function startCharEdit(id) {
-      var ch = charactersData.characters.find(function (c) { return c.id === id; });
-      if (!ch) return;
-      editCharId = id;
-      editCharForm = { name: ch.name, notes: ch.notes || "" };
-      renderList();
-    }
-    function cancelCharEdit() { editCharId = null; renderList(); }
-    function saveCharEdit() {
-      if (!editCharForm.name || !editCharForm.name.trim()) { cancelCharEdit(); return; }
-      var ch = charactersData.characters.find(function (c) { return c.id === editCharId; });
-      if (ch) { ch.name = editCharForm.name.trim(); ch.notes = editCharForm.notes.trim(); }
-      saveCharacters();
-      editCharId = null;
-      renderList();
-    }
-    function handleDeleteChar(id) {
-      charactersData.characters = charactersData.characters.filter(function (c) { return c.id !== id; });
-      if (editCharId === id) editCharId = null;
-      saveCharacters();
-      renderList();
-    }
-
-    document.getElementById("storyCharAddBtn").addEventListener("click", handleAddChar);
-    document.getElementById("storyCharName").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddChar(); });
-    document.getElementById("storyCharNotes").addEventListener("input", function (e) { autoGrowTextarea(e.target); });
-    document.getElementById("storyCharNotes").addEventListener("keydown", handleIndentKeydown);
-    document.getElementById("storyCharList").addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-action]");
-      if (!btn) return;
-      var action = btn.getAttribute("data-action");
-      var id = btn.getAttribute("data-id");
-      if (action === "edit-char") startCharEdit(id);
-      else if (action === "delete-char") handleDeleteChar(id);
-      else if (action === "save-char") saveCharEdit();
-      else if (action === "cancel-char-edit") cancelCharEdit();
+    bodyEl.querySelectorAll("[data-character-field]").forEach(function (el) {
+      var isTextarea = el.tagName === "TEXTAREA";
+      if (isTextarea) autoGrowTextarea(el);
+      el.addEventListener("input", function (e) {
+        var ch = charactersData.characters.find(function (c) { return c.id === e.target.getAttribute("data-id"); });
+        if (!ch) return;
+        ch[e.target.getAttribute("data-character-field")] = e.target.value;
+        if (isTextarea) autoGrowTextarea(e.target);
+      });
+      el.addEventListener("blur", saveCharacters);
+      if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
-    document.getElementById("storyCharList").addEventListener("input", function (e) {
-      var field = e.target.getAttribute && e.target.getAttribute("data-char-edit");
-      if (field) editCharForm[field] = e.target.value;
-      if (field === "notes") autoGrowTextarea(e.target);
+    bodyEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action='delete-char']");
+      if (btn) handleDeleteChar(btn.getAttribute("data-id"));
     });
-    document.getElementById("storyCharList").addEventListener("keydown", function (e) {
-      if (e.target.getAttribute && e.target.getAttribute("data-char-edit") === "notes") handleIndentKeydown(e);
-    });
+    document.getElementById("storyAddCharBtn").addEventListener("click", handleAddCharacter);
     document.getElementById("storyResetCharactersBtn").addEventListener("click", handleResetCharacters);
-
-    renderList();
-    document.getElementById("storyCharList").querySelectorAll("[data-char-edit='notes']").forEach(autoGrowTextarea);
   }
 
+  function handleAddCharacter() {
+    charactersData.characters.push({ id: uid(), name: "Untitled character", notes: "" });
+    saveCharacters();
+    renderCharactersSection();
+  }
+  function handleDeleteChar(id) {
+    charactersData.characters = charactersData.characters.filter(function (c) { return c.id !== id; });
+    saveCharacters();
+    renderCharactersSection();
+  }
   function handleResetCharacters() {
     var btn = document.getElementById("storyResetCharactersBtn");
     if (!confirmResetCharacters) {
@@ -4691,7 +4631,6 @@ async function renderStoryPage(root) {
       return;
     }
     charactersData.characters = [];
-    editCharId = null;
     confirmResetCharacters = false;
     saveCharacters();
     renderCharactersSection();
@@ -4703,105 +4642,49 @@ async function renderStoryPage(root) {
     var bodyEl = document.getElementById("storySectionBody");
     var entries = loreData.entries;
     bodyEl.innerHTML =
-      '<div class="card">' +
-        '<div class="form-row"><input class="form-input" id="storyLoreTitle" placeholder="Topic, e.g. The Old Kingdom, Magic System, Timeline…" /></div>' +
-        '<textarea class="form-input" id="storyLoreNotes" placeholder="Details…" style="min-height:80px;margin-bottom:12px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;"></textarea>' +
-        '<div class="form-actions"><span class="error-text" id="storyLoreFormError"></span><button class="add-btn" id="storyLoreAddBtn" style="background:' + accent + ';">+ Add entry</button></div>' +
-      "</div>" +
-      '<div class="list-card" id="storyLoreList"></div>' +
+      (entries.length === 0 ? '<div class="empty-state">No lore yet. Jot down worldbuilding notes below — settings, factions, rules of the world, timelines…</div>' : "") +
+      entries.map(function (entry) {
+        return '<div class="card">' +
+          '<div class="row-gap" style="margin-bottom:10px;">' +
+            '<input class="form-input" style="flex:1;font-weight:600;" data-lore-field="title" data-id="' + entry.id + '" placeholder="Topic, e.g. The Old Kingdom, Magic System, Timeline…" value="' + escapeHtml(entry.title) + '" />' +
+            '<button class="icon-btn" data-action="delete-lore" data-id="' + entry.id + '">✕</button>' +
+          "</div>" +
+          '<textarea class="form-input" style="min-height:100px;resize:none;overflow:hidden;line-height:1.6;tab-size:4;-moz-tab-size:4;" data-lore-field="notes" data-id="' + entry.id + '" placeholder="Details…">' + escapeHtml(entry.notes) + "</textarea>" +
+        "</div>";
+      }).join("") +
+      '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddLoreBtn" style="background:' + accent + ';">+ Add entry</button></div>' +
       '<div class="bottom-row"><button class="link-btn" id="storyResetLoreBtn" style="color:#8A919C;">Clear all lore</button></div>';
 
-    function renderList() {
-      var listEl = document.getElementById("storyLoreList");
-      if (entries.length === 0) {
-        listEl.innerHTML = '<div class="empty-state">No lore yet. Jot down worldbuilding notes above — settings, factions, rules of the world, timelines…</div>';
-        return;
-      }
-      listEl.innerHTML = entries.map(function (entry) {
-        if (entry.id === editLoreId) {
-          var f = editLoreForm;
-          return '<div class="item-row"><div class="item-edit">' +
-            '<div class="edit-line"><input class="edit-input grow" data-lore-edit="title" placeholder="Topic" value="' + escapeHtml(f.title) + '" /></div>' +
-            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;" data-lore-edit="notes" placeholder="Details">' + escapeHtml(f.notes) + "</textarea>" +
-            '<button class="icon-btn" data-action="save-lore" style="color:' + accent + ';">✓</button>' +
-            '<button class="icon-btn" data-action="cancel-lore-edit">✕</button>' +
-            "</div></div></div>";
-        }
-        return '<div class="item-row"><div class="item-display">' +
-          '<div class="item-main"><div class="item-name">' + escapeHtml(entry.title) + "</div>" +
-          (entry.notes ? '<div class="item-sub" style="white-space:pre-wrap;">' + escapeHtml(entry.notes) + "</div>" : "") + "</div>" +
-          '<div class="item-actions">' +
-            '<button class="icon-btn" data-action="edit-lore" data-id="' + entry.id + '">✎</button>' +
-            '<button class="icon-btn" data-action="delete-lore" data-id="' + entry.id + '">✕</button>' +
-          "</div></div></div>";
-      }).join("");
-      listEl.querySelectorAll("[data-lore-edit='notes']").forEach(autoGrowTextarea);
-    }
-
-    function handleAddLore() {
-      var titleEl = document.getElementById("storyLoreTitle");
-      var notesEl = document.getElementById("storyLoreNotes");
-      var title = titleEl.value.trim();
-      var errEl = document.getElementById("storyLoreFormError");
-      if (!title) { errEl.textContent = "Give it a topic name first."; return; }
-      errEl.textContent = "";
-      loreData.entries.push({ id: uid(), title: title, notes: notesEl.value.trim() });
-      saveLore();
-      titleEl.value = "";
-      notesEl.value = "";
-      autoGrowTextarea(notesEl);
-      renderList();
-    }
-    function startLoreEdit(id) {
-      var entry = loreData.entries.find(function (e2) { return e2.id === id; });
-      if (!entry) return;
-      editLoreId = id;
-      editLoreForm = { title: entry.title, notes: entry.notes || "" };
-      renderList();
-    }
-    function cancelLoreEdit() { editLoreId = null; renderList(); }
-    function saveLoreEdit() {
-      if (!editLoreForm.title || !editLoreForm.title.trim()) { cancelLoreEdit(); return; }
-      var entry = loreData.entries.find(function (e2) { return e2.id === editLoreId; });
-      if (entry) { entry.title = editLoreForm.title.trim(); entry.notes = editLoreForm.notes.trim(); }
-      saveLore();
-      editLoreId = null;
-      renderList();
-    }
-    function handleDeleteLore(id) {
-      loreData.entries = loreData.entries.filter(function (e2) { return e2.id !== id; });
-      if (editLoreId === id) editLoreId = null;
-      saveLore();
-      renderList();
-    }
-
-    document.getElementById("storyLoreAddBtn").addEventListener("click", handleAddLore);
-    document.getElementById("storyLoreTitle").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddLore(); });
-    document.getElementById("storyLoreNotes").addEventListener("input", function (e) { autoGrowTextarea(e.target); });
-    document.getElementById("storyLoreNotes").addEventListener("keydown", handleIndentKeydown);
-    document.getElementById("storyLoreList").addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-action]");
-      if (!btn) return;
-      var action = btn.getAttribute("data-action");
-      var id = btn.getAttribute("data-id");
-      if (action === "edit-lore") startLoreEdit(id);
-      else if (action === "delete-lore") handleDeleteLore(id);
-      else if (action === "save-lore") saveLoreEdit();
-      else if (action === "cancel-lore-edit") cancelLoreEdit();
+    bodyEl.querySelectorAll("[data-lore-field]").forEach(function (el) {
+      var isTextarea = el.tagName === "TEXTAREA";
+      if (isTextarea) autoGrowTextarea(el);
+      el.addEventListener("input", function (e) {
+        var entry = loreData.entries.find(function (en) { return en.id === e.target.getAttribute("data-id"); });
+        if (!entry) return;
+        entry[e.target.getAttribute("data-lore-field")] = e.target.value;
+        if (isTextarea) autoGrowTextarea(e.target);
+      });
+      el.addEventListener("blur", saveLore);
+      if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
-    document.getElementById("storyLoreList").addEventListener("input", function (e) {
-      var field = e.target.getAttribute && e.target.getAttribute("data-lore-edit");
-      if (field) editLoreForm[field] = e.target.value;
-      if (field === "notes") autoGrowTextarea(e.target);
+    bodyEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action='delete-lore']");
+      if (btn) handleDeleteLore(btn.getAttribute("data-id"));
     });
-    document.getElementById("storyLoreList").addEventListener("keydown", function (e) {
-      if (e.target.getAttribute && e.target.getAttribute("data-lore-edit") === "notes") handleIndentKeydown(e);
-    });
+    document.getElementById("storyAddLoreBtn").addEventListener("click", handleAddLoreEntry);
     document.getElementById("storyResetLoreBtn").addEventListener("click", handleResetLore);
-
-    renderList();
   }
 
+  function handleAddLoreEntry() {
+    loreData.entries.push({ id: uid(), title: "Untitled topic", notes: "" });
+    saveLore();
+    renderLoreSection();
+  }
+  function handleDeleteLore(id) {
+    loreData.entries = loreData.entries.filter(function (e2) { return e2.id !== id; });
+    saveLore();
+    renderLoreSection();
+  }
   function handleResetLore() {
     var btn = document.getElementById("storyResetLoreBtn");
     if (!confirmResetLore) {
@@ -4812,7 +4695,6 @@ async function renderStoryPage(root) {
       return;
     }
     loreData.entries = [];
-    editLoreId = null;
     confirmResetLore = false;
     saveLore();
     renderLoreSection();
