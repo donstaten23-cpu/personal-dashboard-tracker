@@ -456,6 +456,9 @@
       <button class="sidebar-item" data-page="chess">
         <span class="s-icon">&#9823;</span> Chess
       </button>
+      <button class="sidebar-item" data-page="story">
+        <span class="s-icon">&#9998;</span> Story
+      </button>
       <div class="sidebar-section-label" style="margin-top:8px;">Portfolio</div>
       <button class="sidebar-item" data-page="portfolio">
         <span class="s-icon">&#9632;</span> Work Portfolio
@@ -568,6 +571,13 @@
     <!-- Page: Chess Progress -->
     <div class="page" id="page-chess">
       <div class="page-inner"></div>
+    </div>
+
+    <!-- Page: Story -->
+    <div class="page" id="page-story">
+      <div class="page-inner">
+        <div id="storyPageRoot"></div>
+      </div>
     </div>
 
     <!-- Page: Work Portfolio -->
@@ -1517,6 +1527,14 @@ function switchPage(page) {
     if (wkRoot && !wkRoot._loaded) {
       wkRoot._loaded = true;
       renderWorkoutsTab(wkRoot);
+    }
+  }
+  // Lazy-load story page if first visit
+  if (page === "story") {
+    var stRoot = document.getElementById("storyPageRoot");
+    if (stRoot && !stRoot._loaded) {
+      stRoot._loaded = true;
+      renderStoryPage(stRoot);
     }
   }
   if (page === "education") {
@@ -4375,6 +4393,388 @@ async function renderWorkoutsTab(root) {
         saveSplits();
       });
     });
+  }
+
+  renderSectionPills();
+  renderSection();
+}
+
+/* ---------------- story page ---------------- */
+
+async function renderStoryPage(root) {
+  root.innerHTML = '<div class="empty-state">Loading…</div>';
+  var accent = "#C97FBF";
+  var chaptersData = await loadTabData("dashboard-story-chapters", { chapters: [] });
+  var charactersData = await loadTabData("dashboard-story-characters", { characters: [] });
+  var moodboardData = await loadTabData("dashboard-story-moodboard", { images: [] });
+  if (!chaptersData.chapters) chaptersData.chapters = [];
+  if (!charactersData.characters) charactersData.characters = [];
+  if (!moodboardData.images) moodboardData.images = [];
+
+  function saveChapters() { saveTabData("dashboard-story-chapters", chaptersData); }
+  function saveCharacters() { saveTabData("dashboard-story-characters", charactersData); }
+  function saveMoodboard() { saveTabData("dashboard-story-moodboard", moodboardData); }
+
+  var activeSection = "chapters";
+  var editCharId = null;
+  var editCharForm = {};
+  var confirmResetChapters = false;
+  var confirmResetCharacters = false;
+
+  var SECTIONS = [
+    { id: "chapters", label: "Chapters" },
+    { id: "characters", label: "Characters" },
+    { id: "moodboard", label: "Moodboard" }
+  ];
+
+  root.innerHTML =
+    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('story', 'STORY')) + '</div>' +
+    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Story</h2></header>' +
+    '<div class="pills" id="storySectionPills"></div>' +
+    '<div id="storySectionBody"></div>';
+
+  function renderSectionPills() {
+    document.getElementById("storySectionPills").innerHTML = SECTIONS.map(function (s) {
+      var active = s.id === activeSection;
+      return '<button class="pill" data-section="' + s.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(s.label) + "</button>";
+    }).join("");
+    var pills = document.getElementById("storySectionPills").querySelectorAll("[data-section]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { activeSection = e.currentTarget.getAttribute("data-section"); renderSectionPills(); renderSection(); });
+    }
+  }
+
+  function renderSection() {
+    if (activeSection === "chapters") renderChaptersSection();
+    else if (activeSection === "characters") renderCharactersSection();
+    else if (activeSection === "moodboard") renderMoodboardSection();
+    initScrollAnims();
+  }
+
+  /* ---------------- Chapters ---------------- */
+
+  function sortedChapters() {
+    return chaptersData.chapters.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  }
+
+  function renderChaptersSection() {
+    var bodyEl = document.getElementById("storySectionBody");
+    var chapters = sortedChapters();
+    bodyEl.innerHTML =
+      (chapters.length === 0 ? "" : '<div class="pills" id="storyTocPills">' + chapters.map(function (c, i) {
+        return '<button class="pill" data-toc="' + c.id + '" style="border-color:' + accent + ';color:' + accent + ';">' + (i + 1) + ". " + escapeHtml(c.title || "Untitled chapter") + "</button>";
+      }).join("") + "</div>") +
+      (chapters.length === 0 ? '<div class="empty-state">No chapters yet. Add your first one below.</div>' : "") +
+      chapters.map(function (c) {
+        return '<div class="card" id="storyCh-' + c.id + '">' +
+          '<div class="row-gap" style="margin-bottom:10px;">' +
+            '<input class="form-input" style="flex:1;font-weight:600;" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
+            '<button class="icon-btn" data-action="move-chapter-up" data-id="' + c.id + '">▴</button>' +
+            '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '">▾</button>' +
+            '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '">✕</button>' +
+          "</div>" +
+          '<textarea class="form-input" style="min-height:160px;resize:vertical;line-height:1.6;" data-chapter-field="content" data-id="' + c.id + '" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>" +
+        "</div>";
+      }).join("") +
+      '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddChapterBtn" style="background:' + accent + ';">+ New chapter</button></div>' +
+      '<div class="bottom-row"><button class="link-btn" id="storyResetChaptersBtn" style="color:#8A919C;">Clear all chapters</button></div>';
+
+    if (chapters.length > 0) {
+      document.getElementById("storyTocPills").querySelectorAll("[data-toc]").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          var target = document.getElementById("storyCh-" + e.currentTarget.getAttribute("data-toc"));
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      });
+    }
+    bodyEl.querySelectorAll("[data-chapter-field]").forEach(function (el) {
+      el.addEventListener("input", function (e) {
+        var c = chaptersData.chapters.find(function (ch) { return ch.id === e.target.getAttribute("data-id"); });
+        if (!c) return;
+        c[e.target.getAttribute("data-chapter-field")] = e.target.value;
+      });
+      el.addEventListener("blur", saveChapters);
+    });
+    bodyEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "delete-chapter") handleDeleteChapter(id);
+      else if (action === "move-chapter-up") handleMoveChapter(id, -1);
+      else if (action === "move-chapter-down") handleMoveChapter(id, 1);
+    });
+    document.getElementById("storyAddChapterBtn").addEventListener("click", handleAddChapter);
+    document.getElementById("storyResetChaptersBtn").addEventListener("click", handleResetChapters);
+  }
+
+  function handleAddChapter() {
+    var maxOrder = chaptersData.chapters.reduce(function (m, c) { return Math.max(m, c.order || 0); }, -1);
+    var newChapter = { id: uid(), title: "Untitled chapter", content: "", order: maxOrder + 1 };
+    chaptersData.chapters.push(newChapter);
+    saveChapters();
+    renderChaptersSection();
+    var target = document.getElementById("storyCh-" + newChapter.id);
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function handleDeleteChapter(id) {
+    chaptersData.chapters = chaptersData.chapters.filter(function (c) { return c.id !== id; });
+    saveChapters();
+    renderChaptersSection();
+  }
+  function handleMoveChapter(id, dir) {
+    var chapters = sortedChapters();
+    var idx = chapters.findIndex(function (c) { return c.id === id; });
+    var swapIdx = idx + dir;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= chapters.length) return;
+    var a = chapters[idx], b = chapters[swapIdx];
+    var tmp = a.order || 0; a.order = b.order || 0; b.order = tmp;
+    saveChapters();
+    renderChaptersSection();
+  }
+  function handleResetChapters() {
+    var btn = document.getElementById("storyResetChaptersBtn");
+    if (!confirmResetChapters) {
+      confirmResetChapters = true;
+      btn.textContent = "Click again to clear all chapters";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmResetChapters = false; if (document.getElementById("storyResetChaptersBtn")) { btn.textContent = "Clear all chapters"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    chaptersData.chapters = [];
+    confirmResetChapters = false;
+    saveChapters();
+    renderChaptersSection();
+  }
+
+  /* ---------------- Characters ---------------- */
+
+  function renderCharactersSection() {
+    var bodyEl = document.getElementById("storySectionBody");
+    var characters = charactersData.characters;
+    bodyEl.innerHTML =
+      '<div class="card">' +
+        '<div class="form-row"><input class="form-input" id="storyCharName" placeholder="Character name" /></div>' +
+        '<textarea class="form-input" id="storyCharNotes" placeholder="Notes (appearance, personality, arc…)" style="min-height:80px;margin-bottom:12px;"></textarea>' +
+        '<div class="form-actions"><span class="error-text" id="storyCharFormError"></span><button class="add-btn" id="storyCharAddBtn" style="background:' + accent + ';">+ Add character</button></div>' +
+      "</div>" +
+      '<div class="list-card" id="storyCharList"></div>' +
+      '<div class="bottom-row"><button class="link-btn" id="storyResetCharactersBtn" style="color:#8A919C;">Clear all characters</button></div>';
+
+    function renderList() {
+      var listEl = document.getElementById("storyCharList");
+      if (characters.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No characters yet. Add your first one above.</div>';
+        return;
+      }
+      listEl.innerHTML = characters.map(function (ch) {
+        if (ch.id === editCharId) {
+          var f = editCharForm;
+          return '<div class="item-row"><div class="item-edit">' +
+            '<div class="edit-line"><input class="edit-input grow" data-char-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" /></div>' +
+            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;" data-char-edit="notes" placeholder="Notes">' + escapeHtml(f.notes) + "</textarea>" +
+            '<button class="icon-btn" data-action="save-char" style="color:' + accent + ';">✓</button>' +
+            '<button class="icon-btn" data-action="cancel-char-edit">✕</button>' +
+            "</div></div></div>";
+        }
+        return '<div class="item-row"><div class="item-display">' +
+          '<div class="item-main"><div class="item-name">' + escapeHtml(ch.name) + "</div>" +
+          (ch.notes ? '<div class="item-sub">' + escapeHtml(ch.notes) + "</div>" : "") + "</div>" +
+          '<div class="item-actions">' +
+            '<button class="icon-btn" data-action="edit-char" data-id="' + ch.id + '">✎</button>' +
+            '<button class="icon-btn" data-action="delete-char" data-id="' + ch.id + '">✕</button>' +
+          "</div></div></div>";
+      }).join("");
+    }
+
+    function handleAddChar() {
+      var nameEl = document.getElementById("storyCharName");
+      var notesEl = document.getElementById("storyCharNotes");
+      var name = nameEl.value.trim();
+      var errEl = document.getElementById("storyCharFormError");
+      if (!name) { errEl.textContent = "Give them a name first."; return; }
+      errEl.textContent = "";
+      charactersData.characters.push({ id: uid(), name: name, notes: notesEl.value.trim() });
+      saveCharacters();
+      nameEl.value = "";
+      notesEl.value = "";
+      renderList();
+    }
+    function startCharEdit(id) {
+      var ch = charactersData.characters.find(function (c) { return c.id === id; });
+      if (!ch) return;
+      editCharId = id;
+      editCharForm = { name: ch.name, notes: ch.notes || "" };
+      renderList();
+    }
+    function cancelCharEdit() { editCharId = null; renderList(); }
+    function saveCharEdit() {
+      if (!editCharForm.name || !editCharForm.name.trim()) { cancelCharEdit(); return; }
+      var ch = charactersData.characters.find(function (c) { return c.id === editCharId; });
+      if (ch) { ch.name = editCharForm.name.trim(); ch.notes = editCharForm.notes.trim(); }
+      saveCharacters();
+      editCharId = null;
+      renderList();
+    }
+    function handleDeleteChar(id) {
+      charactersData.characters = charactersData.characters.filter(function (c) { return c.id !== id; });
+      if (editCharId === id) editCharId = null;
+      saveCharacters();
+      renderList();
+    }
+
+    document.getElementById("storyCharAddBtn").addEventListener("click", handleAddChar);
+    document.getElementById("storyCharName").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddChar(); });
+    document.getElementById("storyCharList").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "edit-char") startCharEdit(id);
+      else if (action === "delete-char") handleDeleteChar(id);
+      else if (action === "save-char") saveCharEdit();
+      else if (action === "cancel-char-edit") cancelCharEdit();
+    });
+    document.getElementById("storyCharList").addEventListener("input", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-char-edit");
+      if (field) editCharForm[field] = e.target.value;
+    });
+    document.getElementById("storyResetCharactersBtn").addEventListener("click", handleResetCharacters);
+
+    renderList();
+  }
+
+  function handleResetCharacters() {
+    var btn = document.getElementById("storyResetCharactersBtn");
+    if (!confirmResetCharacters) {
+      confirmResetCharacters = true;
+      btn.textContent = "Click again to clear all characters";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmResetCharacters = false; if (document.getElementById("storyResetCharactersBtn")) { btn.textContent = "Clear all characters"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    charactersData.characters = [];
+    editCharId = null;
+    confirmResetCharacters = false;
+    saveCharacters();
+    renderCharactersSection();
+  }
+
+  /* ---------------- Moodboard ---------------- */
+
+  function updateCanvasHeight() {
+    var canvas = document.getElementById("storyMoodCanvas");
+    if (!canvas) return;
+    var wraps = canvas.querySelectorAll(".story-mood-item");
+    var maxBottom = 200;
+    wraps.forEach(function (w) {
+      var bottom = w.offsetTop + w.offsetHeight;
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    canvas.style.minHeight = (maxBottom + 40) + "px";
+  }
+
+  function renderMoodboardSection() {
+    var bodyEl = document.getElementById("storySectionBody");
+    var images = moodboardData.images;
+    bodyEl.innerHTML =
+      '<div class="row-gap" style="margin-bottom:12px;"><button class="add-btn" id="storyAddImageBtn" style="background:' + accent + ';">+ Add image</button></div>' +
+      '<div class="card" style="padding:0;overflow:hidden;">' +
+        '<div id="storyMoodCanvas" style="position:relative;min-height:300px;background:#12151A;">' +
+          (images.length === 0 ? '<div class="empty-state">No images yet. Add a few for inspiration.</div>' : "") +
+          images.map(function (img) {
+            return '<div class="story-mood-item" data-id="' + img.id + '" style="position:absolute;left:' + img.x + "px;top:" + img.y + "px;width:" + img.w + 'px;cursor:move;">' +
+              '<img src="' + img.src + '" draggable="false" style="width:100%;height:auto;display:block;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.35);pointer-events:none;" />' +
+              '<button class="icon-btn story-mood-delete" data-action="delete-image" data-id="' + img.id + '" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border-radius:50%;color:#fff;width:22px;height:22px;padding:0;line-height:22px;text-align:center;font-size:13px;">✕</button>' +
+              '<div class="story-mood-resize" data-id="' + img.id + '" style="position:absolute;bottom:0;right:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,' + accent + ' 50%);border-bottom-right-radius:8px;"></div>' +
+            "</div>";
+          }).join("") +
+        "</div>" +
+      "</div>";
+
+    document.getElementById("storyAddImageBtn").addEventListener("click", handleAddImage);
+    var canvasEl = document.getElementById("storyMoodCanvas");
+    canvasEl.addEventListener("pointerdown", startDragOrResize);
+    canvasEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action='delete-image']");
+      if (btn) handleDeleteImage(btn.getAttribute("data-id"));
+    });
+    canvasEl.querySelectorAll(".story-mood-item img").forEach(function (imgEl) {
+      if (imgEl.complete) updateCanvasHeight();
+      else imgEl.addEventListener("load", updateCanvasHeight);
+    });
+    updateCanvasHeight();
+  }
+
+  function handleAddImage() {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var imgEl = new Image();
+        imgEl.onload = function () {
+          var canvas = document.createElement("canvas");
+          var MAX = 900;
+          var ratio = Math.min(MAX / imgEl.width, MAX / imgEl.height, 1);
+          canvas.width = Math.round(imgEl.width * ratio);
+          canvas.height = Math.round(imgEl.height * ratio);
+          canvas.getContext("2d").drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+          var compressed = canvas.toDataURL("image/jpeg", 0.78);
+          var n = moodboardData.images.length;
+          moodboardData.images.push({ id: uid(), src: compressed, x: 20 + (n % 6) * 24, y: 20 + (n % 6) * 24, w: 220 });
+          saveMoodboard();
+          renderMoodboardSection();
+        };
+        imgEl.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
+  function handleDeleteImage(id) {
+    moodboardData.images = moodboardData.images.filter(function (img) { return img.id !== id; });
+    saveMoodboard();
+    renderMoodboardSection();
+  }
+
+  function startDragOrResize(e) {
+    var deleteBtn = e.target.closest(".story-mood-delete");
+    if (deleteBtn) return;
+    var resizeHandle = e.target.closest(".story-mood-resize");
+    var wrap = e.target.closest(".story-mood-item");
+    if (!wrap) return;
+    var img = moodboardData.images.find(function (i) { return i.id === wrap.getAttribute("data-id"); });
+    if (!img) return;
+    e.preventDefault();
+    var startX = e.clientX, startY = e.clientY;
+    var startLeft = img.x, startTop = img.y, startW = img.w;
+    var mode = resizeHandle ? "resize" : "move";
+
+    function onMove(ev) {
+      var dx = ev.clientX - startX, dy = ev.clientY - startY;
+      if (mode === "move") {
+        img.x = Math.max(0, startLeft + dx);
+        img.y = Math.max(0, startTop + dy);
+        wrap.style.left = img.x + "px";
+        wrap.style.top = img.y + "px";
+      } else {
+        img.w = Math.max(60, startW + dx);
+        wrap.style.width = img.w + "px";
+      }
+      updateCanvasHeight();
+    }
+    function onUp() {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      saveMoodboard();
+    }
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   }
 
   renderSectionPills();
