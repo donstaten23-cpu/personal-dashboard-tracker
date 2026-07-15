@@ -4292,7 +4292,7 @@ async function renderWorkoutsTab(root) {
     var bodyEl = document.getElementById("wkSectionBody");
     var ws = weekStart(), we = todayISO();
     var mgVolume = computeMuscleGroupVolume(data.items, ws, we);
-    var maxMgVol = Math.max.apply(null, MUSCLE_GROUPS.map(function (mg) { return mgVolume[mg.id] || 0; }).concat([1]));
+    var totalMgVol = MUSCLE_GROUPS.reduce(function (s, mg) { return s + (mgVolume[mg.id] || 0); }, 0);
     var styleVolume = classifyTrainingStyle(data.items, ws, we);
     var styleTotal = TRAINING_STYLES.reduce(function (s, ts) { return s + (styleVolume[ts.id] || 0); }, 0);
     var prData = computePRs(data.items);
@@ -4303,9 +4303,9 @@ async function renderWorkoutsTab(root) {
       (anyMgVolume ? MUSCLE_GROUPS.map(function (mg) {
         var v = mgVolume[mg.id] || 0;
         if (v === 0) return "";
-        var pct = Math.round((v / maxMgVol) * 100);
+        var pct = Math.round((v / totalMgVol) * 100);
         return '<div style="margin-bottom:8px;">' +
-          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span style="color:#EDEAE3;">' + mg.glyph + " " + escapeHtml(mg.label) + '</span><span class="mono" style="color:' + mg.color + ';">' + Math.round(v) + "</span></div>" +
+          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span style="color:#EDEAE3;">' + mg.glyph + " " + escapeHtml(mg.label) + '</span><span class="mono" style="color:' + mg.color + ';">' + pct + "%</span></div>" +
           '<div class="gauge-track" style="height:10px;"><div class="gauge-fill" style="width:' + pct + "%;background:" + mg.color + ';height:100%;"></div></div></div>';
       }).join("") : '<div style="color:#8A919C;font-size:13px;">Nothing logged this week yet.</div>') +
     "</div>";
