@@ -4492,14 +4492,12 @@ async function renderStoryPage(root) {
     var bodyEl = document.getElementById("storySectionBody");
     var chapters = sortedChapters();
 
-    var arcManagerHtml = '<div class="row-gap" style="margin-bottom:16px;flex-wrap:wrap;">' +
-      chaptersData.arcs.map(function (arc, i) {
-        var color = ARC_COLOR_PALETTE[i % ARC_COLOR_PALETTE.length];
-        return '<span class="pill" style="border-color:' + color + ';color:' + color + ';padding:4px 6px 4px 12px;gap:6px;">' +
-          '<input data-arc-field="name" data-id="' + arc.id + '" value="' + escapeHtml(arc.name) + '" style="background:transparent;border:none;color:' + color + ';font-size:13px;font-weight:500;width:' + Math.max(60, arc.name.length * 8) + 'px;padding:0;" />' +
-          '<button class="icon-btn" data-action="delete-arc" data-id="' + arc.id + '" style="padding:0 4px;color:' + color + ';">✕</button>' +
-        "</span>";
+    var arcNavHtml = '<div class="pills" id="storyArcNav">' +
+      chaptersData.arcs.map(function (arc) {
+        var color = arcColor(arc.id);
+        return '<button class="pill" data-arc-nav="' + arc.id + '" style="border-color:' + color + ';color:' + color + ';">' + escapeHtml(arc.name) + "</button>";
       }).join("") +
+      (chapters.some(function (c) { return !c.arcId; }) ? '<button class="pill" data-arc-nav="none" style="border-color:#5A6168;color:#5A6168;">No arc</button>' : "") +
       '<button class="pill" id="storyAddArcBtn" style="border-color:#8A919C;color:#8A919C;">+ New arc</button>' +
     "</div>";
 
@@ -4517,7 +4515,14 @@ async function renderStoryPage(root) {
       if (chaptersData.arcs.length > 0 && normArc !== lastArcId) {
         var arc = arcById(normArc);
         var color = normArc ? arcColor(normArc) : "#5A6168";
-        divider = '<div class="tab-eyebrow" style="margin-top:' + (i === 0 ? "0" : "28px") + ';color:' + color + ';">' + (arc ? escapeHtml(arc.name) : "No arc") + "</div>";
+        if (arc) {
+          divider = '<div class="row-gap" id="storyArc-' + arc.id + '" style="margin-top:' + (i === 0 ? "0" : "28px") + ';margin-bottom:8px;">' +
+            '<input data-arc-field="name" data-id="' + arc.id + '" value="' + escapeHtml(arc.name) + '" style="flex:1;min-width:0;background:transparent;border:none;color:' + color + ';font-size:12px;text-transform:uppercase;letter-spacing:0.12em;font-weight:700;padding:0;" />' +
+            '<button class="icon-btn" data-action="delete-arc" data-id="' + arc.id + '" style="color:' + color + ';">✕</button>' +
+          "</div>";
+        } else {
+          divider = '<div class="tab-eyebrow" id="storyArc-none" style="margin-top:' + (i === 0 ? "0" : "28px") + ';color:' + color + ';">No arc</div>';
+        }
       }
       lastArcId = normArc;
       return divider + '<div class="card" id="storyCh-' + c.id + '">' +
@@ -4533,7 +4538,7 @@ async function renderStoryPage(root) {
     }).join("");
 
     bodyEl.innerHTML =
-      arcManagerHtml +
+      arcNavHtml +
       (chapters.length === 0 ? "" : '<div class="pills" id="storyTocPills">' + chapters.map(function (c, i) {
         var color = c.arcId ? arcColor(c.arcId) : accent;
         return '<button class="pill" data-toc="' + c.id + '" style="border-color:' + color + ';color:' + color + ';">' + (i + 1) + ". " + escapeHtml(c.title || "Untitled chapter") + "</button>";
@@ -4543,6 +4548,12 @@ async function renderStoryPage(root) {
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddChapterBtn" style="background:' + accent + ';">+ New chapter</button></div>' +
       '<div class="bottom-row"><button class="link-btn" id="storyResetChaptersBtn" style="color:#8A919C;">Clear all chapters</button></div>';
 
+    document.getElementById("storyArcNav").querySelectorAll("[data-arc-nav]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        var target = document.getElementById("storyArc-" + e.currentTarget.getAttribute("data-arc-nav"));
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
     if (chapters.length > 0) {
       document.getElementById("storyTocPills").querySelectorAll("[data-toc]").forEach(function (btn) {
         btn.addEventListener("click", function (e) {
