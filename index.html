@@ -2673,6 +2673,8 @@ async function renderTravelTab(root) {
   var confirmDeleteTrip = false;
   var countdownInterval = null;
   var activeCat = TRAVEL_CATEGORIES[0].id;
+  var editHotelId = null;
+  var editHotelForm = {};
 
   function save() { saveTabData("dashboard-travel-data", raw); }
   function getActiveTrip() { return raw.trips.find(function (t) { return t.id === raw.activeTripId; }); }
@@ -3008,12 +3010,23 @@ async function renderTravelTab(root) {
         return;
       }
       el.innerHTML = links.map(function (l) {
+        if (l.id === editHotelId) {
+          var f = editHotelForm;
+          return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
+            '<input class="edit-input grow" style="min-width:100px;" data-hotel-edit="name" placeholder="Hotel / stay name" value="' + escapeHtml(f.name) + '" />' +
+            '<input class="edit-input grow" style="min-width:140px;" data-hotel-edit="url" placeholder="Booking link (URL)" value="' + escapeHtml(f.url) + '" />' +
+            '<input class="edit-input amt" type="number" min="0" step="0.01" data-hotel-edit="amount" placeholder="Cost" value="' + escapeHtml(f.amount) + '" />' +
+            '<button class="icon-btn" data-action="save-hotel-link" style="color:var(--accent);">✓</button>' +
+            '<button class="icon-btn" data-action="cancel-hotel-edit">✕</button>' +
+          "</div>";
+        }
         var picked = !!l.selected;
         return '<div class="weight-log-row">' +
           '<button class="icon-btn" data-action="select-hotel" data-id="' + l.id + '" title="' + (picked ? "Selected — counts toward budget" : "Select this hotel") + '" style="color:' + (picked ? "#5BAE7A" : "#5A6168") + ';flex-shrink:0;">' + (picked ? "◉" : "○") + '</button>' +
           '<a href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener" style="color:var(--text-1);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(l.name || l.url) + ' ↗</a>' +
           '<span class="mono" style="color:var(--accent);white-space:nowrap;">' + formatCurrency(l.amount) + "</span>" +
           (picked ? '<span style="background:#5BAE7A22;color:#5BAE7A;border-radius:999px;padding:2px 8px;font-size:10px;font-weight:600;white-space:nowrap;">IN BUDGET</span>' : "") +
+          '<button class="icon-btn" data-action="edit-hotel-link" data-id="' + l.id + '">✎</button>' +
           '<button class="icon-btn" data-action="delete-hotel-link" data-id="' + l.id + '">✕</button>' +
         "</div>";
       }).join("");
@@ -3039,6 +3052,7 @@ async function renderTravelTab(root) {
     }
     function handleDeleteHotelLink(id) {
       trip.hotelLinks = (trip.hotelLinks || []).filter(function (l) { return l.id !== id; });
+      if (editHotelId === id) editHotelId = null;
       save();
       renderHotelLinks();
       renderGauge();
@@ -3046,6 +3060,29 @@ async function renderTravelTab(root) {
     function handleSelectHotel(id) {
       (trip.hotelLinks || []).forEach(function (l) { l.selected = l.id === id ? !l.selected : false; });
       save();
+      renderHotelLinks();
+      renderGauge();
+    }
+    function startHotelEdit(id) {
+      var l = (trip.hotelLinks || []).find(function (l2) { return l2.id === id; });
+      if (!l) return;
+      editHotelId = id;
+      editHotelForm = { name: l.name || "", url: l.url || "", amount: l.amount === "" || l.amount == null ? "" : String(l.amount) };
+      renderHotelLinks();
+    }
+    function cancelHotelEdit() { editHotelId = null; renderHotelLinks(); }
+    function saveHotelEdit() {
+      var url = editHotelForm.url.trim();
+      if (!url) { cancelHotelEdit(); return; }
+      if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+      var l = (trip.hotelLinks || []).find(function (l2) { return l2.id === editHotelId; });
+      if (l) {
+        l.name = editHotelForm.name.trim();
+        l.url = url;
+        l.amount = editHotelForm.amount === "" ? 0 : Number(editHotelForm.amount);
+      }
+      save();
+      editHotelId = null;
       renderHotelLinks();
       renderGauge();
     }
@@ -3203,6 +3240,18 @@ async function renderTravelTab(root) {
       var id = btn.getAttribute("data-id");
       if (action === "delete-hotel-link") handleDeleteHotelLink(id);
       else if (action === "select-hotel") handleSelectHotel(id);
+      else if (action === "edit-hotel-link") startHotelEdit(id);
+      else if (action === "save-hotel-link") saveHotelEdit();
+      else if (action === "cancel-hotel-edit") cancelHotelEdit();
+    });
+    document.getElementById("ttHotelLinks").addEventListener("input", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-hotel-edit");
+      if (field) editHotelForm[field] = e.target.value;
+    });
+    document.getElementById("ttHotelLinks").addEventListener("keydown", function (e) {
+      if (!e.target.getAttribute || !e.target.getAttribute("data-hotel-edit")) return;
+      if (e.key === "Enter") saveHotelEdit();
+      if (e.key === "Escape") cancelHotelEdit();
     });
 
     renderNights();
