@@ -4407,13 +4407,16 @@ async function renderStoryPage(root) {
   var chaptersData = await loadTabData("dashboard-story-chapters", { chapters: [] });
   var charactersData = await loadTabData("dashboard-story-characters", { characters: [] });
   var moodboardData = await loadTabData("dashboard-story-moodboard", { images: [] });
+  var loreData = await loadTabData("dashboard-story-lore", { entries: [] });
   if (!chaptersData.chapters) chaptersData.chapters = [];
   if (!charactersData.characters) charactersData.characters = [];
   if (!moodboardData.images) moodboardData.images = [];
+  if (!loreData.entries) loreData.entries = [];
 
   function saveChapters() { saveTabData("dashboard-story-chapters", chaptersData); }
   function saveCharacters() { saveTabData("dashboard-story-characters", charactersData); }
   function saveMoodboard() { saveTabData("dashboard-story-moodboard", moodboardData); }
+  function saveLore() { saveTabData("dashboard-story-lore", loreData); }
 
   // Grows a textarea to fit its content instead of scrolling internally.
   function autoGrowTextarea(el) {
@@ -4435,12 +4438,16 @@ async function renderStoryPage(root) {
   var activeSection = "chapters";
   var editCharId = null;
   var editCharForm = {};
+  var editLoreId = null;
+  var editLoreForm = {};
   var confirmResetChapters = false;
   var confirmResetCharacters = false;
+  var confirmResetLore = false;
 
   var SECTIONS = [
     { id: "chapters", label: "Chapters" },
     { id: "characters", label: "Characters" },
+    { id: "lore", label: "Lore" },
     { id: "moodboard", label: "Moodboard" }
   ];
 
@@ -4464,6 +4471,7 @@ async function renderStoryPage(root) {
   function renderSection() {
     if (activeSection === "chapters") renderChaptersSection();
     else if (activeSection === "characters") renderCharactersSection();
+    else if (activeSection === "lore") renderLoreSection();
     else if (activeSection === "moodboard") renderMoodboardSection();
     initScrollAnims();
   }
@@ -4600,7 +4608,7 @@ async function renderStoryPage(root) {
         }
         return '<div class="item-row"><div class="item-display">' +
           '<div class="item-main"><div class="item-name">' + escapeHtml(ch.name) + "</div>" +
-          (ch.notes ? '<div class="item-sub">' + escapeHtml(ch.notes) + "</div>" : "") + "</div>" +
+          (ch.notes ? '<div class="item-sub" style="white-space:pre-wrap;">' + escapeHtml(ch.notes) + "</div>" : "") + "</div>" +
           '<div class="item-actions">' +
             '<button class="icon-btn" data-action="edit-char" data-id="' + ch.id + '">✎</button>' +
             '<button class="icon-btn" data-action="delete-char" data-id="' + ch.id + '">✕</button>' +
@@ -4687,6 +4695,127 @@ async function renderStoryPage(root) {
     confirmResetCharacters = false;
     saveCharacters();
     renderCharactersSection();
+  }
+
+  /* ---------------- Lore ---------------- */
+
+  function renderLoreSection() {
+    var bodyEl = document.getElementById("storySectionBody");
+    var entries = loreData.entries;
+    bodyEl.innerHTML =
+      '<div class="card">' +
+        '<div class="form-row"><input class="form-input" id="storyLoreTitle" placeholder="Topic, e.g. The Old Kingdom, Magic System, Timeline…" /></div>' +
+        '<textarea class="form-input" id="storyLoreNotes" placeholder="Details…" style="min-height:80px;margin-bottom:12px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;"></textarea>' +
+        '<div class="form-actions"><span class="error-text" id="storyLoreFormError"></span><button class="add-btn" id="storyLoreAddBtn" style="background:' + accent + ';">+ Add entry</button></div>' +
+      "</div>" +
+      '<div class="list-card" id="storyLoreList"></div>' +
+      '<div class="bottom-row"><button class="link-btn" id="storyResetLoreBtn" style="color:#8A919C;">Clear all lore</button></div>';
+
+    function renderList() {
+      var listEl = document.getElementById("storyLoreList");
+      if (entries.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No lore yet. Jot down worldbuilding notes above — settings, factions, rules of the world, timelines…</div>';
+        return;
+      }
+      listEl.innerHTML = entries.map(function (entry) {
+        if (entry.id === editLoreId) {
+          var f = editLoreForm;
+          return '<div class="item-row"><div class="item-edit">' +
+            '<div class="edit-line"><input class="edit-input grow" data-lore-edit="title" placeholder="Topic" value="' + escapeHtml(f.title) + '" /></div>' +
+            '<div class="edit-line"><textarea class="edit-input grow" style="min-height:70px;resize:none;overflow:hidden;tab-size:4;-moz-tab-size:4;" data-lore-edit="notes" placeholder="Details">' + escapeHtml(f.notes) + "</textarea>" +
+            '<button class="icon-btn" data-action="save-lore" style="color:' + accent + ';">✓</button>' +
+            '<button class="icon-btn" data-action="cancel-lore-edit">✕</button>' +
+            "</div></div></div>";
+        }
+        return '<div class="item-row"><div class="item-display">' +
+          '<div class="item-main"><div class="item-name">' + escapeHtml(entry.title) + "</div>" +
+          (entry.notes ? '<div class="item-sub" style="white-space:pre-wrap;">' + escapeHtml(entry.notes) + "</div>" : "") + "</div>" +
+          '<div class="item-actions">' +
+            '<button class="icon-btn" data-action="edit-lore" data-id="' + entry.id + '">✎</button>' +
+            '<button class="icon-btn" data-action="delete-lore" data-id="' + entry.id + '">✕</button>' +
+          "</div></div></div>";
+      }).join("");
+      listEl.querySelectorAll("[data-lore-edit='notes']").forEach(autoGrowTextarea);
+    }
+
+    function handleAddLore() {
+      var titleEl = document.getElementById("storyLoreTitle");
+      var notesEl = document.getElementById("storyLoreNotes");
+      var title = titleEl.value.trim();
+      var errEl = document.getElementById("storyLoreFormError");
+      if (!title) { errEl.textContent = "Give it a topic name first."; return; }
+      errEl.textContent = "";
+      loreData.entries.push({ id: uid(), title: title, notes: notesEl.value.trim() });
+      saveLore();
+      titleEl.value = "";
+      notesEl.value = "";
+      autoGrowTextarea(notesEl);
+      renderList();
+    }
+    function startLoreEdit(id) {
+      var entry = loreData.entries.find(function (e2) { return e2.id === id; });
+      if (!entry) return;
+      editLoreId = id;
+      editLoreForm = { title: entry.title, notes: entry.notes || "" };
+      renderList();
+    }
+    function cancelLoreEdit() { editLoreId = null; renderList(); }
+    function saveLoreEdit() {
+      if (!editLoreForm.title || !editLoreForm.title.trim()) { cancelLoreEdit(); return; }
+      var entry = loreData.entries.find(function (e2) { return e2.id === editLoreId; });
+      if (entry) { entry.title = editLoreForm.title.trim(); entry.notes = editLoreForm.notes.trim(); }
+      saveLore();
+      editLoreId = null;
+      renderList();
+    }
+    function handleDeleteLore(id) {
+      loreData.entries = loreData.entries.filter(function (e2) { return e2.id !== id; });
+      if (editLoreId === id) editLoreId = null;
+      saveLore();
+      renderList();
+    }
+
+    document.getElementById("storyLoreAddBtn").addEventListener("click", handleAddLore);
+    document.getElementById("storyLoreTitle").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddLore(); });
+    document.getElementById("storyLoreNotes").addEventListener("input", function (e) { autoGrowTextarea(e.target); });
+    document.getElementById("storyLoreNotes").addEventListener("keydown", handleIndentKeydown);
+    document.getElementById("storyLoreList").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var action = btn.getAttribute("data-action");
+      var id = btn.getAttribute("data-id");
+      if (action === "edit-lore") startLoreEdit(id);
+      else if (action === "delete-lore") handleDeleteLore(id);
+      else if (action === "save-lore") saveLoreEdit();
+      else if (action === "cancel-lore-edit") cancelLoreEdit();
+    });
+    document.getElementById("storyLoreList").addEventListener("input", function (e) {
+      var field = e.target.getAttribute && e.target.getAttribute("data-lore-edit");
+      if (field) editLoreForm[field] = e.target.value;
+      if (field === "notes") autoGrowTextarea(e.target);
+    });
+    document.getElementById("storyLoreList").addEventListener("keydown", function (e) {
+      if (e.target.getAttribute && e.target.getAttribute("data-lore-edit") === "notes") handleIndentKeydown(e);
+    });
+    document.getElementById("storyResetLoreBtn").addEventListener("click", handleResetLore);
+
+    renderList();
+  }
+
+  function handleResetLore() {
+    var btn = document.getElementById("storyResetLoreBtn");
+    if (!confirmResetLore) {
+      confirmResetLore = true;
+      btn.textContent = "Click again to clear all lore";
+      btn.style.color = "#FF8A5C";
+      setTimeout(function () { confirmResetLore = false; if (document.getElementById("storyResetLoreBtn")) { btn.textContent = "Clear all lore"; btn.style.color = "#8A919C"; } }, 4000);
+      return;
+    }
+    loreData.entries = [];
+    editLoreId = null;
+    confirmResetLore = false;
+    saveLore();
+    renderLoreSection();
   }
 
   /* ---------------- Moodboard ---------------- */
