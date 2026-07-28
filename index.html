@@ -227,6 +227,10 @@
     .icon-btn { min-width: 40px; min-height: 40px; padding: 8px; }
     .pill, .chip { min-height: 36px; padding: 8px 14px; }
     .sort-btn { min-height: 36px; padding: 8px 14px; }
+    /* bills/entries list rows: tighter gap so the name+due-day column keeps
+       enough width to truncate cleanly instead of crowding the owner badge */
+    .item-display { gap: 8px; }
+    .item-amount { font-size: 14px; }
     .art-grid { grid-template-columns: 1fr 1fr; }
     .art-tabs { gap: 4px; }
     .art-tab { padding: 5px 12px; font-size: 12px; }
@@ -341,7 +345,7 @@
   .item-glyph { flex-shrink: 0; font-size: 18px; width: 20px; text-align: center; }
   .item-main { min-width: 0; flex: 1; }
   .item-name { color: #EDEAE3; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item-sub { color: #8A919C; font-size: 13px; }
+  .item-sub { color: #8A919C; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-amount { flex-shrink: 0; font-size: 15px; }
   .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
   .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 6px; border-radius: 6px; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; }
@@ -360,12 +364,15 @@
     transition: transform 0.25s cubic-bezier(0.22,1,0.36,1);
   }
   .collapse-header.open .collapse-chevron { transform: rotate(90deg); }
+  /* Grid-row height animation instead of max-height: no transitionend
+     bookkeeping, no "transition to/from none" trick, no repaint glitches —
+     the row track just sizes to content, animated by the browser natively. */
   .collapse-body {
-    overflow: hidden; max-height: 0; opacity: 0;
-    transition: max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease;
+    display: grid; grid-template-rows: 0fr; opacity: 0;
+    transition: grid-template-rows 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease;
   }
-  .collapse-body.open { max-height: none; opacity: 1; }
-  .collapse-body-inner { padding-top: 14px; }
+  .collapse-body.open { grid-template-rows: 1fr; opacity: 1; }
+  .collapse-body-inner { overflow: hidden; min-height: 0; padding-top: 14px; }
 
   /* Google Tasks — completion animation + inline-editable title */
   .gcal-task-row { transition: opacity .25s ease, transform .25s ease, max-height .25s ease, margin .25s ease; max-height: 40px; overflow: hidden; }
@@ -1062,29 +1069,12 @@ function setCollapseInstant(headerEl, bodyEl, open) {
   var prevTransition = bodyEl.style.transition;
   bodyEl.style.transition = "none";
   bodyEl.classList.toggle("open", open);
-  bodyEl.style.maxHeight = open ? "none" : "0px";
   bodyEl.offsetHeight; // force reflow before restoring the transition
   bodyEl.style.transition = prevTransition;
 }
 function setCollapseOpen(headerEl, bodyEl, open) {
   if (headerEl) headerEl.classList.toggle("open", open);
-  if (!bodyEl) return;
-  bodyEl.classList.toggle("open", open);
-  if (open) {
-    bodyEl.style.maxHeight = bodyEl.scrollHeight + "px";
-    var onEnd = function (e) {
-      if (e.propertyName !== "max-height") return;
-      bodyEl.style.maxHeight = "none";
-      bodyEl.removeEventListener("transitionend", onEnd);
-    };
-    bodyEl.addEventListener("transitionend", onEnd);
-  } else {
-    if (bodyEl.style.maxHeight === "none" || bodyEl.style.maxHeight === "") {
-      bodyEl.style.maxHeight = bodyEl.scrollHeight + "px";
-      bodyEl.offsetHeight; // force reflow so the next line animates
-    }
-    bodyEl.style.maxHeight = "0px";
-  }
+  if (bodyEl) bodyEl.classList.toggle("open", open);
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function addDaysISO(iso, delta) {
