@@ -5893,16 +5893,19 @@ window.addEventListener('scroll', function() {
 var _animObs = null;
 function initScrollAnims() {
   if (_animObs) _animObs.disconnect();
+  // Reveal each element once per page render, then stop watching it. Without
+  // the unobserve, a layout shift from something unrelated to scrolling (e.g.
+  // a collapsible section opening/closing and nudging cards below it across
+  // the threshold) re-triggers the opacity:0 "reveal" animation on cards that
+  // never actually left the screen — which reads as the card going blank.
   _animObs = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
+      if (!entry.isIntersecting) return;
       var el = entry.target;
-      if (entry.isIntersecting) {
-        el.classList.remove('sa-up', 'sa-down');
-        void el.offsetHeight;
-        el.classList.add(_scrollDir === 'up' ? 'sa-down' : 'sa-up');
-      } else {
-        el.classList.remove('sa-up', 'sa-down');
-      }
+      el.classList.remove('sa-up', 'sa-down');
+      void el.offsetHeight;
+      el.classList.add(_scrollDir === 'up' ? 'sa-down' : 'sa-up');
+      _animObs.unobserve(el);
     });
   }, { threshold: 0.08 });
   document.querySelectorAll(
