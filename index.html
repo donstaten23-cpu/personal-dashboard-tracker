@@ -24,10 +24,13 @@
     --border: #1E2530;
     --border-2: #2A313A;
     --accent: #e83b3b;
+    --page-accent: var(--accent);
     --text-1: #EDEAE3;
     --text-2: #8A919C;
     --text-3: #5A6168;
     --content-zoom: 1;
+    --radius-card: 16px;
+    --space-card: 18px;
   }
   * { box-sizing: border-box; }
   body {
@@ -68,6 +71,10 @@
     font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
     color: #5A6168; font-weight: 600; padding: 8px 20px 4px;
   }
+  .sidebar-section-label.collapse-header { padding-right: 16px; transition: color 0.15s; }
+  .sidebar-section-label.collapse-header:hover { color: #8A919C; }
+  .sidebar-section-label .collapse-chevron { font-size: 8px; }
+  .sidebar-group-items { padding-top: 2px; }
   .sidebar-item {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 20px; font-size: 14px; font-weight: 500;
@@ -77,7 +84,7 @@
     border-left: 3px solid transparent;
   }
   .sidebar-item:hover { background: #1B2027; color: #EDEAE3; }
-  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: var(--accent); }
+  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: var(--page-accent); }
   .sidebar-item .s-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
   .sidebar-footer {
     padding: 16px 20px; border-top: 1px solid #1E2530;
@@ -111,7 +118,7 @@
 
   /* portfolio page styles */
   .port-hero { padding: 40px 0 28px; border-bottom: 1px solid #2A313A; margin-bottom: 28px; }
-  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--page-accent); font-weight: 700; margin-bottom: 8px; }
   .port-title { font-size: 36px; font-weight: 800; color: #EDEAE3; line-height: 1.1; margin-bottom: 6px; }
   .port-subtitle { color: #8A919C; font-size: 14px; }
   .port-intro { color: #EDEAE3; font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
@@ -128,7 +135,7 @@
     cursor: text;
   }
   .port-card {
-    background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 28px;
+    background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: 28px;
     margin-bottom: 20px; transition: border-color 0.2s;
   }
   .port-card:hover { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
@@ -181,7 +188,7 @@
   /* art portfolio */
   .art-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
   .art-cell-wrap { display: flex; flex-direction: column; }
-  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: 12px; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
+  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: calc(var(--radius-card) - 4px); overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
   .art-cell:not(.locked):hover { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
   .art-cell.locked { cursor: default; }
   .art-cell.has-image:not([class*="locked"]) { cursor: zoom-in; }
@@ -215,6 +222,11 @@
     .main-content { margin-left: 0; }
     .hamburger { display: flex; }
     .page-inner { padding: 64px 16px 32px; }
+    /* touch tap targets */
+    .sidebar-item { min-height: 44px; padding: 11px 20px; }
+    .icon-btn { min-width: 40px; min-height: 40px; padding: 8px; }
+    .pill, .chip { min-height: 36px; padding: 8px 14px; }
+    .sort-btn { min-height: 36px; padding: 8px 14px; }
     .art-grid { grid-template-columns: 1fr 1fr; }
     .art-tabs { gap: 4px; }
     .art-tab { padding: 5px 12px; font-size: 12px; }
@@ -232,7 +244,7 @@
   .hero-band { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, white) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 65%, black) 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
   .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
   .hero-name { color: #fff; font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
-  .tab-eyebrow { color: var(--accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+  .tab-eyebrow { color: var(--page-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
 
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
   .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
@@ -253,8 +265,10 @@
   .footer-label { color: #8A919C; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
 
   /* chips & pills slightly bigger */
-  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 13px; font-size: 13px; }
-  .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 500; background: transparent; }
+  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 13px; font-size: 13px; transition: filter 0.15s, border-color 0.15s; }
+  .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 500; background: transparent; transition: filter 0.15s, transform 0.1s, border-color 0.15s; }
+  .pill:hover, .chip:hover { filter: brightness(1.18); }
+  .pill:active { transform: scale(0.96); }
 
   /* countdown unit numbers */
   .cd-days, .cd-hrs, .cd-min, .cd-sec { font-size: 26px !important; }
@@ -272,7 +286,7 @@
   .date-row label { display: flex; align-items: center; gap: 6px; }
   .date-row input { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; }
 
-  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+  .card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: var(--space-card); margin-bottom: 16px; }
   .gauge-top { margin-bottom: 10px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
   .gauge-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
   .gauge-track { background: #2A313A; position: relative; height: 16px; width: 100%; overflow: hidden; border-radius: 999px; }
@@ -280,7 +294,9 @@
   .link-btn { background: none; border: none; text-decoration: underline; font-size: 13px; padding: 0; }
   .row-gap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .small-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
-  .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
+  .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; transition: filter 0.15s, transform 0.1s; }
+  .small-btn:hover { filter: brightness(1.1); }
+  .small-btn:active { transform: scale(0.96); }
 
   .chips { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
   .chip-num { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; margin-right: 2px; }
@@ -300,16 +316,23 @@
   .form-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; font-size: 14px; width: 100%; }
   .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
   .error-text { color: #FF8A5C; font-size: 12px; }
-  .add-btn { color: #12151A; border: none; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; }
+  .add-btn { color: #12151A; border: none; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; transition: filter 0.15s, transform 0.1s; }
+  .add-btn:hover { filter: brightness(1.1); }
+  .add-btn:active { transform: scale(0.97); }
 
   .select-bar { margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
   .select-bar-actions { display: flex; align-items: center; gap: 12px; }
 
   .sort-row { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-  .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; }
-  .sort-btn.active { background: #2A313A; color: #EDEAE3; }
+  .until-payday-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (min-width: 480px) { .until-payday-grid { grid-template-columns: 1fr 1fr; } }
+  .until-payday-grid .card { margin-bottom: 0; }
 
-  .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: 16px; padding: 0 16px; }
+  .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; transition: background 0.15s, color 0.15s; }
+  .sort-btn.active { background: #2A313A; color: #EDEAE3; }
+  .sort-btn:hover:not(.active) { background: #1E2530; color: #EDEAE3; }
+
+  .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: 0 16px; }
   .empty-state { color: #8A919C; padding: 40px 0; text-align: center; font-size: 14px; }
   .item-row { border-bottom: 1px solid #2A313A; padding: 12px 0; }
   .item-row:last-child { border-bottom: none; }
@@ -321,8 +344,28 @@
   .item-sub { color: #8A919C; font-size: 13px; }
   .item-amount { flex-shrink: 0; font-size: 15px; }
   .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
-  .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 4px; }
+  .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 6px; border-radius: 6px; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { color: #EDEAE3; background: #2A313A; }
   .checkbox { flex-shrink: 0; height: 17px; width: 17px; }
+
+  /* ---- reusable collapsible section (accordion) ---- */
+  .collapse-header {
+    cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .collapse-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .collapse-chevron {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 11px; color: #8A919C;
+    transition: transform 0.25s cubic-bezier(0.22,1,0.36,1);
+  }
+  .collapse-header.open .collapse-chevron { transform: rotate(90deg); }
+  .collapse-body {
+    overflow: hidden; max-height: 0; opacity: 0;
+    transition: max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease;
+  }
+  .collapse-body.open { max-height: none; opacity: 1; }
+  .collapse-body-inner { padding-top: 14px; }
 
   /* Google Tasks — completion animation + inline-editable title */
   .gcal-task-row { transition: opacity .25s ease, transform .25s ease, max-height .25s ease, margin .25s ease; max-height: 40px; overflow: hidden; }
@@ -381,6 +424,7 @@
   :root {
     --accent: #e83b3b; --bg: #12151A; --bg-card: #1B2027; --text-1: #EDEAE3;
     --bg-sidebar: #0E1117; --border: #1E2530; --border-2: #2A313A; --content-zoom: 1;
+    --page-accent: var(--accent); --radius-card: 16px; --space-card: 18px;
   }
   /* settings-panel theme overrides — reference CSS vars so JS can update them live */
   body { background: var(--bg); color: var(--text-1); }
@@ -390,7 +434,7 @@
   .sidebar-footer { border-top-color: var(--border); }
   .sidebar-item { color: var(--text-1); opacity: .6; }
   .sidebar-item:hover, .sidebar-item.active { background: var(--bg-card); color: var(--text-1); opacity: 1; }
-  .sidebar-item.active { border-left-color: var(--accent); }
+  .sidebar-item.active { border-left-color: var(--page-accent); }
   .main-content { zoom: var(--content-zoom); }
   .card, .list-card, .port-card { background: var(--bg-card); border-color: var(--border-2); }
   .art-cell { background: var(--bg-card); border-color: var(--border-2); }
@@ -443,51 +487,91 @@
       <img id="sidebarLogoImg" src="" alt="Site logo" style="display:none;max-width:100%;max-height:56px;object-fit:contain;margin-bottom:8px;border-radius:6px;" />
       <div class="serif" id="sidebarTitle" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
     </div>
-    <div class="sidebar-nav">
-      <div class="sidebar-section-label">Dashboard</div>
-      <button class="sidebar-item active" data-page="dashboard">
-        <span class="s-icon">&#9783;</span> Overview
-      </button>
-      <button class="sidebar-item" data-page="travel">
-        <span class="s-icon">&#9992;</span> Travel
-      </button>
-      <button class="sidebar-item" data-page="budget">
-        <span class="s-icon">&#9650;</span> Budget
-      </button>
-      <button class="sidebar-item" data-page="workouts">
-        <span class="s-icon">&#9651;</span> Workouts
-      </button>
-      <div class="sidebar-section-label" style="margin-top:8px;">Hobbies</div>
-      <button class="sidebar-item" data-page="chess">
-        <span class="s-icon">&#9823;</span> Chess
-      </button>
-      <button class="sidebar-item" data-page="story">
-        <span class="s-icon">&#9998;</span> Story
-      </button>
-      <div class="sidebar-section-label" style="margin-top:8px;">Portfolio</div>
-      <button class="sidebar-item" data-page="portfolio">
-        <span class="s-icon">&#9632;</span> Work Portfolio
-      </button>
-      <button class="sidebar-item" data-page="art">
-        <span class="s-icon">&#9670;</span> Art Portfolio
-      </button>
-      <div class="sidebar-section-label" style="margin-top:8px;">Education</div>
-      <button class="sidebar-item" data-page="education">
-        <span class="s-icon">&#127891;</span> Degree Tracker
-      </button>
-      <button class="sidebar-item" data-page="certs">
-        <span class="s-icon">&#127941;</span> Certifications
-      </button>
-      <button class="sidebar-item" data-page="jobs">
-        <span class="s-icon">&#128188;</span> Job Tracker
-      </button>
-      <div class="sidebar-section-label" style="margin-top:8px;">System</div>
-      <button class="sidebar-item" data-page="settings">
-        <span class="s-icon">&#9881;</span> Settings
-      </button>
-      <button class="sidebar-item" data-page="guide">
-        <span class="s-icon">&#9432;</span> Guide
-      </button>
+    <div class="sidebar-nav" id="sidebarNav">
+      <div class="sidebar-group" data-group="dashboard">
+        <div class="sidebar-section-label collapse-header open" data-group-toggle="dashboard">
+          <span>Dashboard</span><span class="collapse-chevron">&#9656;</span>
+        </div>
+        <div class="collapse-body open" data-group-body="dashboard">
+          <div class="sidebar-group-items">
+            <button class="sidebar-item active" data-page="dashboard">
+              <span class="s-icon">&#9783;</span> Overview
+            </button>
+            <button class="sidebar-item" data-page="travel">
+              <span class="s-icon">&#9992;</span> Travel
+            </button>
+            <button class="sidebar-item" data-page="budget">
+              <span class="s-icon">&#9650;</span> Budget
+            </button>
+            <button class="sidebar-item" data-page="workouts">
+              <span class="s-icon">&#9651;</span> Workouts
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-group" data-group="hobbies" style="margin-top:8px;">
+        <div class="sidebar-section-label collapse-header open" data-group-toggle="hobbies">
+          <span>Hobbies</span><span class="collapse-chevron">&#9656;</span>
+        </div>
+        <div class="collapse-body open" data-group-body="hobbies">
+          <div class="sidebar-group-items">
+            <button class="sidebar-item" data-page="chess">
+              <span class="s-icon">&#9823;</span> Chess
+            </button>
+            <button class="sidebar-item" data-page="story">
+              <span class="s-icon">&#9998;</span> Story
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-group" data-group="portfolio" style="margin-top:8px;">
+        <div class="sidebar-section-label collapse-header open" data-group-toggle="portfolio">
+          <span>Portfolio</span><span class="collapse-chevron">&#9656;</span>
+        </div>
+        <div class="collapse-body open" data-group-body="portfolio">
+          <div class="sidebar-group-items">
+            <button class="sidebar-item" data-page="portfolio">
+              <span class="s-icon">&#9632;</span> Work Portfolio
+            </button>
+            <button class="sidebar-item" data-page="art">
+              <span class="s-icon">&#9670;</span> Art Portfolio
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-group" data-group="education" style="margin-top:8px;">
+        <div class="sidebar-section-label collapse-header open" data-group-toggle="education">
+          <span>Education</span><span class="collapse-chevron">&#9656;</span>
+        </div>
+        <div class="collapse-body open" data-group-body="education">
+          <div class="sidebar-group-items">
+            <button class="sidebar-item" data-page="education">
+              <span class="s-icon">&#127891;</span> Degree Tracker
+            </button>
+            <button class="sidebar-item" data-page="certs">
+              <span class="s-icon">&#127941;</span> Certifications
+            </button>
+            <button class="sidebar-item" data-page="jobs">
+              <span class="s-icon">&#128188;</span> Job Tracker
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-group" data-group="system" style="margin-top:8px;">
+        <div class="sidebar-section-label collapse-header open" data-group-toggle="system">
+          <span>System</span><span class="collapse-chevron">&#9656;</span>
+        </div>
+        <div class="collapse-body open" data-group-body="system">
+          <div class="sidebar-group-items">
+            <button class="sidebar-item" data-page="settings">
+              <span class="s-icon">&#9881;</span> Settings
+            </button>
+            <button class="sidebar-item" data-page="guide">
+              <span class="s-icon">&#9432;</span> Guide
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="sidebar-footer">
       <form id="changePasswordForm" method="post" action="#" style="display:none;margin-bottom:12px;">
@@ -880,6 +964,31 @@ var BUDGET_CATEGORIES = [
   { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
 ];
 
+// Per-page secondary accent \u2014 gives each sidebar destination its own flavor
+// while staying in the same muted-pastel family already used above, so the
+// palette reads as one cohesive system rather than a re-skin per page.
+var PAGE_ACCENTS = {
+  travel: "#5B8FA8",
+  budget: "#5BAE7A",
+  workouts: "#3DBFC4",
+  chess: "#7187E0",
+  story: "#C97FBF",
+  portfolio: "#D9A441",
+  art: "#D9667A",
+  education: "#7FA37A",
+  certs: "#E1543F",
+  jobs: "#8FA8AC"
+};
+function applyPageAccent(page) {
+  if (PAGE_ACCENTS[page]) {
+    document.documentElement.style.setProperty("--page-accent", PAGE_ACCENTS[page]);
+  } else {
+    // dashboard/settings/guide have no override — fall back to the live
+    // brand accent so theme changes in Settings still apply immediately.
+    document.documentElement.style.removeProperty("--page-accent");
+  }
+}
+
 var WORKOUT_CATEGORIES = [
   { id: "strength", label: "Strength", color: "#3DBFC4", glyph: "\u25B2" },
   { id: "cardio", label: "Cardio", color: "#E1543F", glyph: "\u2665" },
@@ -943,6 +1052,40 @@ var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
 /* ---------------- helpers ---------------- */
 
 function uid() { return "id-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7); }
+
+// Shared accordion mechanic: animates a body element's height by measuring
+// scrollHeight, then releases to max-height:none once open so content added
+// later (e.g. a new list item) doesn't get clipped by a stale pixel value.
+function setCollapseInstant(headerEl, bodyEl, open) {
+  if (headerEl) headerEl.classList.toggle("open", open);
+  if (!bodyEl) return;
+  var prevTransition = bodyEl.style.transition;
+  bodyEl.style.transition = "none";
+  bodyEl.classList.toggle("open", open);
+  bodyEl.style.maxHeight = open ? "none" : "0px";
+  bodyEl.offsetHeight; // force reflow before restoring the transition
+  bodyEl.style.transition = prevTransition;
+}
+function setCollapseOpen(headerEl, bodyEl, open) {
+  if (headerEl) headerEl.classList.toggle("open", open);
+  if (!bodyEl) return;
+  bodyEl.classList.toggle("open", open);
+  if (open) {
+    bodyEl.style.maxHeight = bodyEl.scrollHeight + "px";
+    var onEnd = function (e) {
+      if (e.propertyName !== "max-height") return;
+      bodyEl.style.maxHeight = "none";
+      bodyEl.removeEventListener("transitionend", onEnd);
+    };
+    bodyEl.addEventListener("transitionend", onEnd);
+  } else {
+    if (bodyEl.style.maxHeight === "none" || bodyEl.style.maxHeight === "") {
+      bodyEl.style.maxHeight = bodyEl.scrollHeight + "px";
+      bodyEl.offsetHeight; // force reflow so the next line animates
+    }
+    bodyEl.style.maxHeight = "0px";
+  }
+}
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function addDaysISO(iso, delta) {
   var d = new Date(iso + "T00:00:00");
@@ -1479,6 +1622,28 @@ function initSidebar() {
   }
   document.getElementById("hamburgerBtn").addEventListener("click", _toggleSidebar);
   document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
+
+  // Collapsible nav groups — collapsed state is a device-local UI preference
+  var collapsedGroups = getCollapsedSidebarGroups();
+  document.querySelectorAll("[data-group-toggle]").forEach(function (header) {
+    var groupId = header.getAttribute("data-group-toggle");
+    var body = document.querySelector('[data-group-body="' + groupId + '"]');
+    if (collapsedGroups.indexOf(groupId) >= 0) setCollapseInstant(header, body, false);
+    header.addEventListener("click", function () {
+      var nowOpen = !header.classList.contains("open");
+      setCollapseOpen(header, body, nowOpen);
+      var list = getCollapsedSidebarGroups();
+      var idx = list.indexOf(groupId);
+      if (nowOpen && idx >= 0) list.splice(idx, 1);
+      if (!nowOpen && idx < 0) list.push(groupId);
+      localStorage.setItem("sidebar-collapsed-groups", JSON.stringify(list));
+    });
+  });
+}
+
+function getCollapsedSidebarGroups() {
+  try { return JSON.parse(localStorage.getItem("sidebar-collapsed-groups")) || []; }
+  catch (e) { return []; }
 }
 
 function closeSidebar() {
@@ -1490,6 +1655,7 @@ function closeSidebar() {
 
 function switchPage(page) {
   currentPage = page;
+  applyPageAccent(page);
   // Toggle pages
   var pages = document.querySelectorAll(".page");
   for (var i = 0; i < pages.length; i++) {
@@ -1839,6 +2005,10 @@ async function renderSpendTab(root, cfg) {
   var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
+  if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
+  if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
+  if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
+  if (data.addExpenseCollapsed === undefined) data.addExpenseCollapsed = true;
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
@@ -1884,8 +2054,21 @@ async function renderSpendTab(root, cfg) {
   var plannedItemEditId = null;
   var plannedItemEditForm = {};
   var billsPersonFilter = null;
+  var showSelectedOnly = false;
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
+
+  function collapseCard(headerLabel, toggleKey, startOpen, bodyHtml) {
+    return '<div class="card">' +
+      '<div class="collapse-header' + (startOpen ? " open" : "") + '" data-collapse-toggle="' + toggleKey + '">' +
+        '<div class="collapse-header-left"><span class="gauge-label mono" id="' + toggleKey + 'Label">' + headerLabel + '</span></div>' +
+        '<span class="collapse-chevron">\u25b8</span>' +
+      "</div>" +
+      '<div class="collapse-body' + (startOpen ? " open" : "") + '" data-collapse-body="' + toggleKey + '">' +
+        '<div class="collapse-body-inner">' + bodyHtml + "</div>" +
+      "</div>" +
+    "</div>";
+  }
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
@@ -1893,38 +2076,34 @@ async function renderSpendTab(root, cfg) {
       '<input id="stTitle" class="name-input serif" aria-label="Title" />' +
     "</header>" +
     (cfg.showSavingsGoal ?
-      '<div class="card" id="beforePayCard">' +
-        '<div class="gauge-label mono" id="beforePayLabel" style="margin-bottom:6px;">BEFORE YOUR NEXT PAYCHECK</div>' +
-        '<div id="beforePayContent"></div>' +
+      '<div class="until-payday-grid">' +
+        collapseCard("BEFORE " + USER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-me", true, '<div id="beforePayContent-me"></div>') +
+        collapseCard("BEFORE " + PARTNER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-partner", true, '<div id="beforePayContent-partner"></div>') +
       "</div>"
     : "") +
     (cfg.showSavingsGoal ?
-      '<div class="card">' +
-        '<div class="gauge-label mono" style="margin-bottom:10px;">PAY SCHEDULE</div>' +
-        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Pick a name to add their paycheck \u2014 it also switches whose payday the summary above is measured against.</div>' +
+      collapseCard("PAY SCHEDULE", "payScheduleColl", false,
+        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Pick a name, then add their payday \u2014 it\u2019s used to figure out what\u2019s due before each of you gets paid.</div>' +
         '<div class="pills" id="payPersonPills"></div>' +
         '<div class="row-gap" style="margin-bottom:10px;">' +
           '<input class="small-input" type="number" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
           '<input class="small-input" type="number" min="0" step="0.01" id="payAmountInput" placeholder="Amount" />' +
           '<button class="small-btn" id="addPayPeriodBtn" style="background:' + cfg.accent + ';">+ Add</button>' +
         "</div>" +
-        '<div id="payPeriodsList"></div>' +
-      "</div>"
+        '<div id="payPeriodsList"></div>'
+      )
     : "") +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
-      (cfg.showSavingsGoal ? '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' : "") +
+      (cfg.showSavingsGoal ?
+        '<div style="color:#8A919C;font-size:11px;margin-top:6px;margin-bottom:18px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' +
+        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS GOAL</span><span class="mono" id="svGaugeAmount" style="color:#D9A441;"></span></div>' +
+        '<div id="svGaugeBody"></div>'
+      : "") +
     "</div>" +
     (cfg.showSavingsGoal ?
-      '<div class="card">' +
-        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS GOAL</span><span class="mono" id="svGaugeAmount" style="color:#D9A441;"></span></div>' +
-        '<div id="svGaugeBody"></div>' +
-      "</div>"
-    : "") +
-    (cfg.showSavingsGoal ?
-      '<div class="card">' +
-        '<div class="gauge-label mono" style="margin-bottom:10px;">PLANNED PURCHASES</div>' +
+      collapseCard("PLANNED PURCHASES", "plannedColl", false,
         '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Group things you\u2019re thinking about buying under a goal \u2014 not counted against your budget yet.</div>' +
         '<div id="plannedGroups"></div>' +
         '<div class="row-gap" style="margin-top:4px;">' +
@@ -1933,11 +2112,11 @@ async function renderSpendTab(root, cfg) {
         "</div>" +
         '<div style="border-top:1px solid #2A313A;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;">' +
           '<span style="color:#8A919C;font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
-        "</div>" +
-      "</div>"
+        "</div>"
+      )
     : "") +
     '<div class="chips" id="stChips"></div>' +
-    '<div class="card">' +
+    collapseCard("+ ADD EXPENSE", "addExpenseColl", false,
       '<div class="pills" id="stPills"></div>' +
       (cfg.showSavingsGoal ? '<div class="pills" id="stOwnerPills" style="margin-top:-2px;"></div>' : "") +
       '<div class="form-row">' +
@@ -1948,8 +2127,8 @@ async function renderSpendTab(root, cfg) {
         "</div>" +
       "</div>" +
       '<input class="form-input" id="stNotes" placeholder="Notes (optional)" style="margin-bottom:12px;" />' +
-      '<div class="form-actions"><span class="error-text" id="stFormError"></span><button class="add-btn" id="stAddBtn" style="background:' + cfg.accent + ';">+ Add</button></div>' +
-    "</div>" +
+      '<div class="form-actions"><span class="error-text" id="stFormError"></span><button class="add-btn" id="stAddBtn" style="background:' + cfg.accent + ';">+ Add</button></div>'
+    ) +
     (cfg.enableSelection ? '<div class="card select-bar" id="stSelectBar"></div>' : "") +
     (cfg.showSavingsGoal ? '<div class="pills" id="stPersonFilterRow"></div>' : "") +
     '<div class="sort-row">' +
@@ -2052,7 +2231,6 @@ async function renderSpendTab(root, cfg) {
       pills[i].addEventListener("click", function (e) {
         payPersonChoice = e.currentTarget.getAttribute("data-person");
         renderPayPersonPills();
-        renderBeforePay();
       });
     }
   }
@@ -2081,14 +2259,16 @@ async function renderSpendTab(root, cfg) {
     dayEl.value = "";
     amtEl.value = "";
     renderPayPeriodsList();
-    renderBeforePay();
+    renderBeforePayFor("me");
+    renderBeforePayFor("partner");
     if (billsPersonFilter) renderList();
   }
   function handleDeletePayPeriod(id) {
     data.payPeriods = (data.payPeriods || []).filter(function (p) { return p.id !== id; });
     save();
     renderPayPeriodsList();
-    renderBeforePay();
+    renderBeforePayFor("me");
+    renderBeforePayFor("partner");
     if (billsPersonFilter) renderList();
   }
 
@@ -2104,8 +2284,8 @@ async function renderSpendTab(root, cfg) {
     var el = document.getElementById("stPersonFilterRow");
     if (!el) return;
     var options = [
-      { id: "me", label: "1 · " + USER_DISPLAY_NAME + " — until payday" },
-      { id: "partner", label: "2 · " + PARTNER_DISPLAY_NAME + " — until payday" }
+      { id: "me", label: USER_DISPLAY_NAME },
+      { id: "partner", label: PARTNER_DISPLAY_NAME }
     ];
     el.innerHTML = options.map(function (o) {
       var active = billsPersonFilter === o.id;
@@ -2267,18 +2447,18 @@ async function renderSpendTab(root, cfg) {
     renderPlannedList();
   }
 
-  function renderBeforePay() {
-    var contentEl = document.getElementById("beforePayContent");
-    var labelEl = document.getElementById("beforePayLabel");
+  function renderBeforePayFor(person) {
+    var contentEl = document.getElementById("beforePayContent-" + person);
+    var labelEl = document.getElementById("beforePay-" + person + "Label");
     if (!contentEl) return;
 
-    var periods = (data.payPeriods || []).filter(function (p) { return p.person === payPersonChoice && Number(p.day); });
+    var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); });
     if (periods.length === 0) {
-      if (labelEl) labelEl.textContent = "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
-      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(payPersonChoice)) + ' yet \u2014 add one below.</div>';
+      if (labelEl) labelEl.textContent = personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
+      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(person)) + ' yet \u2014 add one in Pay Schedule below.</div>';
       return;
     }
-    if (labelEl) labelEl.textContent = periods.length > 1 ? "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S UPCOMING PAYCHECKS" : "BEFORE " + personLabel(payPersonChoice).toUpperCase() + "\u2019S NEXT PAYCHECK";
+    if (labelEl) labelEl.textContent = periods.length > 1 ? personLabel(person).toUpperCase() + "\u2019S UPCOMING PAYCHECKS" : personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
 
     var todayDay = new Date().getDate();
     function daysAwayFor(day) { return day >= todayDay ? day - todayDay : (31 - todayDay) + day; }
@@ -2289,7 +2469,7 @@ async function renderSpendTab(root, cfg) {
     // or other-person bills are left out, since the point is "what's on
     // *your* plate before *your* next check(s)."
     var ownedBills = data.items.filter(function (it) {
-      return it.category !== "savings" && it.owner === payPersonChoice && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it);
+      return it.category !== "savings" && it.owner === person && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it);
     }).map(function (it) {
       return Object.assign({}, it, { daysAway: daysAwayFor(Number(it.dueDay)) });
     });
@@ -2351,6 +2531,10 @@ async function renderSpendTab(root, cfg) {
         return daysUntilDueDay(Number(it.dueDay)) <= cutoff;
       });
     }
+    if (showSelectedOnly) {
+      var sel = new Set(data.selectedIds || []);
+      copy = copy.filter(function (it) { return sel.has(it.id); });
+    }
     if (sortBy === "date") {
       copy.sort(function (a, b) {
         var da = a.dueDay === "" || a.dueDay == null ? 99 : Number(a.dueDay);
@@ -2373,10 +2557,13 @@ async function renderSpendTab(root, cfg) {
   function renderSelectBar() {
     if (!cfg.enableSelection) return;
     var sel = new Set(data.selectedIds || []);
+    if (sel.size === 0) showSelectedOnly = false;
     var total = data.items.filter(function (it) { return sel.has(it.id); }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
     document.getElementById("stSelectBar").innerHTML =
       '<div class="select-bar-actions"><button class="link-btn" id="stSelectAll" style="color:' + cfg.accent + ';">Select all</button>' +
-      '<button class="link-btn" id="stClearSel" style="color:#8A919C;">Clear</button></div>' +
+      '<button class="link-btn" id="stClearSel" style="color:#8A919C;">Clear</button>' +
+      (sel.size > 0 ? '<button class="link-btn" id="stToggleSelOnly" style="color:' + (showSelectedOnly ? cfg.accent : "#8A919C") + ';">' + (showSelectedOnly ? "Showing selected only" : "Show selected only") + '</button>' : "") +
+      "</div>" +
       '<span class="mono" style="color:' + cfg.accent + ';">' + sel.size + " selected \u00B7 " + formatCurrency(total) + "</span>";
     document.getElementById("stSelectAll").addEventListener("click", function () {
       data.selectedIds = getSortedItems().map(function (it) { return it.id; });
@@ -2386,7 +2573,14 @@ async function renderSpendTab(root, cfg) {
     });
     document.getElementById("stClearSel").addEventListener("click", function () {
       data.selectedIds = [];
+      showSelectedOnly = false;
       save();
+      renderSelectBar();
+      renderList();
+    });
+    var toggleBtn = document.getElementById("stToggleSelOnly");
+    if (toggleBtn) toggleBtn.addEventListener("click", function () {
+      showSelectedOnly = !showSelectedOnly;
       renderSelectBar();
       renderList();
     });
@@ -2404,10 +2598,15 @@ async function renderSpendTab(root, cfg) {
     var sorted = getSortedItems();
     document.getElementById("stEntryCount").textContent = billsPersonFilter
       ? sorted.length + (sorted.length === 1 ? " bill" : " bills") + " for " + personLabel(billsPersonFilter) + " before payday"
+      : showSelectedOnly
+      ? sorted.length + (sorted.length === 1 ? " selected bill" : " selected bills")
       : data.items.length + (data.items.length === 1 ? " entry" : " entries");
     var listEl = document.getElementById("stList");
     if (sorted.length === 0) {
-      listEl.innerHTML = '<div class="empty-state">' + (billsPersonFilter ? "Nothing due for " + escapeHtml(personLabel(billsPersonFilter)) + " before their next payday. ✨" : escapeHtml(cfg.emptyText)) + "</div>";
+      var emptyMsg = billsPersonFilter
+        ? "Nothing due for " + escapeHtml(personLabel(billsPersonFilter)) + " before their next payday. ✨"
+        : showSelectedOnly ? "Nothing selected." : escapeHtml(cfg.emptyText);
+      listEl.innerHTML = '<div class="empty-state">' + emptyMsg + "</div>";
       return;
     }
     var sel = new Set(data.selectedIds || []);
@@ -2458,7 +2657,8 @@ async function renderSpendTab(root, cfg) {
   function renderDynamic() {
     renderGauge();
     renderSavingsGauge();
-    renderBeforePay();
+    renderBeforePayFor("me");
+    renderBeforePayFor("partner");
     renderChips();
     renderSelectBar();
     renderList();
@@ -2538,7 +2738,8 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedGroups: [] };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedGroups: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true };
+    showSelectedOnly = false;
     save();
     editRowId = null;
     confirmReset = false;
@@ -2546,6 +2747,7 @@ async function renderSpendTab(root, cfg) {
     resetForm();
     renderPayPeriodsList();
     renderDynamic();
+    syncCollapseUI();
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
@@ -2592,6 +2794,35 @@ async function renderSpendTab(root, cfg) {
     if (e.key === "Escape") cancelRowEdit();
   });
   document.getElementById("stResetBtn").addEventListener("click", handleResetAll);
+
+  function reconcileCollapse(toggleKey, collapsedValue) {
+    var header = document.querySelector('[data-collapse-toggle="' + toggleKey + '"]');
+    var body = document.querySelector('[data-collapse-body="' + toggleKey + '"]');
+    if (!header || !body) return;
+    var shouldBeOpen = !collapsedValue;
+    if (header.classList.contains("open") !== shouldBeOpen) setCollapseInstant(header, body, shouldBeOpen);
+  }
+  function wireCollapseToggle(toggleKey, getCollapsed, setCollapsed) {
+    var header = document.querySelector('[data-collapse-toggle="' + toggleKey + '"]');
+    var body = document.querySelector('[data-collapse-body="' + toggleKey + '"]');
+    if (!header || !body) return;
+    header.addEventListener("click", function () {
+      var nowOpen = !header.classList.contains("open");
+      setCollapseOpen(header, body, nowOpen);
+      setCollapsed(!nowOpen);
+      save();
+    });
+  }
+  function syncCollapseUI() {
+    reconcileCollapse("addExpenseColl", data.addExpenseCollapsed);
+    if (cfg.showSavingsGoal) {
+      reconcileCollapse("beforePay-me", data.beforePayCollapsed.me);
+      reconcileCollapse("beforePay-partner", data.beforePayCollapsed.partner);
+      reconcileCollapse("payScheduleColl", data.payScheduleCollapsed);
+      reconcileCollapse("plannedColl", data.plannedCollapsed);
+    }
+  }
+  wireCollapseToggle("addExpenseColl", function () { return data.addExpenseCollapsed; }, function (v) { data.addExpenseCollapsed = v; });
 
   if (cfg.showSavingsGoal) {
     document.getElementById("addPayPeriodBtn").addEventListener("click", handleAddPayPeriod);
@@ -2642,8 +2873,14 @@ async function renderSpendTab(root, cfg) {
     });
     renderOwnerPills();
     renderPersonFilterRow();
+
+    wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
+    wireCollapseToggle("beforePay-partner", function () { return data.beforePayCollapsed.partner; }, function (v) { data.beforePayCollapsed.partner = v; });
+    wireCollapseToggle("payScheduleColl", function () { return data.payScheduleCollapsed; }, function (v) { data.payScheduleCollapsed = v; });
+    wireCollapseToggle("plannedColl", function () { return data.plannedCollapsed; }, function (v) { data.plannedCollapsed = v; });
   }
 
+  syncCollapseUI();
   renderPills();
   renderDynamic();
   initScrollAnims();
@@ -5909,15 +6146,13 @@ function applyHiddenPages() {
     if (pg === 'dashboard' || pg === 'settings' || pg === 'guide') return;
     btn.style.display = hidden.indexOf(pg) >= 0 ? 'none' : '';
   });
-  // Also hide section labels when all items under them are hidden
-  document.querySelectorAll('.sidebar-section-label').forEach(function(label) {
-    var next = label.nextElementSibling;
+  // Also hide a whole group (label + collapse body) when every item under it is hidden
+  document.querySelectorAll('.sidebar-group').forEach(function(group) {
     var hasVisible = false;
-    while (next && !next.classList.contains('sidebar-section-label')) {
-      if (next.classList.contains('sidebar-item') && next.style.display !== 'none') hasVisible = true;
-      next = next.nextElementSibling;
-    }
-    label.style.display = hasVisible ? '' : 'none';
+    group.querySelectorAll('.sidebar-item').forEach(function(item) {
+      if (item.style.display !== 'none') hasVisible = true;
+    });
+    group.style.display = hasVisible ? '' : 'none';
   });
 }
 
