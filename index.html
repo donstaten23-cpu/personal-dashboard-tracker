@@ -231,6 +231,17 @@
        enough width to truncate cleanly instead of crowding the owner badge */
     .item-display { gap: 8px; }
     .item-amount { font-size: 14px; }
+    /* budget bills list only (.st-row): title/due-day get their own full-width
+       line, with the owner badge/amount/actions wrapping to a line below
+       instead of squeezing into the same row and getting clipped */
+    .st-row { flex-wrap: wrap; }
+    .st-row .st-row-top {
+      display: flex; align-items: center; gap: 12px; flex: 1 1 100%;
+    }
+    .st-row .st-row-bottom {
+      display: flex; align-items: center; gap: 8px; flex: 1 1 100%;
+      margin-top: 6px; justify-content: flex-end;
+    }
     .art-grid { grid-template-columns: 1fr 1fr; }
     .art-tabs { gap: 4px; }
     .art-tab { padding: 5px 12px; font-size: 12px; }
@@ -338,9 +349,47 @@
 
   .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: 0 16px; }
   .empty-state { color: #8A919C; padding: 40px 0; text-align: center; font-size: 14px; }
+
+  /* ---- skeleton loading placeholders ---- */
+  .skeleton-wrap { display: flex; flex-direction: column; gap: 16px; }
+  .skeleton-card { background: var(--bg-card); border: 1px solid var(--border-2); border-radius: var(--radius-card); padding: var(--space-card); }
+  .skeleton-line {
+    height: 14px; border-radius: 6px; margin-bottom: 10px;
+    background: linear-gradient(90deg, var(--border-2) 25%, var(--border) 37%, var(--border-2) 63%);
+    background-size: 400% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton-line:last-child { margin-bottom: 0; }
+  .skeleton-line.w-40 { width: 40%; }
+  .skeleton-line.w-60 { width: 60%; }
+  .skeleton-line.w-80 { width: 80%; }
+  .skeleton-line.w-100 { width: 100%; }
+  .skeleton-line.title { height: 20px; width: 45%; margin-bottom: 14px; }
+  @keyframes skeleton-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-line { animation: none; }
+  }
+
+  /* ---- tab-switch heading reveal ---- */
+  @keyframes headingWordIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .heading-word-anim { display: inline-block; animation: headingWordIn 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  @keyframes headingFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .heading-fade-anim { animation: headingFadeIn 0.4s cubic-bezier(0.22,1,0.36,1) both; }
   .item-row { border-bottom: 1px solid #2A313A; padding: 12px 0; }
   .item-row:last-child { border-bottom: none; }
   .item-display { display: flex; align-items: center; gap: 12px; }
+  /* budget bills list only — no-op wrapper divs on desktop so st-row-top/
+     bottom's children join .item-display's flex row directly; the mobile
+     breakpoint below turns them into two real stacked rows. */
+  .st-row-top, .st-row-bottom { display: contents; }
   .item-bar { height: 32px; width: 4px; flex-shrink: 0; border-radius: 999px; }
   .item-glyph { flex-shrink: 0; font-size: 18px; width: 20px; text-align: center; }
   .item-main { min-width: 0; flex: 1; }
@@ -1118,6 +1167,17 @@ function escapeHtml(s) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
+// Shimmering placeholder cards shown in place of a blank "Loading…" state.
+// Shown only while data is genuinely being fetched over the network — with
+// the cache-first loadTabData, that's just first-ever loads and slow
+// connections, since a warm cache resolves before this would ever paint.
+function skeletonCards(n) {
+  var widths = ["w-60", "w-100", "w-80", "w-40"];
+  var card = '<div class="skeleton-card"><div class="skeleton-line title"></div>' +
+    widths.map(function (w) { return '<div class="skeleton-line ' + w + '"></div>'; }).join("") +
+    "</div>";
+  return '<div class="skeleton-wrap">' + card.repeat(n || 3) + "</div>";
+}
 function computeStreak(dateSet) {
   var count = 0;
   var cursor = todayISO();
@@ -1345,14 +1405,50 @@ function assessSkillLevel(items, styleId, prData) {
   return { level: level, weeksTrained: weeksTrained, prCount: prCount, windowWeeks: weeks.length };
 }
 
+/* ---------------- client-side cache + debounced writes ----------------
+   loadTabData is cache-first: a cached entry returns instantly (no network
+   wait) and triggers a silent background refresh that updates the cache for
+   the *next* visit — it does not hot-swap the page that's already rendered,
+   since each render* function closes over its own local copy of the data
+   once per visit. saveTabData writes the cache synchronously (so reads are
+   never stale within the same session) and debounces the actual network
+   write per tab_key, so rapid edits (e.g. typing) collapse into one upsert
+   instead of one per keystroke. A visibility/pagehide flush guarantees a
+   debounced write is never lost if the tab is closed mid-window. */
+function _cacheKey(key) { return "dc:" + (currentUserId || "anon") + ":" + key; }
+function _readCache(key) {
+  try {
+    var raw = localStorage.getItem(_cacheKey(key));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function _writeCache(key, data) {
+  try { localStorage.setItem(_cacheKey(key), JSON.stringify(data)); } catch (e) { /* storage full/unavailable — caching is best-effort */ }
+}
+function _clearCache(key) {
+  try { localStorage.removeItem(_cacheKey(key)); } catch (e) {}
+}
+
 async function loadTabData(key, defaultData) {
+  var cached = _readCache(key);
+  if (cached !== null) {
+    _bgRefreshTabData(key);
+    return Object.assign({}, defaultData, cached);
+  }
+  return _fetchTabDataFromNetwork(key, defaultData);
+}
+
+async function _fetchTabDataFromNetwork(key, defaultData) {
   try {
     var result = await supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle();
     if (result.error) {
       showDebugError("Load error [" + key + "]: " + JSON.stringify(result.error));
       return JSON.parse(JSON.stringify(defaultData));
     }
-    if (result.data && result.data.data) return Object.assign({}, defaultData, result.data.data);
+    if (result.data && result.data.data) {
+      _writeCache(key, result.data.data);
+      return Object.assign({}, defaultData, result.data.data);
+    }
     showDebugError("No data found for key: " + key + " (user: " + currentUserId + ")");
     return JSON.parse(JSON.stringify(defaultData));
   } catch (e) {
@@ -1360,6 +1456,15 @@ async function loadTabData(key, defaultData) {
     return JSON.parse(JSON.stringify(defaultData));
   }
 }
+
+function _bgRefreshTabData(key) {
+  supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle()
+    .then(function (result) {
+      if (!result.error && result.data && result.data.data) _writeCache(key, result.data.data);
+    })
+    .catch(function () { /* silent — best-effort cache refresh, the cached value stays as-is */ });
+}
+
 function showDebugError(msg) {
   var el = document.getElementById("debugPanel");
   if (!el) {
@@ -1371,13 +1476,34 @@ function showDebugError(msg) {
   }
   el.innerHTML += "<div style='margin-bottom:4px;'>" + msg + "</div>";
 }
-async function saveTabData(key, data) {
+
+var _saveDebounceTimers = {};
+var _pendingSaves = {};
+function saveTabData(key, data) {
+  _writeCache(key, data);
+  _pendingSaves[key] = data;
+  if (_saveDebounceTimers[key]) clearTimeout(_saveDebounceTimers[key]);
+  _saveDebounceTimers[key] = setTimeout(function () { _flushTabDataSave(key); }, 500);
+}
+async function _flushTabDataSave(key) {
+  delete _saveDebounceTimers[key];
+  if (!_pendingSaves.hasOwnProperty(key)) return;
+  var data = _pendingSaves[key];
+  delete _pendingSaves[key];
   try {
     await supabaseClient.from("dashboard_data").upsert({ user_id: currentUserId, tab_key: key, data: data, updated_at: new Date().toISOString() });
   } catch (e) {
     console.error(e);
   }
 }
+function _flushAllPendingSaves() {
+  Object.keys(_saveDebounceTimers).forEach(function (key) { clearTimeout(_saveDebounceTimers[key]); delete _saveDebounceTimers[key]; });
+  Object.keys(_pendingSaves).forEach(function (key) { _flushTabDataSave(key); });
+}
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "hidden") _flushAllPendingSaves();
+});
+window.addEventListener("pagehide", _flushAllPendingSaves);
 
 /* ---------------- auth ---------------- */
 
@@ -1590,6 +1716,30 @@ function renderActiveTab() {
 
 var currentPage = "dashboard";
 
+// tab_key(s) each page's render function loads — used to warm the cache
+// before the user actually clicks (see prefetchPage below).
+var PAGE_PRELOAD_KEYS = {
+  travel: ["dashboard-travel-data", "dashboard-budget-data"],
+  budget: ["dashboard-budget-data"],
+  workouts: ["dashboard-workouts-data", "dashboard-workouts-templates", "dashboard-workouts-splits"],
+  chess: ["dashboard-chess-data"],
+  story: ["dashboard-story-chapters", "dashboard-story-characters", "dashboard-story-moodboard", "dashboard-story-lore", "dashboard-story-locations"],
+  portfolio: ["portfolio-content"],
+  art: ["art-content"],
+  education: ["education-data"],
+  certs: ["certs-data"],
+  jobs: ["jobs-data"],
+  guide: ["dashboard-guide-content"]
+};
+var _prefetchedPages = {};
+function prefetchPage(page) {
+  if (_prefetchedPages[page] || !currentUserId) return;
+  var keys = PAGE_PRELOAD_KEYS[page];
+  if (!keys) return;
+  _prefetchedPages[page] = true;
+  keys.forEach(function (key) { loadTabData(key, {}); }); // warms the cache; return value unused here
+}
+
 function initSidebar() {
   // Page nav
   var items = document.querySelectorAll(".sidebar-item[data-page]");
@@ -1599,6 +1749,8 @@ function initSidebar() {
       switchPage(page);
       closeSidebar();
     });
+    items[i].addEventListener("mouseenter", function(e) { prefetchPage(e.currentTarget.getAttribute("data-page")); });
+    items[i].addEventListener("touchstart", function(e) { prefetchPage(e.currentTarget.getAttribute("data-page")); }, { passive: true });
   }
   // Hamburger — click only (touchend caused double-fire on PWA/mobile)
   window._sidebarLastToggle = 0;
@@ -1723,6 +1875,13 @@ function switchPage(page) {
     }
   }
   initScrollAnims();
+  // Static pages (dashboard/portfolio/art) and synchronously-rendered ones
+  // (settings) already have their heading in the DOM at this point, so this
+  // animates them correctly. Async pages (budget/travel/workouts/etc.) are
+  // still showing a skeleton with no matching heading yet — harmless no-op
+  // here; each of those calls animatePageHeading again once its own render
+  // finishes, which is when the real heading actually exists.
+  animatePageHeading(document.getElementById("page-" + page));
 }
 
 function initClock() {
@@ -1942,14 +2101,8 @@ function togglePortfolioEdit() {
 
 async function loadPortfolioContent() {
   if (!currentUserId) return;
-  try {
-    var result = await supabaseClient.from("dashboard_data")
-      .select("data").eq("user_id", currentUserId).eq("tab_key", "portfolio-content").maybeSingle();
-    if (result.data && result.data.data) {
-      _portContent = result.data.data;
-      applyPortfolioContent();
-    }
-  } catch(e) { console.error("Portfolio content load error", e); }
+  _portContent = await loadTabData("portfolio-content", {});
+  applyPortfolioContent();
 }
 
 function applyPortfolioContent() {
@@ -1959,21 +2112,14 @@ function applyPortfolioContent() {
   });
 }
 
-async function savePortfolioContent() {
+function savePortfolioContent() {
   if (!currentUserId) return;
   var els = document.querySelectorAll("[data-port-key]");
   for (var i = 0; i < els.length; i++) {
     var key = els[i].getAttribute("data-port-key");
     _portContent[key] = els[i].innerHTML;
   }
-  try {
-    await supabaseClient.from("dashboard_data").upsert({
-      user_id: currentUserId,
-      tab_key: "portfolio-content",
-      data: _portContent,
-      updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error("Portfolio content save error", e); }
+  saveTabData("portfolio-content", _portContent);
 }
 
 async function savePortfolioImages() {
@@ -1991,7 +2137,7 @@ async function savePortfolioImages() {
 /* ---------------- budget tab ---------------- */
 
 async function renderSpendTab(root, cfg) {
-  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  root.innerHTML = skeletonCards(3);
   var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
@@ -2625,16 +2771,20 @@ async function renderSpendTab(root, cfg) {
       var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:#8A919C;font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
       var paid = cfg.showSavingsGoal && isCurrentlyPaid(item);
       var paidBtn = cfg.showSavingsGoal ? '<button class="icon-btn" data-action="toggle-paid" data-id="' + item.id + '" title="' + (paid ? "Paid \u2014 click to undo" : "Mark as paid") + '" style="color:' + (paid ? "#7FA37A" : "#8A919C") + ';">' + (paid ? "\u2713" : "\u25CB") + '</button>' : "";
-      return '<div class="item-row"><div class="item-display" style="' + (paid ? "opacity:0.55;" : "") + '">' +
-        (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
-        '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
-        '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
-        '<div class="item-main"><div class="item-name" style="' + (paid ? "text-decoration:line-through;" : "") + '">' + escapeHtml(item.name) + "</div>" +
-        '<div class="item-sub">' + dueDayText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
-        ownerBadge +
-        '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
-        '<div class="item-actions">' + paidBtn + '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
-        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+      return '<div class="item-row"><div class="item-display st-row" style="' + (paid ? "opacity:0.55;" : "") + '">' +
+        '<div class="st-row-top">' +
+          (cfg.enableSelection ? '<input type="checkbox" class="checkbox" data-action="toggle-sel" data-id="' + item.id + '" ' + (sel.has(item.id) ? "checked" : "") + ' style="accent-color:' + cfg.accent + ';" />' : "") +
+          '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+          '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+          '<div class="item-main"><div class="item-name" style="' + (paid ? "text-decoration:line-through;" : "") + '">' + escapeHtml(item.name) + "</div>" +
+          '<div class="item-sub">' + dueDayText + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        "</div>" +
+        '<div class="st-row-bottom">' +
+          ownerBadge +
+          '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
+          '<div class="item-actions">' + paidBtn + '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+          '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+        "</div>" +
         "</div></div>";
     }).join("");
   }
@@ -2874,13 +3024,14 @@ async function renderSpendTab(root, cfg) {
   renderPills();
   renderDynamic();
   initScrollAnims();
+  animatePageHeading(root.closest(".page"));
 
 }
 
 /* ---------------- travel tab (multi-trip) ---------------- */
 
 async function renderTravelTab(root) {
-  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  root.innerHTML = skeletonCards(3);
   var budgetData = await loadTabData("dashboard-budget-data", { items: [] });
   var totalSaved = (budgetData.items || []).filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
 
@@ -3513,6 +3664,7 @@ async function renderTravelTab(root) {
 
   renderTripSwitcher();
   renderTripDetail();
+  animatePageHeading(root.closest(".page"));
 }
 
 /* ---------------- workouts tab ---------------- */
@@ -3642,7 +3794,7 @@ function _relationshipMapSvg(characters, relationships) {
 }
 
 async function renderWorkoutsTab(root) {
-  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  root.innerHTML = skeletonCards(3);
   var accent = "#3DBFC4";
   var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
   var data = await loadTabData("dashboard-workouts-data", defaultData);
@@ -4660,12 +4812,13 @@ async function renderWorkoutsTab(root) {
 
   renderSectionPills();
   renderSection();
+  animatePageHeading(document.getElementById("page-workouts"));
 }
 
 /* ---------------- story page ---------------- */
 
 async function renderStoryPage(root) {
-  root.innerHTML = '<div class="empty-state">Loading…</div>';
+  root.innerHTML = skeletonCards(3);
   var accent = "#C97FBF";
   var chaptersData = await loadTabData("dashboard-story-chapters", { chapters: [], arcs: [], statuses: [], wordGoal: "" });
   var charactersData = await loadTabData("dashboard-story-characters", { characters: [], relationships: [] });
@@ -5597,12 +5750,13 @@ async function renderStoryPage(root) {
 
   renderSectionPills();
   renderSection();
+  animatePageHeading(document.getElementById("page-story"));
 }
 
 /* ---------------- routines tab ---------------- */
 
 async function renderRoutinesTab(root) {
-  root.innerHTML = '<div class="empty-state">Loading\u2026</div>';
+  root.innerHTML = skeletonCards(3);
   var accent = "#D9A441";
   var defaultData = { routines: [] };
   var data = await loadTabData("dashboard-routines-data", defaultData);
@@ -5872,6 +6026,45 @@ async function renderRoutinesTab(root) {
 }
 
 
+/* ---------------- tab-switch heading animation ---------------- */
+
+// Finds the first prominent heading in a newly-active page and staggers a
+// fade+rise reveal across its words. Elements tied to persisted content
+// (data-port-key / data-art-key / data-guide-key, or any [contenteditable])
+// have their markup restored to the exact original after the animation
+// finishes, so this can never leak animation spans into anything that gets
+// saved back to Supabase.
+function animatePageHeading(pageEl) {
+  if (!pageEl) return;
+  var selectors = ['.tab-eyebrow', '.port-title', '.name-input', 'h2.serif', '.serif'];
+  var el = null;
+  for (var i = 0; i < selectors.length; i++) {
+    el = pageEl.querySelector(selectors[i]);
+    if (el) break;
+  }
+  if (!el) return;
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+    el.classList.remove('heading-fade-anim');
+    void el.offsetWidth; // restart the animation if it's already mid-play
+    el.classList.add('heading-fade-anim');
+    return;
+  }
+  var text = el.textContent;
+  if (!text || !text.trim()) return;
+  var originalHTML = el.innerHTML;
+  var words = text.split(/(\s+)/);
+  var wordCount = 0;
+  el.innerHTML = words.map(function (w) {
+    if (!w.trim()) return w;
+    var delay = wordCount * 35;
+    wordCount++;
+    return '<span class="heading-word-anim" style="animation-delay:' + delay + 'ms;">' + escapeHtml(w) + '</span>';
+  }).join('');
+  setTimeout(function () {
+    if (el.isConnected && el.innerHTML !== originalHTML) el.innerHTML = originalHTML;
+  }, wordCount * 35 + 530);
+}
+
 /* ---------------- scroll-triggered animations ---------------- */
 
 var _scrollDir = 'down', _scrollY = 0;
@@ -5993,14 +6186,8 @@ function toggleArtEdit() {
 
 async function loadArtContent() {
   if (!currentUserId) return;
-  try {
-    var result = await supabaseClient.from("dashboard_data")
-      .select("data").eq("user_id", currentUserId).eq("tab_key", "art-content").maybeSingle();
-    if (result.data && result.data.data) {
-      _artContent = result.data.data;
-      applyArtContent();
-    }
-  } catch(e) { console.error("Art content load error", e); }
+  _artContent = await loadTabData("art-content", {});
+  applyArtContent();
 }
 
 function applyArtContent() {
@@ -6010,20 +6197,13 @@ function applyArtContent() {
   });
 }
 
-async function saveArtContent() {
+function saveArtContent() {
   if (!currentUserId) return;
   var els = document.querySelectorAll("[data-art-key]");
   for (var i = 0; i < els.length; i++) {
     _artContent[els[i].getAttribute("data-art-key")] = els[i].innerHTML;
   }
-  try {
-    await supabaseClient.from("dashboard_data").upsert({
-      user_id: currentUserId,
-      tab_key: "art-content",
-      data: _artContent,
-      updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error("Art content save error", e); }
+  saveTabData("art-content", _artContent);
 }
 
 /* ---------------- settings panel ---------------- */
@@ -6069,17 +6249,10 @@ function _pageLabel(key, fallback) {
 
 async function loadSettings() {
   if (!currentUserId) return;
-  try {
-    var result = await supabaseClient.from('dashboard_data')
-      .select('data').eq('user_id', currentUserId).eq('tab_key', 'user-settings').maybeSingle();
-    var saved = result.data && result.data.data ? result.data.data : {};
-    _settings = Object.assign({}, SETTINGS_DEFAULTS, saved);
-    _settings.pageLabels  = Object.assign({}, SETTINGS_DEFAULTS.pageLabels, saved.pageLabels || {});
-    _settings.hiddenPages = Array.isArray(saved.hiddenPages) ? saved.hiddenPages : [];
-    if (typeof _settings.greetingLines !== 'string') _settings.greetingLines = '';
-  } catch(e) {
-    _settings = Object.assign({}, SETTINGS_DEFAULTS);
-  }
+  _settings = await loadTabData('user-settings', SETTINGS_DEFAULTS);
+  _settings.pageLabels = Object.assign({}, SETTINGS_DEFAULTS.pageLabels, _settings.pageLabels);
+  if (!Array.isArray(_settings.hiddenPages)) _settings.hiddenPages = [];
+  if (typeof _settings.greetingLines !== 'string') _settings.greetingLines = '';
   if (!_settings.tabOrder || !_settings.tabOrder.length) {
     _settings.tabOrder = SETTINGS_DEFAULTS.tabOrder.slice();
   }
@@ -6149,16 +6322,9 @@ function applyHiddenPages() {
   });
 }
 
-async function saveSettings() {
+function saveSettings() {
   if (!currentUserId || !_settings) return;
-  try {
-    await supabaseClient.from('dashboard_data').upsert({
-      user_id: currentUserId,
-      tab_key: 'user-settings',
-      data: _settings,
-      updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error('Settings save error', e); }
+  saveTabData('user-settings', _settings);
 }
 
 function renderSettingsPage() {
@@ -6679,26 +6845,13 @@ async function loadEducationData() {
       { id: uid(), name: 'Electives', courses: [] }
     ]
   };
-  try {
-    var r = await supabaseClient.from('dashboard_data')
-      .select('data').eq('user_id', currentUserId).eq('tab_key', 'education-data').maybeSingle();
-    if (r.data && r.data.data) {
-      _educationData = Object.assign({}, def, r.data.data);
-      if (!Array.isArray(_educationData.groups)) _educationData.groups = def.groups;
-    } else {
-      _educationData = def;
-    }
-  } catch(e) { _educationData = def; }
+  _educationData = await loadTabData('education-data', def);
+  if (!Array.isArray(_educationData.groups)) _educationData.groups = def.groups;
 }
 
-async function saveEducationData() {
+function saveEducationData() {
   if (!currentUserId || !_educationData) return;
-  try {
-    await supabaseClient.from('dashboard_data').upsert({
-      user_id: currentUserId, tab_key: 'education-data',
-      data: _educationData, updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error('Education save error', e); }
+  saveTabData('education-data', _educationData);
 }
 
 function _eduDonutChart(segments, total) {
@@ -6742,7 +6895,7 @@ async function renderEducationPage() {
   var inner = page.querySelector('.page-inner');
 
   if (!_educationData) {
-    inner.innerHTML = '<div class="empty-state">Loading…</div>';
+    inner.innerHTML = skeletonCards(2);
     await loadEducationData();
   }
 
@@ -7129,6 +7282,7 @@ async function renderEducationPage() {
   }
 
   initScrollAnims();
+  animatePageHeading(document.getElementById("page-education"));
 }
 
 /* ---------------- certifications ---------------- */
@@ -7151,26 +7305,13 @@ function _certStatus(id) {
 async function loadCertData() {
   if (!currentUserId) return;
   var def = { certs: [] };
-  try {
-    var r = await supabaseClient.from('dashboard_data')
-      .select('data').eq('user_id', currentUserId).eq('tab_key', 'certs-data').maybeSingle();
-    if (r.data && r.data.data) {
-      _certData = Object.assign({}, def, r.data.data);
-      if (!Array.isArray(_certData.certs)) _certData.certs = [];
-    } else {
-      _certData = def;
-    }
-  } catch(e) { _certData = def; }
+  _certData = await loadTabData('certs-data', def);
+  if (!Array.isArray(_certData.certs)) _certData.certs = [];
 }
 
-async function saveCertData() {
+function saveCertData() {
   if (!currentUserId || !_certData) return;
-  try {
-    await supabaseClient.from('dashboard_data').upsert({
-      user_id: currentUserId, tab_key: 'certs-data',
-      data: _certData, updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error('Cert save error', e); }
+  saveTabData('certs-data', _certData);
 }
 
 async function renderCertPage() {
@@ -7179,7 +7320,7 @@ async function renderCertPage() {
   var inner = page.querySelector('.page-inner');
 
   if (!_certData) {
-    inner.innerHTML = '<div class="empty-state">Loading…</div>';
+    inner.innerHTML = skeletonCards(2);
     await loadCertData();
   }
 
@@ -7343,6 +7484,7 @@ async function renderCertPage() {
   }
 
   initScrollAnims();
+  animatePageHeading(document.getElementById("page-certs"));
 }
 
 /* ---------------- job tracker ---------------- */
@@ -7403,26 +7545,13 @@ function _jobStageDonut(counts, total) {
 async function loadJobData() {
   if (!currentUserId) return;
   var def = { jobs: [] };
-  try {
-    var r = await supabaseClient.from('dashboard_data')
-      .select('data').eq('user_id', currentUserId).eq('tab_key', 'jobs-data').maybeSingle();
-    if (r.data && r.data.data) {
-      _jobData = Object.assign({}, def, r.data.data);
-      if (!Array.isArray(_jobData.jobs)) _jobData.jobs = [];
-    } else {
-      _jobData = def;
-    }
-  } catch(e) { _jobData = def; }
+  _jobData = await loadTabData('jobs-data', def);
+  if (!Array.isArray(_jobData.jobs)) _jobData.jobs = [];
 }
 
-async function saveJobData() {
+function saveJobData() {
   if (!currentUserId || !_jobData) return;
-  try {
-    await supabaseClient.from('dashboard_data').upsert({
-      user_id: currentUserId, tab_key: 'jobs-data',
-      data: _jobData, updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error('Job save error', e); }
+  saveTabData('jobs-data', _jobData);
 }
 
 async function renderJobsPage() {
@@ -7431,7 +7560,7 @@ async function renderJobsPage() {
   var inner = page.querySelector('.page-inner');
 
   if (!_jobData) {
-    inner.innerHTML = '<div class="empty-state">Loading…</div>';
+    inner.innerHTML = skeletonCards(2);
     await loadJobData();
   }
 
@@ -7663,6 +7792,7 @@ async function renderJobsPage() {
   }
 
   initScrollAnims();
+  animatePageHeading(document.getElementById("page-jobs"));
 }
 
 /* ============================================================
@@ -7764,7 +7894,7 @@ async function renderChessPage(forceRefresh) {
   if (!_chessGoalData) await loadChessGoalData();
 
   if (!_chessLoaded || forceRefresh) {
-    inner.innerHTML = '<div class="empty-state">Loading chess stats…</div>';
+    inner.innerHTML = skeletonCards(2);
     await fetchChessLiveData();
     _chessLoaded = true;
   }
@@ -7875,6 +8005,7 @@ async function renderChessPage(forceRefresh) {
   }
 
   initScrollAnims();
+  animatePageHeading(document.getElementById("page-chess"));
 }
 
 /* ============================================================
@@ -8079,28 +8210,18 @@ function toggleGuideEdit() {
 
 async function loadGuideContent() {
   if (!currentUserId) return;
-  try {
-    var result = await supabaseClient.from("dashboard_data")
-      .select("data").eq("user_id", currentUserId).eq("tab_key", "dashboard-guide-content").maybeSingle();
-    if (result.data && result.data.data && result.data.data.body) {
-      var el = document.querySelector('[data-guide-key="body"]');
-      if (el) el.innerHTML = result.data.data.body;
-    }
-  } catch(e) { console.error("Guide content load error", e); }
+  var d = await loadTabData("dashboard-guide-content", { body: "" });
+  if (d.body) {
+    var el = document.querySelector('[data-guide-key="body"]');
+    if (el) el.innerHTML = d.body;
+  }
 }
 
-async function saveGuideContent() {
+function saveGuideContent() {
   if (!currentUserId) return;
   var el = document.querySelector('[data-guide-key="body"]');
   if (!el) return;
-  try {
-    await supabaseClient.from("dashboard_data").upsert({
-      user_id: currentUserId,
-      tab_key: "dashboard-guide-content",
-      data: { body: el.innerHTML },
-      updated_at: new Date().toISOString()
-    });
-  } catch(e) { console.error("Guide content save error", e); }
+  saveTabData("dashboard-guide-content", { body: el.innerHTML });
 }
 
 var _guideResetConfirm = false;
@@ -8120,6 +8241,7 @@ function resetGuideContent() {
   _guideResetConfirm = false;
   (async function () {
     if (currentUserId) {
+      _clearCache("dashboard-guide-content");
       try {
         await supabaseClient.from("dashboard_data").delete()
           .eq("user_id", currentUserId).eq("tab_key", "dashboard-guide-content");
@@ -8852,6 +8974,14 @@ async function addGcalTask() {
 /* ---------------- boot ---------------- */
 
 bootAuth();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js").catch(function (e) {
+      console.error("Service worker registration failed", e);
+    });
+  });
+}
 </script>
 
 <!-- Lightbox overlay -->
