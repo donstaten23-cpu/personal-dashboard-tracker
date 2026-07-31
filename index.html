@@ -3812,6 +3812,8 @@ async function renderWorkoutsTab(root) {
   var data = await loadTabData("dashboard-workouts-data", defaultData);
   var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
   var splitsData = await loadTabData("dashboard-workouts-splits", { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
+  var customExercisesData = await loadTabData("dashboard-workouts-custom-exercises", { exercises: [] });
+  if (!customExercisesData.exercises) customExercisesData.exercises = [];
 
   // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
   var migratedAny = false;
@@ -3869,6 +3871,7 @@ async function renderWorkoutsTab(root) {
   var showGoalInput = false;
   var goalDraft = "";
   var viewingWorkoutId = null;
+  var openMonthKeys = null;
   var editingLiftItemId = null;
   var editingLiftId = null;
   var editingLiftForm = {};
@@ -3890,7 +3893,45 @@ async function renderWorkoutsTab(root) {
   function save() { saveTabData("dashboard-workouts-data", data); }
   function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
   function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
+  function saveCustomExercises() { saveTabData("dashboard-workouts-custom-exercises", customExercisesData); }
   if (migratedAny || migratedLiftsAny) save();
+
+  // Combined suggestion list for the exercise <datalist> — built-in COMMON_EXERCISES
+  // plus whatever the user has added, de-duped case-insensitively (user additions win
+  // when they collide with a built-in spelling, since they're appended last below).
+  function allExerciseNames() {
+    var seen = {};
+    return COMMON_EXERCISES.concat(customExercisesData.exercises || []).filter(function (n) {
+      var key = n.trim().toLowerCase();
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+  function renderExerciseDatalist() {
+    var dl = document.getElementById("wkExerciseList");
+    if (!dl) return;
+    dl.innerHTML = allExerciseNames().map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("");
+  }
+  function handleAddCustomExercise() {
+    var inputEl = document.getElementById("wkNewExerciseInput");
+    if (!inputEl) return;
+    var name = inputEl.value.trim();
+    if (!name) { inputEl.focus(); return; }
+    var exists = allExerciseNames().some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+    inputEl.value = "";
+    if (exists) return;
+    customExercisesData.exercises.push(name);
+    saveCustomExercises();
+    renderExerciseDatalist();
+    renderTemplatesSection();
+  }
+  function handleDeleteCustomExercise(idx) {
+    customExercisesData.exercises.splice(idx, 1);
+    saveCustomExercises();
+    renderExerciseDatalist();
+    renderTemplatesSection();
+  }
 
   function weekStart() { return addDaysISO(todayISO(), -6); }
 
@@ -3903,7 +3944,7 @@ async function renderWorkoutsTab(root) {
   ];
 
   root.innerHTML =
-    '<datalist id="wkExerciseList">' + COMMON_EXERCISES.map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("") + '</datalist>' +
+    '<datalist id="wkExerciseList">' + allExerciseNames().map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("") + '</datalist>' +
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="pills" id="wkSectionPills"></div>' +
@@ -4168,8 +4209,52 @@ async function renderWorkoutsTab(root) {
         "</div></div>";
     }
 
+    // "YYYY-MM" bucket for month grouping in the (chronological) date-sorted view.
+    function _wkMonthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "no-date"; }
+    // Month name, plus the year when it isn't the current calendar year (so a list
+    // spanning years still reads unambiguously without a separate year-level header).
+    function _wkMonthLabel(key) {
+      if (key === "no-date") return "No date";
+      var parts = key.split("-");
+      var y = Number(parts[0]), m = Number(parts[1]) - 1;
+      var label = new Date(y, m, 1).toLocaleDateString("en-US", { month: "long" });
+      return y === new Date().getFullYear() ? label : label + " " + y;
+    }
+
+    function renderWorkoutRowHtml(item) {
+      var cat = categoryById(WORKOUT_CATEGORIES, item.category);
+      if (item.id === editRowId) {
+        var f = editRowForm;
+        return '<div class="item-row"><div class="item-edit">' +
+          '<div class="edit-line">' +
+          '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+          '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+          "</div>" +
+          '<div class="edit-line">' +
+          '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
+          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+          '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
+          '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
+          "</div></div></div>";
+      }
+      var lifts = item.lifts || [];
+      var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
+      var displayRow = '<div class="item-display">' +
+        '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
+        '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
+        '<div class="item-main" data-action="view-workout" data-id="' + item.id + '" style="cursor:pointer;"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-actions">' +
+        '<button class="icon-btn" data-action="view-workout" data-id="' + item.id + '" title="View workout">\u203A</button>' +
+        '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+        "</div>";
+      return '<div class="item-row">' + displayRow + "</div>";
+    }
+
     function renderList() {
-      var prData = computePRs(data.items);
       var sorted = getSortedItems();
       document.getElementById("wkEntryCount").textContent = data.items.length + (data.items.length === 1 ? " workout" : " workouts");
       var listEl = document.getElementById("wkList");
@@ -4177,38 +4262,48 @@ async function renderWorkoutsTab(root) {
         listEl.innerHTML = '<div class="empty-state">Nothing logged yet. Add your first workout below and start a streak.</div>';
         return;
       }
-      listEl.innerHTML = sorted.map(function (item) {
-        var cat = categoryById(WORKOUT_CATEGORIES, item.category);
-        if (item.id === editRowId) {
-          var f = editRowForm;
-          return '<div class="item-row"><div class="item-edit">' +
-            '<div class="edit-line">' +
-            '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
-            '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
-            '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
-            "</div>" +
-            '<div class="edit-line">' +
-            '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
-            '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
-            (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
-            '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">\u2713</button>' +
-            '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
-            "</div></div></div>";
-        }
-        var lifts = item.lifts || [];
-        var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
-        var displayRow = '<div class="item-display">' +
-          '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
-          '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
-          '<div class="item-main" data-action="view-workout" data-id="' + item.id + '" style="cursor:pointer;"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
-          '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
-          '<div class="item-actions">' +
-          '<button class="icon-btn" data-action="view-workout" data-id="' + item.id + '" title="View workout">\u203A</button>' +
-          '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
-          '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
+
+      // Category sort stays a flat list \u2014 month grouping only makes sense for the
+      // chronological (by date) view.
+      if (sortBy !== "date") {
+        listEl.innerHTML = sorted.map(renderWorkoutRowHtml).join("");
+        return;
+      }
+
+      var groups = [];
+      var byKey = {};
+      sorted.forEach(function (item) {
+        var key = _wkMonthKey(item.date);
+        if (!byKey[key]) { byKey[key] = { key: key, items: [] }; groups.push(byKey[key]); }
+        byKey[key].items.push(item);
+      });
+
+      // Only the current month starts open \u2014 everything else (past or, rarely,
+      // future-dated) starts folded, since that's what "already passed" means here.
+      var curKey = _wkMonthKey(todayISO());
+      if (!openMonthKeys) openMonthKeys = new Set([curKey]);
+
+      listEl.innerHTML = groups.map(function (g, gi) {
+        var isOpen = openMonthKeys.has(g.key);
+        return '<div class="collapse-header' + (isOpen ? " open" : "") + '" data-month-toggle="' + g.key + '" style="padding:10px 0;' + (gi > 0 ? "border-top:1px solid var(--border-2);" : "") + '">' +
+            '<div class="collapse-header-left"><span class="gauge-label mono" style="color:var(--text-1);">' + escapeHtml(_wkMonthLabel(g.key)) + '</span>' +
+              '<span style="color:var(--text-3);font-size:12px;">' + g.items.length + (g.items.length === 1 ? " workout" : " workouts") + "</span></div>" +
+            '<span class="collapse-chevron">\u25B8</span>' +
+          "</div>" +
+          '<div class="collapse-body' + (isOpen ? " open" : "") + '" data-month-body="' + g.key + '">' +
+            '<div class="collapse-body-inner" style="padding-top:0;">' + g.items.map(renderWorkoutRowHtml).join("") + "</div>" +
           "</div>";
-        return '<div class="item-row">' + displayRow + "</div>";
       }).join("");
+
+      listEl.querySelectorAll("[data-month-toggle]").forEach(function (header) {
+        header.addEventListener("click", function () {
+          var key = header.getAttribute("data-month-toggle");
+          var body = listEl.querySelector('[data-month-body="' + key + '"]');
+          var nowOpen = !header.classList.contains("open");
+          setCollapseOpen(header, body, nowOpen);
+          if (nowOpen) openMonthKeys.add(key); else openMonthKeys.delete(key);
+        });
+      });
     }
 
     function renderFooter() {
@@ -4669,7 +4764,24 @@ async function renderWorkoutsTab(root) {
         "</div></div>";
     }
 
+    var customExercisesHtml = '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:10px;">CUSTOM EXERCISES</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Add your own exercises to the suggestions list used on every lift-name field.</div>' +
+      '<div class="pills" id="wkCustomExerciseList">' +
+        ((customExercisesData.exercises || []).length === 0
+          ? '<span style="color:var(--text-3);font-size:12px;">No custom exercises yet.</span>'
+          : customExercisesData.exercises.map(function (n, i) {
+              return '<span class="pill" style="padding:4px 6px 4px 12px;gap:6px;">' + escapeHtml(n) +
+                '<button class="icon-btn" data-action="delete-custom-exercise" data-idx="' + i + '" style="padding:0 4px;">✕</button></span>';
+            }).join("")) +
+      "</div>" +
+      '<div class="row-gap" style="margin-top:8px;">' +
+        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkNewExerciseInput" placeholder="New exercise name" />' +
+        '<button class="small-btn" id="wkAddExerciseBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button>' +
+      "</div></div>";
+
     bodyEl.innerHTML =
+      customExercisesHtml +
       '<div class="list-card" style="margin-bottom:16px;">' +
         (templates.length === 0 ? '<div class="empty-state">No templates yet. Save a routine below to reuse it later.</div>' :
           templates.map(function (t) {
@@ -4686,6 +4798,12 @@ async function renderWorkoutsTab(root) {
       "</div>" +
       (templateAddMode ? templateFormHtml() : '<button class="add-btn" id="wkNewTemplateBtn" style="background:' + accent + ';">+ New Template</button>') +
       '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:var(--text-2);">Clear all templates</button></div>';
+
+    document.getElementById("wkAddExerciseBtn").addEventListener("click", handleAddCustomExercise);
+    document.getElementById("wkNewExerciseInput").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddCustomExercise(); });
+    bodyEl.querySelectorAll("[data-action='delete-custom-exercise']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) { handleDeleteCustomExercise(Number(e.currentTarget.getAttribute("data-idx"))); });
+    });
 
     if (templateAddMode) {
       document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
