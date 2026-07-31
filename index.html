@@ -444,6 +444,16 @@
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
 
+  /* exercise picker — JS-driven dropdown, works on mobile unlike a native <datalist> */
+  .exercise-combo-list {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 30; margin-top: 4px;
+    background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 8px;
+    max-height: 200px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .exercise-combo-list.open { display: block; }
+  .exercise-combo-opt { padding: 9px 12px; font-size: 13px; color: var(--text-1); cursor: pointer; }
+  .exercise-combo-opt:hover { background: var(--bg); }
+
   .footer-row { border-top: 1px solid #2A313A; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; padding-top: 16px; }
   .bottom-row { margin-top: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
 
@@ -1092,10 +1102,10 @@ var _LIFT_KEYWORD_MAP = [
   { keywords: ["bicep curl", "hammer curl", "preacher curl", "curl", "tricep extension", "tricep pushdown", "skull crusher", "triceps"], muscleGroup: "arms", trainingStyles: ["football-strength"] },
   { keywords: ["plank", "sit up", "situp", "crunch", "russian twist", "ab wheel", "hanging leg raise", "leg raise", "core work"], muscleGroup: "core", trainingStyles: ["football-strength"] },
   { keywords: ["power clean", "hang clean", "clean and jerk", "clean", "snatch", "thruster", "burpee", "farmers carry", "farmer's carry"], muscleGroup: "full-body", trainingStyles: ["football-strength"] },
-  { keywords: ["40 yard", "40-yard", "flying sprint", "hill sprint", "sled push", "sled drag", "sprint", "dash", "shuttle run"], muscleGroup: "conditioning", trainingStyles: ["sprint"] },
+  { keywords: ["40 yard", "40-yard", "flying sprint", "hill sprint", "sled push", "sled drag", "sprint", "dash", "shuttle run", "100m", "200m", "400m", "repeats", "intervals"], muscleGroup: "conditioning", trainingStyles: ["sprint"] },
   { keywords: ["agility ladder", "cone drill", "cone drills", "suicides", "suicide run"], muscleGroup: "conditioning", trainingStyles: ["sprint", "basketball"] },
-  { keywords: ["box jump", "vertical jump", "broad jump", "jump shot", "free throw", "layup", "layups", "defensive slide", "defensive slides", "full court", "half court", "dribbling", "ball handling", "crossover"], muscleGroup: "conditioning", trainingStyles: ["basketball"] },
-  { keywords: ["treadmill", "jogging", "running", "stationary bike", "cycling", "rowing machine", "elliptical", "swim", "swimming"], muscleGroup: "conditioning", trainingStyles: [] }
+  { keywords: ["basketball", "box jump", "vertical jump", "broad jump", "jump shot", "free throw", "layup", "layups", "defensive slide", "defensive slides", "full court", "half court", "dribbling", "ball handling", "crossover"], muscleGroup: "conditioning", trainingStyles: ["basketball"] },
+  { keywords: ["treadmill", "jogging", "running", "stationary bike", "cycling", "rowing machine", "elliptical", "swim", "swimming", "jump rope", "jumprope"], muscleGroup: "conditioning", trainingStyles: [] }
 ];
 
 function _matchLiftTags(name) {
@@ -1125,8 +1135,8 @@ var COMMON_EXERCISES = [
   "Plank", "Sit Up", "Crunch", "Russian Twist", "Ab Wheel Rollout", "Hanging Leg Raise",
   "Power Clean", "Hang Clean", "Clean and Jerk", "Snatch", "Thruster", "Burpee", "Farmer's Carry",
   "Treadmill Run", "Stationary Bike", "Rowing Machine", "Elliptical", "Jump Rope",
-  "Box Jump", "Vertical Jump", "Broad Jump", "Agility Ladder", "Cone Drills", "Sled Push", "Sled Drag", "Hill Sprint", "40 Yard Dash",
-  "Jump Shot", "Free Throw", "Layup", "Defensive Slides", "Ball Handling"
+  "Box Jump", "Vertical Jump", "Broad Jump", "Agility Ladder", "Cone Drills", "Sled Push", "Sled Drag", "Hill Sprint", "40 Yard Dash", "100m Repeats",
+  "Jump Shot", "Free Throw", "Layup", "Defensive Slides", "Ball Handling", "Basketball"
 ];
 
 var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
@@ -3891,6 +3901,7 @@ async function renderWorkoutsTab(root) {
   var editingSetLiftId = null;
   var editingSetId = null;
   var editingSetForm = {};
+  var newLiftKind = "lift";
   var showTemplatePicker = false;
   var activeSection = "log";
   var historyLiftName = "";
@@ -3908,9 +3919,11 @@ async function renderWorkoutsTab(root) {
   function saveCustomExercises() { saveTabData("dashboard-workouts-custom-exercises", customExercisesData); }
   if (migratedAny || migratedLiftsAny) save();
 
-  // Combined suggestion list for the exercise <datalist> — built-in COMMON_EXERCISES
+  // Combined suggestion list for the exercise picker — built-in COMMON_EXERCISES
   // plus whatever the user has added, de-duped case-insensitively (user additions win
   // when they collide with a built-in spelling, since they're appended last below).
+  // Used identically by both the Log section's lift/activity fields and the Templates
+  // section's planned-lift fields, so the two stay tied to one validated list.
   function allExerciseNames() {
     var seen = {};
     return COMMON_EXERCISES.concat(customExercisesData.exercises || []).filter(function (n) {
@@ -3919,11 +3932,6 @@ async function renderWorkoutsTab(root) {
       seen[key] = true;
       return true;
     });
-  }
-  function renderExerciseDatalist() {
-    var dl = document.getElementById("wkExerciseList");
-    if (!dl) return;
-    dl.innerHTML = allExerciseNames().map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("");
   }
   function handleAddCustomExercise() {
     var inputEl = document.getElementById("wkNewExerciseInput");
@@ -3935,14 +3943,52 @@ async function renderWorkoutsTab(root) {
     if (exists) return;
     customExercisesData.exercises.push(name);
     saveCustomExercises();
-    renderExerciseDatalist();
     renderTemplatesSection();
   }
   function handleDeleteCustomExercise(idx) {
     customExercisesData.exercises.splice(idx, 1);
     saveCustomExercises();
-    renderExerciseDatalist();
     renderTemplatesSection();
+  }
+
+  // Searchable exercise picker rendered entirely in JS instead of a native
+  // <input list="..."> datalist — iOS Safari never shows datalist suggestions at all,
+  // so mobile users had no way to pick from the validated list. This dropdown works
+  // identically on every platform since it's just DOM elements + click/tap handlers.
+  function wireExerciseCombo(inputEl) {
+    if (!inputEl || inputEl._comboWired) return;
+    inputEl._comboWired = true;
+    var wrap = inputEl.parentElement;
+    var listEl = document.createElement("div");
+    listEl.className = "exercise-combo-list";
+    wrap.appendChild(listEl);
+
+    function renderOptions() {
+      var q = inputEl.value.trim().toLowerCase();
+      var names = allExerciseNames().filter(function (n) { return !q || n.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+      if (!names.length) { listEl.classList.remove("open"); listEl.innerHTML = ""; return; }
+      listEl.innerHTML = names.map(function (n) {
+        return '<div class="exercise-combo-opt">' + escapeHtml(n) + "</div>";
+      }).join("");
+      listEl.classList.add("open");
+    }
+    inputEl.addEventListener("focus", renderOptions);
+    inputEl.addEventListener("input", renderOptions);
+    inputEl.addEventListener("blur", function () { setTimeout(function () { listEl.classList.remove("open"); }, 150); });
+    // mousedown (not click) fires before the input's blur, so the selection registers
+    // before the dropdown gets hidden by the blur handler above.
+    listEl.addEventListener("mousedown", function (e) {
+      var opt = e.target.closest(".exercise-combo-opt");
+      if (!opt) return;
+      e.preventDefault();
+      inputEl.value = opt.textContent;
+      listEl.classList.remove("open");
+      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      inputEl.focus();
+    });
+  }
+  function initExerciseCombos(root) {
+    (root || document).querySelectorAll("[data-exercise-combo]").forEach(wireExerciseCombo);
   }
 
   function weekStart() { return addDaysISO(todayISO(), -6); }
@@ -3960,7 +4006,6 @@ async function renderWorkoutsTab(root) {
   ];
 
   root.innerHTML =
-    '<datalist id="wkExerciseList">' + allExerciseNames().map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("") + '</datalist>' +
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="pills" id="wkSectionPills"></div>' +
@@ -4157,18 +4202,19 @@ async function renderWorkoutsTab(root) {
     function renderLiftsBlock(item, prData) {
       var lifts = item.lifts || [];
       var liftRows = lifts.map(function (l) {
+        var isCardio = l.kind === "cardio";
         var isEditingName = editingLiftItemId === item.id && editingLiftId === l.id;
         var header;
         if (isEditingName) {
           var ef = editingLiftForm;
           header = '<div class="edit-line">' +
-            '<input class="edit-input grow" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" list="wkExerciseList" />' +
+            '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="edit-input grow" style="width:100%;" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" data-exercise-combo="1" /></span>' +
             '<button class="icon-btn" data-action="save-lift-name" style="color:' + accent + ';">\u2713</button>' +
             '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
           "</div>";
         } else {
           header = '<div class="edit-line" style="justify-content:space-between;">' +
-            '<span style="color:var(--text-1);font-weight:600;">' + escapeHtml(l.name) + "</span>" +
+            '<span style="color:var(--text-1);font-weight:600;">' + escapeHtml(l.name) + (isCardio ? ' <span style="color:var(--text-2);font-size:11px;font-weight:400;">(cardio)</span>' : "") + "</span>" +
             '<span style="display:flex;gap:4px;flex-shrink:0;">' +
               '<button class="icon-btn" data-action="edit-lift-name" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
               '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
@@ -4182,50 +4228,83 @@ async function renderWorkoutsTab(root) {
         var setRows = (l.sets || []).map(function (s, idx) {
           if (editingSetItemId === item.id && editingSetLiftId === l.id && editingSetId === s.id) {
             var sf = editingSetForm;
+            var editFieldsHtml = isCardio
+              ? '<input class="edit-input amt" type="number" min="0" data-set-edit="duration" placeholder="Min" value="' + escapeHtml(sf.duration) + '" />' +
+                '<input class="edit-input" style="width:90px;" type="text" data-set-edit="distance" placeholder="Distance" value="' + escapeHtml(sf.distance) + '" />' +
+                '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />'
+              : '<input class="edit-input amt" type="number" min="0" step="0.5" data-set-edit="weight" placeholder="Lbs" value="' + escapeHtml(sf.weight) + '" />' +
+                '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />';
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
               '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
-              '<input class="edit-input amt" type="number" min="0" step="0.5" data-set-edit="weight" placeholder="Lbs" value="' + escapeHtml(sf.weight) + '" />' +
-              '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />' +
+              editFieldsHtml +
               '<button class="icon-btn" data-action="save-set" style="color:' + accent + ';">\u2713</button>' +
               '<button class="icon-btn" data-action="cancel-set-edit">\u2715</button>' +
             "</div>";
           }
           var pr = prData.bySetId[s.id];
           var bits = [];
-          if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
-          if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
+          if (isCardio) {
+            if (s.duration !== "" && s.duration != null) bits.push(s.duration + " min");
+            if (s.distance) bits.push(s.distance);
+            if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
+          } else {
+            if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
+            if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
+          }
           return '<div class="weight-log-row">' +
             '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
-            '<span class="mono" style="color:' + accent + ';flex:1;">' + bits.join(" \u00D7 ") + "</span>" +
+            '<span class="mono" style="color:' + accent + ';flex:1;">' + bits.join(isCardio ? " \u00B7 " : " \u00D7 ") + "</span>" +
             (s.isWarmup ? '<span class="chip" style="padding:2px 8px;font-size:11px;color:var(--text-2);">Warm-up</span>' : "") +
             (pr ? '<span class="chip" style="padding:2px 8px;font-size:11px;background:#D9A441;color:#12151A;border-color:#D9A441;">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
             '<span style="display:flex;gap:4px;flex-shrink:0;">' +
-              '<button class="icon-btn" data-action="toggle-warmup" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" title="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";" : "") + '">W</button>' +
+              (isCardio ? "" : '<button class="icon-btn" data-action="toggle-warmup" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" title="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";" : "") + '">W</button>') +
               '<button class="icon-btn" data-action="edit-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u270E</button>' +
               '<button class="icon-btn" data-action="delete-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u2715</button>' +
             "</span></div>";
         }).join("");
 
+        var addSetFieldsHtml = isCardio
+          ? '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" placeholder="Min" data-set-field="duration" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<input class="form-input" style="width:100px;flex:0 0 auto;" type="text" placeholder="Distance" data-set-field="distance" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />'
+          : '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>';
+
         return '<div style="padding:10px 0;border-bottom:1px solid #2A313A;">' +
           header + tagRow +
           '<div style="margin-top:6px;">' + (setRows || '<div style="color:var(--text-2);font-size:12px;">No sets logged yet.</div>') + "</div>" +
           '<div class="row-gap" style="margin-top:6px;">' +
-            '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>' +
+            addSetFieldsHtml +
             '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">+ Add set</button>' +
           "</div></div>";
       }).join("");
 
+      var kindPillsHtml = '<div class="pills" style="margin:0 0 8px;">' +
+        '<button type="button" class="pill" data-action="set-new-lift-kind" data-kind="lift" style="padding:4px 12px;font-size:12px;background:' + (newLiftKind === "cardio" ? "transparent" : accent) + ";border-color:" + accent + ";color:" + (newLiftKind === "cardio" ? accent : "#12151A") + ';">Lift</button>' +
+        '<button type="button" class="pill" data-action="set-new-lift-kind" data-kind="cardio" style="padding:4px 12px;font-size:12px;background:' + (newLiftKind === "cardio" ? accent : "transparent") + ";border-color:" + accent + ";color:" + (newLiftKind === "cardio" ? "#12151A" : accent) + ';">Cardio / Activity</button>' +
+      "</div>";
+
+      var newLiftFieldsHtml = newLiftKind === "cardio"
+        ? '<div class="row-gap">' +
+            '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" placeholder="Activity name, e.g. Jump rope" data-lift-field="name" data-item="' + item.id + '" data-exercise-combo="1" /></span>' +
+            '<input class="form-input" style="width:80px;" type="number" min="0" placeholder="Min" data-lift-field="duration" data-item="' + item.id + '" />' +
+            '<input class="form-input" style="width:100px;" type="text" placeholder="Distance" data-lift-field="distance" data-item="' + item.id + '" />' +
+            '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
+            '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add activity</button>' +
+          "</div>"
+        : '<div class="row-gap">' +
+            '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" data-exercise-combo="1" /></span>' +
+            '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
+            '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
+            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
+            '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add lift</button>' +
+          "</div>";
+
       return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
-        (liftRows || '<div style="color:var(--text-2);font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
-        '<div class="row-gap" style="margin-top:8px;">' +
-          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" list="wkExerciseList" />' +
-          '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
-          '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
-          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
-          '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add lift</button>' +
-        "</div></div>";
+        (liftRows || '<div style="color:var(--text-2);font-size:12px;margin-bottom:6px;">No lifts or activities logged for this session yet.</div>') +
+        '<div style="margin-top:8px;">' + kindPillsHtml + newLiftFieldsHtml + "</div>" +
+      "</div>";
     }
 
     // "YYYY-MM" bucket for month grouping in the (chronological) date-sorted view.
@@ -4392,9 +4471,6 @@ async function renderWorkoutsTab(root) {
 
     function handleAddLift(itemId) {
       var nameEl = document.querySelector('[data-lift-field="name"][data-item="' + itemId + '"]');
-      var weightEl = document.querySelector('[data-lift-field="weight"][data-item="' + itemId + '"]');
-      var repsEl = document.querySelector('[data-lift-field="reps"][data-item="' + itemId + '"]');
-      var warmupEl = document.querySelector('[data-lift-field="warmup"][data-item="' + itemId + '"]');
       if (!nameEl) return;
       var name = nameEl.value.trim();
       if (!name) { nameEl.focus(); return; }
@@ -4402,11 +4478,27 @@ async function renderWorkoutsTab(root) {
       if (!item) return;
       if (!item.lifts) item.lifts = [];
       var tags = _matchLiftTags(name);
+      var repsEl = document.querySelector('[data-lift-field="reps"][data-item="' + itemId + '"]');
+      var reps = repsEl && repsEl.value !== "" ? Number(repsEl.value) : "";
+      var newSet;
+      if (newLiftKind === "cardio") {
+        var durationEl = document.querySelector('[data-lift-field="duration"][data-item="' + itemId + '"]');
+        var distanceEl = document.querySelector('[data-lift-field="distance"][data-item="' + itemId + '"]');
+        newSet = { id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", reps: reps, isWarmup: false };
+      } else {
+        var weightEl = document.querySelector('[data-lift-field="weight"][data-item="' + itemId + '"]');
+        var warmupEl = document.querySelector('[data-lift-field="warmup"][data-item="' + itemId + '"]');
+        newSet = { id: uid(), weight: weightEl && weightEl.value !== "" ? Number(weightEl.value) : "", reps: reps, isWarmup: !!(warmupEl && warmupEl.checked) };
+      }
       item.lifts.push({
-        id: uid(), name: name, muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto",
-        sets: [{ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) }]
+        id: uid(), name: name, kind: newLiftKind, muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto",
+        sets: [newSet]
       });
       save();
+      refreshLog();
+    }
+    function handleSetNewLiftKind(kind) {
+      newLiftKind = kind === "cardio" ? "cardio" : "lift";
       refreshLog();
     }
     function handleDeleteLift(itemId, liftId) {
@@ -4472,15 +4564,22 @@ async function renderWorkoutsTab(root) {
     }
 
     function handleAddSet(itemId, liftId) {
-      var weightEl = document.querySelector('[data-set-field="weight"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
-      var repsEl = document.querySelector('[data-set-field="reps"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
-      var warmupEl = document.querySelector('[data-set-field="warmup"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
       var item = data.items.find(function (it) { return it.id === itemId; });
       if (!item) return;
       var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
       if (!lift) return;
       if (!lift.sets) lift.sets = [];
-      lift.sets.push({ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) });
+      var repsEl = document.querySelector('[data-set-field="reps"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+      var reps = repsEl && repsEl.value !== "" ? Number(repsEl.value) : "";
+      if (lift.kind === "cardio") {
+        var durationEl = document.querySelector('[data-set-field="duration"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        var distanceEl = document.querySelector('[data-set-field="distance"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        lift.sets.push({ id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", reps: reps, isWarmup: false });
+      } else {
+        var weightEl = document.querySelector('[data-set-field="weight"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        var warmupEl = document.querySelector('[data-set-field="warmup"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        lift.sets.push({ id: uid(), weight: weightEl && weightEl.value !== "" ? Number(weightEl.value) : "", reps: reps, isWarmup: !!(warmupEl && warmupEl.checked) });
+      }
       save();
       refreshLog();
     }
@@ -4513,7 +4612,12 @@ async function renderWorkoutsTab(root) {
       var s = (lift.sets || []).find(function (s2) { return s2.id === setId; });
       if (!s) return;
       editingSetItemId = itemId; editingSetLiftId = liftId; editingSetId = setId;
-      editingSetForm = { weight: s.weight === "" || s.weight == null ? "" : String(s.weight), reps: s.reps === "" || s.reps == null ? "" : String(s.reps) };
+      editingSetForm = {
+        weight: s.weight === "" || s.weight == null ? "" : String(s.weight),
+        reps: s.reps === "" || s.reps == null ? "" : String(s.reps),
+        duration: s.duration === "" || s.duration == null ? "" : String(s.duration),
+        distance: s.distance || ""
+      };
       refreshLog();
     }
     function cancelSetEdit() { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; refreshLog(); }
@@ -4524,6 +4628,9 @@ async function renderWorkoutsTab(root) {
       if (!lift) { cancelSetEdit(); return; }
       lift.sets = (lift.sets || []).map(function (s) {
         if (s.id !== editingSetId) return s;
+        if (lift.kind === "cardio") {
+          return { id: s.id, duration: editingSetForm.duration === "" ? "" : Number(editingSetForm.duration), distance: (editingSetForm.distance || "").trim(), reps: editingSetForm.reps === "" ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
+        }
         return { id: s.id, weight: editingSetForm.weight === "" ? "" : Number(editingSetForm.weight), reps: editingSetForm.reps === "" ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
       });
       save();
@@ -4642,6 +4749,7 @@ async function renderWorkoutsTab(root) {
       else if (action === "save-set") saveSetEdit();
       else if (action === "cancel-set-edit") cancelSetEdit();
       else if (action === "toggle-warmup") handleToggleWarmup(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
+      else if (action === "set-new-lift-kind") handleSetNewLiftKind(btn.getAttribute("data-kind"));
     }
     function _wkItemInput(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
@@ -4747,6 +4855,7 @@ async function renderWorkoutsTab(root) {
     bodyEl.addEventListener("input", _wkItemInput);
     bodyEl.addEventListener("change", _wkItemChange);
     bodyEl.addEventListener("keydown", _wkItemKeydown);
+    initExerciseCombos(bodyEl);
   }
   }
 
@@ -4767,7 +4876,7 @@ async function renderWorkoutsTab(root) {
         '<div style="margin:12px 0;">' +
           (t.lifts.length === 0 ? '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
-              '<input class="edit-input grow" style="min-width:100px;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" list="wkExerciseList" />' +
+              '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="edit-input" style="width:100%;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" data-exercise-combo="1" /></span>' +
               '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
               '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetReps" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetReps) + '" />' +
               '<input class="edit-input amt" type="number" min="0" step="0.5" data-tpl-lift-field="targetWeight" data-idx="' + i + '" placeholder="Lbs" value="' + (pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight) + '" />' +
@@ -4775,7 +4884,7 @@ async function renderWorkoutsTab(root) {
           }).join("")) +
         "</div>" +
         '<div class="row-gap" style="margin-bottom:12px;">' +
-          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkTplLiftName" placeholder="Lift name" list="wkExerciseList" />' +
+          '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="wkTplLiftName" placeholder="Lift name" data-exercise-combo="1" /></span>' +
           '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
           '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftReps" placeholder="Reps" />' +
           '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" id="wkTplLiftWeight" placeholder="Lbs" />' +
@@ -4827,6 +4936,7 @@ async function renderWorkoutsTab(root) {
     bodyEl.querySelectorAll("[data-action='delete-custom-exercise']").forEach(function (btn) {
       btn.addEventListener("click", function (e) { handleDeleteCustomExercise(Number(e.currentTarget.getAttribute("data-idx"))); });
     });
+    initExerciseCombos(bodyEl);
 
     if (templateAddMode) {
       document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
