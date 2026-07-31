@@ -1213,10 +1213,109 @@ function handleDeleteCustomExerciseSettings(name) {
   renderSettingsPage();
 }
 
+// Renaming a custom exercise here is a real find-and-replace, not just an edit to the
+// suggestions list: it walks every logged workout's lifts and every template's planned
+// lifts, renaming any exact (case-insensitive) match so nothing gets silently orphaned
+// into a "new" lift that PR/history tracking can't connect to its past under the old name.
+// Auto-tagged (non-manual) matches get their muscle-group/training-style re-derived from
+// the new name too, in case the rename changes what kind of exercise it reads as.
+async function renameExerciseEverywhere(oldName, newName) {
+  var idx = _customExercisesData.exercises.indexOf(oldName);
+  if (idx !== -1) _customExercisesData.exercises[idx] = newName;
+  saveCustomExercisesData();
+
+  var oldKey = normalizeLiftName(oldName);
+  var newTags = _matchLiftTags(newName);
+  var liftCount = 0, templateCount = 0;
+
+  var workoutsData = await loadTabData("dashboard-workouts-data", { items: [] });
+  (workoutsData.items || []).forEach(function (it) {
+    (it.lifts || []).forEach(function (l) {
+      if (normalizeLiftName(l.name) !== oldKey) return;
+      l.name = newName;
+      liftCount++;
+      if (l.tagSource !== "manual") {
+        l.muscleGroup = newTags.muscleGroup;
+        l.trainingStyles = newTags.trainingStyles;
+      }
+    });
+  });
+  if (liftCount) saveTabData("dashboard-workouts-data", workoutsData);
+
+  var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
+  (templatesData.templates || []).forEach(function (t) {
+    (t.lifts || []).forEach(function (pl) {
+      if (normalizeLiftName(pl.name) !== oldKey) return;
+      pl.name = newName;
+      templateCount++;
+      if (pl.tagSource !== "manual") {
+        pl.muscleGroup = newTags.muscleGroup;
+        pl.trainingStyles = newTags.trainingStyles;
+      }
+    });
+  });
+  if (templateCount) saveTabData("dashboard-workouts-templates", templatesData);
+
+  if (_exerciseUsageCounts) {
+    var c = _exerciseUsageCounts[oldKey];
+    if (c) { _exerciseUsageCounts[normalizeLiftName(newName)] = c; delete _exerciseUsageCounts[oldKey]; }
+  }
+
+  // The Workouts page renders once per session and isn't re-fetched on revisit (see
+  // switchPage's wkRoot._loaded guard) — if it already rendered this session, force a
+  // fresh render now (it's not the visible page while renaming from Settings, so this
+  // can't interrupt anything) so it doesn't keep showing the old name until a reload.
+  var wkRoot = document.getElementById("workoutPageRoot");
+  if (wkRoot && wkRoot._loaded) renderWorkoutsTab(wkRoot);
+
+  return { liftCount: liftCount, templateCount: templateCount };
+}
+
+var _exerciseRenameTarget = null;
+var _exerciseRenameDraft = "";
+var _exerciseRenameError = "";
+
+function handleStartRenameExercise(name) {
+  _exerciseRenameTarget = name;
+  _exerciseRenameDraft = name;
+  _exerciseRenameError = "";
+  var notice = document.getElementById('settingsExerciseRenameNotice');
+  if (notice) notice.textContent = "";
+  var filterEl = document.getElementById('settingsExerciseFilter');
+  renderAllExerciseListRows(filterEl ? filterEl.value : '');
+}
+function handleCancelRenameExercise() {
+  _exerciseRenameTarget = null;
+  _exerciseRenameError = "";
+  var filterEl = document.getElementById('settingsExerciseFilter');
+  renderAllExerciseListRows(filterEl ? filterEl.value : '');
+}
+async function handleConfirmRenameExercise() {
+  var oldName = _exerciseRenameTarget;
+  var newName = _exerciseRenameDraft.trim();
+  if (!oldName) return;
+  if (!newName) { _exerciseRenameError = "Give it a name."; renderAllExerciseListRows((document.getElementById('settingsExerciseFilter') || {}).value || ''); return; }
+  if (newName.toLowerCase() !== oldName.toLowerCase()) {
+    var collision = COMMON_EXERCISES.concat(_customExercisesData.exercises).some(function (n) { return n.toLowerCase() === newName.toLowerCase(); });
+    if (collision) { _exerciseRenameError = 'That name is already in the list.'; renderAllExerciseListRows((document.getElementById('settingsExerciseFilter') || {}).value || ''); return; }
+  }
+  _exerciseRenameTarget = null;
+  _exerciseRenameError = "";
+  var result = await renameExerciseEverywhere(oldName, newName);
+  var notice = document.getElementById('settingsExerciseRenameNotice');
+  if (notice) {
+    notice.textContent = result.liftCount || result.templateCount
+      ? 'Renamed "' + oldName + '" to "' + newName + '" — updated ' + result.liftCount + ' logged lift' + (result.liftCount === 1 ? '' : 's') + ' and ' + result.templateCount + ' template entr' + (result.templateCount === 1 ? 'y' : 'ies') + '.'
+      : 'Renamed "' + oldName + '" to "' + newName + '".';
+  }
+  renderAllExerciseListRows((document.getElementById('settingsExerciseFilter') || {}).value || '');
+}
+
 // Renders the full built-in + custom exercise list in Settings, filterable by name. Built-ins
-// are shown muted with a "Built-in" tag (no delete button — they're fixed so _LIFT_KEYWORD_MAP
-// auto-tagging stays reliable); custom entries get a delete button. Both show a usage count
-// when the name appears in any logged lift, so deleting is an informed choice.
+// are shown muted with a "Built-in" tag (no rename/delete — they're fixed so _LIFT_KEYWORD_MAP
+// auto-tagging stays reliable); custom entries get rename + delete. Both show a usage count
+// when the name appears in any logged lift. Renaming propagates everywhere via
+// renameExerciseEverywhere(); deleting only affects future suggestions (see its warning).
 function renderAllExerciseListRows(filterText) {
   var listEl = document.getElementById('settingsAllExerciseList');
   if (!listEl) return;
@@ -1231,10 +1330,22 @@ function renderAllExerciseListRows(filterText) {
     return;
   }
   listEl.innerHTML = all.map(function (e) {
+    if (e.custom && _exerciseRenameTarget === e.name) {
+      return '<div style="padding:7px 4px;border-bottom:1px solid var(--border-2);">' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<input class="edit-input grow" id="settingsExerciseRenameInput" style="flex:1;" value="' + escapeHtml(_exerciseRenameDraft) + '" />' +
+          '<button class="icon-btn" data-action="settings-confirm-rename-exercise" style="color:var(--accent);" title="Save">&#10003;</button>' +
+          '<button class="icon-btn" data-action="settings-cancel-rename-exercise" title="Cancel">&#10005;</button>' +
+        '</div>' +
+        (_exerciseRenameError ? '<div class="error-text" style="margin-top:4px;">' + escapeHtml(_exerciseRenameError) + '</div>' : '') +
+      '</div>';
+    }
     var count = (_exerciseUsageCounts && _exerciseUsageCounts[normalizeLiftName(e.name)]) || 0;
     var countBadge = count > 0 ? '<span class="mono" style="color:var(--text-3);font-size:11px;">&times;' + count + '</span>' : '';
     var rightSide = e.custom
-      ? countBadge + '<button class="icon-btn" data-action="settings-delete-custom-exercise" data-name="' + escapeHtml(e.name) + '" style="padding:2px 4px;" title="Delete">&#10005;</button>'
+      ? countBadge +
+        '<button class="icon-btn" data-action="settings-rename-custom-exercise" data-name="' + escapeHtml(e.name) + '" style="padding:2px 4px;" title="Rename">&#9998;</button>' +
+        '<button class="icon-btn" data-action="settings-delete-custom-exercise" data-name="' + escapeHtml(e.name) + '" style="padding:2px 4px;" title="Delete">&#10005;</button>'
       : countBadge + '<span style="color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 4px;flex-shrink:0;">Built-in</span>';
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border-2);">' +
       '<span style="color:' + (e.custom ? 'var(--text-1)' : 'var(--text-2)') + ';font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(e.name) + '</span>' +
@@ -1244,6 +1355,23 @@ function renderAllExerciseListRows(filterText) {
   listEl.querySelectorAll("[data-action='settings-delete-custom-exercise']").forEach(function (btn) {
     btn.addEventListener('click', function (e) { handleDeleteCustomExerciseSettings(e.currentTarget.getAttribute('data-name')); });
   });
+  listEl.querySelectorAll("[data-action='settings-rename-custom-exercise']").forEach(function (btn) {
+    btn.addEventListener('click', function (e) { handleStartRenameExercise(e.currentTarget.getAttribute('data-name')); });
+  });
+  var renameInput = document.getElementById('settingsExerciseRenameInput');
+  if (renameInput) {
+    renameInput.addEventListener('input', function (e) { _exerciseRenameDraft = e.target.value; });
+    renameInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') handleConfirmRenameExercise();
+      if (e.key === 'Escape') handleCancelRenameExercise();
+    });
+    renameInput.focus();
+    renameInput.setSelectionRange(renameInput.value.length, renameInput.value.length);
+  }
+  var confirmBtn = listEl.querySelector("[data-action='settings-confirm-rename-exercise']");
+  if (confirmBtn) confirmBtn.addEventListener('click', handleConfirmRenameExercise);
+  var cancelBtn = listEl.querySelector("[data-action='settings-cancel-rename-exercise']");
+  if (cancelBtn) cancelBtn.addEventListener('click', handleCancelRenameExercise);
 }
 
 var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
@@ -6936,7 +7064,24 @@ async function renderSettingsPage() {
     return t.accent === s.accent && t.bgColor === s.bgColor && t.cardColor === s.cardColor &&
       t.textColor === s.textColor && t.sidebarColor === s.sidebarColor && t.borderColor === s.borderColor;
   }
-  var themeSwatches = THEMES.map(function(t) {
+  // "Current Theme" is a live mirror of whatever's actually applied right now — not a
+  // clickable preset (rendered as a plain div, no data-theme attribute, so the click
+  // delegation below never picks it up). It always shows a check, unless the live colors
+  // happen to exactly match one of the presets below, in which case that preset's own
+  // check is enough and this tile would just be a visual duplicate of it.
+  var currentMatchesPreset = THEMES.some(_themeMatchesSettings);
+  var currentSwatchHtml =
+    '<div style="flex:1;min-width:80px;padding:12px 8px;border-radius:10px;border:2px dashed ' + (currentMatchesPreset ? 'var(--border-2)' : 'var(--accent)') + ';background:' + s.bgColor +
+      ';display:flex;flex-direction:column;gap:8px;align-items:center;position:relative;">' +
+      (!currentMatchesPreset ? '<span style="position:absolute;top:6px;right:6px;color:' + s.accent + ';font-size:13px;line-height:1;">&#10003;</span>' : '') +
+      '<div style="display:flex;gap:4px;">' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + s.accent + ';"></span>' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + s.cardColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
+        '<span style="width:14px;height:14px;border-radius:50%;background:' + s.sidebarColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
+      '</div>' +
+      '<span style="color:' + s.textColor + ';font-size:11px;font-weight:600;">Current Theme</span>' +
+    '</div>';
+  var themeSwatches = currentSwatchHtml + THEMES.map(function(t) {
     var active = _themeMatchesSettings(t);
     return '<button data-theme="' + t.id + '" style="flex:1;min-width:80px;padding:12px 8px;border-radius:10px;border:2px solid ' + (active ? 'var(--accent)' : 'var(--border-2)') + ';background:' + t.bgColor +
       ';cursor:pointer;transition:border-color .15s;display:flex;flex-direction:column;gap:8px;align-items:center;position:relative;">' +
@@ -7050,7 +7195,8 @@ async function renderSettingsPage() {
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:4px;">EXERCISE LIST</div>' +
-      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Built-in suggestions (muted, tagged "Built-in") can’t be edited or removed. Custom ones — yours — can be deleted; the ×N shows how many logged lifts currently use that name. Deleting a suggestion only affects future autocomplete, never anything already logged.</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Built-in suggestions (muted, tagged "Built-in") can’t be edited or removed. Custom ones — yours — can be renamed or deleted; the ×N shows how many logged lifts currently use that name. Renaming updates every logged lift and template that uses it (a real find-and-replace); deleting only affects future autocomplete, never anything already logged.</div>' +
+      '<div id="settingsExerciseRenameNotice" style="color:#5BAE7A;font-size:12px;margin-bottom:8px;"></div>' +
       '<input class="form-input" id="settingsExerciseFilter" placeholder="Filter exercises…" style="margin-bottom:10px;" />' +
       '<div id="settingsAllExerciseList" style="max-height:280px;overflow-y:auto;border:1px solid var(--border-2);border-radius:8px;padding:2px 8px;margin-bottom:12px;"></div>' +
       '<div class="row-gap">' +
