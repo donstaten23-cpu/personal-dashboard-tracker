@@ -349,8 +349,8 @@
   .until-payday-grid .card { margin-bottom: 0; }
 
   .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color:var(--text-2); transition: background 0.15s, color 0.15s; }
-  .sort-btn.active { background: #2A313A; color:var(--text-1); }
-  .sort-btn:hover:not(.active) { background: #1E2530; color:var(--text-1); }
+  .sort-btn.active { background: var(--accent); color:#12151A; }
+  .sort-btn:hover:not(.active) { background: var(--bg); color:var(--text-1); }
 
   .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: 0 16px; }
   .empty-state { color:var(--text-2); padding: 40px 0; text-align: center; font-size: 14px; }
@@ -1050,6 +1050,18 @@ var WORKOUT_CATEGORIES = [
   { id: "sports", label: "Sports", color: "#D9A441", glyph: "\u2605" },
   { id: "other", label: "Other", color: "#8FA8AC", glyph: "\u00B7\u00B7\u00B7" }
 ];
+
+// Ballpark MET (metabolic equivalent) per workout category, used for a simple
+// calorie-burn estimate: calories = MET * bodyweight(kg) * duration(hours).
+// Not medically precise -- just the same formula most fitness trackers use.
+var WORKOUT_MET_VALUES = { strength: 5, cardio: 8, yoga: 3, sports: 7, other: 4 };
+function estimateCalories(item, weightLbs) {
+  var minutes = Number(item.duration) || 0;
+  var weightKg = (Number(weightLbs) || 0) * 0.453592;
+  if (!minutes || !weightKg) return null;
+  var met = WORKOUT_MET_VALUES[item.category] || WORKOUT_MET_VALUES.other;
+  return Math.round(met * weightKg * (minutes / 60));
+}
 
 var MUSCLE_GROUPS = [
   { id: "legs", label: "Legs", color: "#3DBFC4", glyph: "▲" },
@@ -3934,6 +3946,10 @@ async function renderWorkoutsTab(root) {
   }
 
   function weekStart() { return addDaysISO(todayISO(), -6); }
+  function currentBodyWeight() {
+    var sorted = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+    return sorted.length ? Number(sorted[0].weight) || 0 : 0;
+  }
 
   var SECTIONS = [
     { id: "log", label: "Log" },
@@ -4066,13 +4082,16 @@ async function renderWorkoutsTab(root) {
       var goalNum = Number(data.weeklyGoal) || 0;
       var amountEl = document.getElementById("wkGaugeAmount");
       var bodyEl2 = document.getElementById("wkGaugeBody");
+      var weekWeightLbs = currentBodyWeight();
+      var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
+      var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
       amountEl.style.color = accent;
       if (goalNum > 0) {
         var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
-        amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts";
+        amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts" + weekCalSuffix;
         bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
       } else {
-        amountEl.textContent = thisWeek.length + " workouts";
+        amountEl.textContent = thisWeek.length + " workouts" + weekCalSuffix;
         if (showGoalInput) {
           bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
           var gd = document.getElementById("wkGoalDraft");
@@ -4241,11 +4260,12 @@ async function renderWorkoutsTab(root) {
       }
       var lifts = item.lifts || [];
       var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
+      var cal = estimateCalories(item, currentBodyWeight());
       var displayRow = '<div class="item-display">' +
         '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
         '<div class="item-main" data-action="view-workout" data-id="' + item.id + '" style="cursor:pointer;"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
-        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
+        '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + (cal ? " \u00B7 ~" + cal + " cal" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
         '<div class="item-actions">' +
         '<button class="icon-btn" data-action="view-workout" data-id="' + item.id + '" title="View workout">\u203A</button>' +
         '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
@@ -4308,7 +4328,9 @@ async function renderWorkoutsTab(root) {
 
     function renderFooter() {
       var totalMinutes = data.items.reduce(function (s, it) { return s + (Number(it.duration) || 0); }, 0);
-      document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "");
+      var footerWeightLbs = currentBodyWeight();
+      var totalCal = data.items.reduce(function (s, it) { return s + (estimateCalories(it, footerWeightLbs) || 0); }, 0);
+      document.getElementById("wkFooterTotal").textContent = data.items.length + " workouts" + (totalMinutes > 0 ? " \u00B7 " + totalMinutes + " min" : "") + (totalCal > 0 ? " \u00B7 ~" + totalCal + " cal" : "");
     }
 
     function renderDynamic() { renderStreak(); renderWeight(); renderGauge(); renderChips(); renderList(); renderFooter(); }
@@ -4698,12 +4720,13 @@ async function renderWorkoutsTab(root) {
           '<button class="icon-btn" data-action="cancel-row">✕</button>' +
         "</div></div>";
     } else {
+      var detailCal = estimateCalories(item, currentBodyWeight());
       headerHtml = '<div class="row-gap" style="align-items:flex-start;">' +
         '<span class="item-bar" style="background:' + cat.color + ';margin-top:2px;"></span>' +
         '<span class="item-glyph" style="color:' + cat.color + ';font-size:20px;">' + cat.glyph + "</span>" +
         '<div style="flex:1;min-width:0;">' +
           '<div style="color:var(--text-1);font-size:20px;font-weight:700;">' + escapeHtml(item.name) + "</div>" +
-          '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " · " + item.duration + " min" : "") + (item.notes ? " · " + escapeHtml(item.notes) : "") + "</div>" +
+          '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " · " + item.duration + " min" : "") + (detailCal ? " · ~" + detailCal + " cal" : "") + (item.notes ? " · " + escapeHtml(item.notes) : "") + "</div>" +
         "</div>" +
         '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">✎</button>' +
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">✕</button>' +
