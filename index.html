@@ -74,7 +74,12 @@
   .sidebar-section-label.collapse-header { padding-right: 16px; transition: color 0.15s; }
   .sidebar-section-label.collapse-header:hover { color: #8A919C; }
   .sidebar-section-label .collapse-chevron { font-size: 8px; }
-  .sidebar-group-items { padding-top: 2px; }
+  /* .collapse-body's grid-row 0fr→1fr animation only actually collapses to
+     zero if its direct child has overflow:hidden + min-height:0 (otherwise the
+     child's auto min-size — based on its content — keeps the row from ever
+     shrinking below content height, and the opacity:0 base state just leaves
+     an invisible dead gap instead of properly folding). */
+  .sidebar-group-items { padding-top: 2px; overflow: hidden; min-height: 0; }
   .sidebar-item {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 20px; font-size: 14px; font-weight: 500;
@@ -377,12 +382,12 @@
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .heading-word-anim { display: inline-block; animation: headingWordIn 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+  .heading-word-anim { display: inline-block; animation: headingWordIn 0.65s cubic-bezier(0.22,1,0.36,1) both; }
   @keyframes headingFadeIn {
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .heading-fade-anim { animation: headingFadeIn 0.4s cubic-bezier(0.22,1,0.36,1) both; }
+  .heading-fade-anim { animation: headingFadeIn 0.6s cubic-bezier(0.22,1,0.36,1) both; }
   .item-row { border-bottom: 1px solid #2A313A; padding: 12px 0; }
   .item-row:last-child { border-bottom: none; }
   .item-display { display: flex; align-items: center; gap: 12px; }
@@ -418,7 +423,7 @@
      the row track just sizes to content, animated by the browser natively. */
   .collapse-body {
     display: grid; grid-template-rows: 0fr; opacity: 0;
-    transition: grid-template-rows 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease;
+    transition: grid-template-rows 0.4s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease;
   }
   .collapse-body.open { grid-template-rows: 1fr; opacity: 1; }
   .collapse-body-inner { overflow: hidden; min-height: 0; padding-top: 14px; }
@@ -461,8 +466,8 @@
   }
 
   /* scroll-triggered animation classes - added/removed by IntersectionObserver */
-  .sa-up   { animation: slideUp   0.75s cubic-bezier(0.22,1,0.36,1) both; }
-  .sa-down { animation: slideDown 0.75s cubic-bezier(0.22,1,0.36,1) both; }
+  .sa-up   { animation: slideUp   0.95s cubic-bezier(0.22,1,0.36,1) both; }
+  .sa-down { animation: slideDown 0.95s cubic-bezier(0.22,1,0.36,1) both; }
 
   /* gauge fill bar */
   .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
@@ -1023,27 +1028,20 @@ var BUDGET_CATEGORIES = [
 // Per-page secondary accent \u2014 gives each sidebar destination its own flavor
 // while staying in the same muted-pastel family already used above, so the
 // palette reads as one cohesive system rather than a re-skin per page.
-var PAGE_ACCENTS = {
-  travel: "#5B8FA8",
-  budget: "#5BAE7A",
-  workouts: "#3DBFC4",
-  chess: "#7187E0",
-  story: "#C97FBF",
-  portfolio: "#D9A441",
-  art: "#D9667A",
-  education: "#7FA37A",
-  certs: "#E1543F",
-  jobs: "#8FA8AC"
-};
+// --page-accent always mirrors the user's single Settings accent (see the
+// :root default --page-accent: var(--accent)) — no per-page override, so a
+// changed accent color applies everywhere immediately instead of fighting a
+// fixed preset per page.
 function applyPageAccent(page) {
-  if (PAGE_ACCENTS[page]) {
-    document.documentElement.style.setProperty("--page-accent", PAGE_ACCENTS[page]);
-  } else {
-    // dashboard/settings/guide have no override — fall back to the live
-    // brand accent so theme changes in Settings still apply immediately.
-    document.documentElement.style.removeProperty("--page-accent");
-  }
+  document.documentElement.style.removeProperty("--page-accent");
 }
+// Literal CSS var reference (not a resolved hex snapshot) — several pages
+// (workouts, routines) are eagerly pre-rendered at boot, before the user's
+// saved Settings accent has even loaded, and never re-render on revisit. A
+// resolved hex would bake in whatever accent existed at that first-render
+// instant and go stale forever; the live var always tracks the current
+// value with no re-render needed.
+function getAccentColor() { return "var(--accent)"; }
 
 var WORKOUT_CATEGORIES = [
   { id: "strength", label: "Strength", color: "#3DBFC4", glyph: "\u25B2" },
@@ -1442,17 +1440,17 @@ async function _fetchTabDataFromNetwork(key, defaultData) {
   try {
     var result = await supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle();
     if (result.error) {
-      showDebugError("Load error [" + key + "]: " + JSON.stringify(result.error));
+      console.error("Load error [" + key + "]:", result.error);
       return JSON.parse(JSON.stringify(defaultData));
     }
     if (result.data && result.data.data) {
       _writeCache(key, result.data.data);
       return Object.assign({}, defaultData, result.data.data);
     }
-    showDebugError("No data found for key: " + key + " (user: " + currentUserId + ")");
+    // no saved row yet for this key — completely normal on a first visit, not an error
     return JSON.parse(JSON.stringify(defaultData));
   } catch (e) {
-    showDebugError("Exception [" + key + "]: " + e.message);
+    console.error("Exception [" + key + "]:", e);
     return JSON.parse(JSON.stringify(defaultData));
   }
 }
@@ -1463,18 +1461,6 @@ function _bgRefreshTabData(key) {
       if (!result.error && result.data && result.data.data) _writeCache(key, result.data.data);
     })
     .catch(function () { /* silent — best-effort cache refresh, the cached value stays as-is */ });
-}
-
-function showDebugError(msg) {
-  var el = document.getElementById("debugPanel");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "debugPanel";
-    el.style.cssText = "background:#1B2027;border:1px solid #FF8A5C;border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;font-family:monospace;color:#FF8A5C;word-break:break-all;";
-    var root = document.getElementById("tabroot");
-    if (root) root.insertAdjacentElement("beforebegin", el);
-  }
-  el.innerHTML += "<div style='margin-bottom:4px;'>" + msg + "</div>";
 }
 
 var _saveDebounceTimers = {};
@@ -1491,7 +1477,10 @@ async function _flushTabDataSave(key) {
   var data = _pendingSaves[key];
   delete _pendingSaves[key];
   try {
-    await supabaseClient.from("dashboard_data").upsert({ user_id: currentUserId, tab_key: key, data: data, updated_at: new Date().toISOString() });
+    var result = await supabaseClient.from("dashboard_data").upsert({ user_id: currentUserId, tab_key: key, data: data, updated_at: new Date().toISOString() });
+    // Supabase returns failures as a resolved { error } object, not a thrown
+    // exception — without this check, a rejected write silently vanishes.
+    if (result && result.error) console.error("Save failed [" + key + "]", result.error);
   } catch (e) {
     console.error(e);
   }
@@ -1702,7 +1691,7 @@ function renderActiveTab() {
       goalLabel: "Monthly budget",
       amountLabel: "Amount",
       emptyText: "No expenses logged yet. Add your first one below.",
-      accent: "#5BAE7A",
+      accent: getAccentColor(),
       enableSelection: true,
       showSavingsGoal: true,
       eyebrow: _pageLabel('budget', 'BUDGET PLANNER')
@@ -1828,7 +1817,7 @@ function switchPage(page) {
       goalLabel: "Monthly budget",
       amountLabel: "Amount",
       emptyText: "No expenses logged yet. Add your first one below.",
-      accent: "#5BAE7A",
+      accent: getAccentColor(),
       enableSelection: true,
       showSavingsGoal: true,
       eyebrow: _pageLabel('budget', 'BUDGET PLANNER')
@@ -2019,12 +2008,17 @@ function triggerImageUpload(el) {
 async function savePortfolioImage(key, dataUrl) {
   if (!currentUserId) return;
   try {
-    await supabaseClient.from("dashboard_data").upsert({
+    var result = await supabaseClient.from("dashboard_data").upsert({
       user_id: currentUserId,
       tab_key: "portfolio-img-" + key,
       data: { src: dataUrl },
       updated_at: new Date().toISOString()
     });
+    // Supabase returns failures as a resolved { error } object, not a thrown
+    // exception — without this check, a rejected write (RLS, size limit,
+    // etc.) silently looks identical to a successful one, since the image
+    // is already showing locally from the optimistic UI update.
+    if (result && result.error) console.error("Portfolio image save failed [" + key + "]", result.error);
   } catch(e) { console.error("Portfolio image save error [" + key + "]", e); }
 }
 
@@ -2299,8 +2293,8 @@ async function renderSpendTab(root, cfg) {
       var over = totalSpent > budgetNum;
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
       amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
-      var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + "," + cfg.accent + "cc)";
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px ' + cfg.accent + '55;"></div></div><button class="link-btn" id="stEditBudget" style="color:#8A919C;margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
+      var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div><button class="link-btn" id="stEditBudget" style="color:#8A919C;margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
       document.getElementById("stEditBudget").addEventListener("click", function () { budgetDraft = String(budgetNum); showBudgetInput = true; renderGauge(); });
     } else {
       amountEl.style.color = cfg.accent;
@@ -3795,7 +3789,7 @@ function _relationshipMapSvg(characters, relationships) {
 
 async function renderWorkoutsTab(root) {
   root.innerHTML = skeletonCards(3);
-  var accent = "#3DBFC4";
+  var accent = getAccentColor();
   var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
   var data = await loadTabData("dashboard-workouts-data", defaultData);
   var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
@@ -4008,7 +4002,7 @@ async function renderWorkoutsTab(root) {
       if (goalNum > 0) {
         var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
         amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts";
-        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:linear-gradient(90deg," + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
       } else {
         amountEl.textContent = thisWeek.length + " workouts";
         if (showGoalInput) {
@@ -4819,7 +4813,7 @@ async function renderWorkoutsTab(root) {
 
 async function renderStoryPage(root) {
   root.innerHTML = skeletonCards(3);
-  var accent = "#C97FBF";
+  var accent = getAccentColor();
   var chaptersData = await loadTabData("dashboard-story-chapters", { chapters: [], arcs: [], statuses: [], wordGoal: "" });
   var charactersData = await loadTabData("dashboard-story-characters", { characters: [], relationships: [] });
   var moodboardData = await loadTabData("dashboard-story-moodboard", { images: [] });
@@ -4872,9 +4866,14 @@ async function renderStoryPage(root) {
   }
 
   // Grows a textarea to fit its content instead of scrolling internally.
+  // iOS Safari jumps the page scroll (often straight to the top) when a
+  // focused element's height changes mid-typing — restoring the scroll
+  // position right after the resize is the standard workaround.
   function autoGrowTextarea(el) {
+    var scrollPos = window.scrollY;
     el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
+    window.scrollTo(0, scrollPos);
   }
   // Plain <textarea> elements normally move focus to the next control on Tab —
   // this makes Tab insert a real tab character at the cursor instead, like any text editor.
@@ -5220,7 +5219,7 @@ async function renderStoryPage(root) {
       if (goalNum > 0) {
         var pct = Math.min(100, (totalWords / goalNum) * 100);
         amountEl.textContent = totalWords.toLocaleString() + " of " + goalNum.toLocaleString();
-        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:linear-gradient(90deg," + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
       } else {
         amountEl.textContent = totalWords.toLocaleString();
         if (showWordGoalInput) {
@@ -5757,7 +5756,7 @@ async function renderStoryPage(root) {
 
 async function renderRoutinesTab(root) {
   root.innerHTML = skeletonCards(3);
-  var accent = "#D9A441";
+  var accent = getAccentColor();
   var defaultData = { routines: [] };
   var data = await loadTabData("dashboard-routines-data", defaultData);
   var confirmReset = false;
@@ -5788,7 +5787,7 @@ async function renderRoutinesTab(root) {
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('routines', 'DAILY ROUTINES')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
-    '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + "," + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div></div>' +
+    '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + ",color-mix(in srgb, " + accent + " 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, " + accent + ' 33%, transparent);"></div></div></div>' +
     '<div class="card">' +
       '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
       '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
@@ -6056,13 +6055,13 @@ function animatePageHeading(pageEl) {
   var wordCount = 0;
   el.innerHTML = words.map(function (w) {
     if (!w.trim()) return w;
-    var delay = wordCount * 35;
+    var delay = wordCount * 70;
     wordCount++;
     return '<span class="heading-word-anim" style="animation-delay:' + delay + 'ms;">' + escapeHtml(w) + '</span>';
   }).join('');
   setTimeout(function () {
     if (el.isConnected && el.innerHTML !== originalHTML) el.innerHTML = originalHTML;
-  }, wordCount * 35 + 530);
+  }, wordCount * 70 + 750);
 }
 
 /* ---------------- scroll-triggered animations ---------------- */
@@ -6353,6 +6352,8 @@ function renderSettingsPage() {
     { id: 'travel',    label: 'Travel' },
     { id: 'budget',    label: 'Budget' },
     { id: 'workouts',  label: 'Workouts' },
+    { id: 'chess',     label: 'Chess' },
+    { id: 'story',     label: 'Story' },
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
@@ -6381,6 +6382,8 @@ function renderSettingsPage() {
     { id: 'travel',    label: 'Travel' },
     { id: 'budget',    label: 'Budget' },
     { id: 'workouts',  label: 'Workouts' },
+    { id: 'chess',     label: 'Chess' },
+    { id: 'story',     label: 'Story' },
     { id: 'portfolio', label: 'Work Portfolio' },
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
@@ -6541,6 +6544,7 @@ function renderSettingsPage() {
       _settings.borderColor  = t.borderColor;
       applySettings();
       renderSettingsPage();
+      saveSettings();
     });
   }
 
@@ -6550,10 +6554,14 @@ function renderSettingsPage() {
       _settings.cardStyle = btn.getAttribute('data-card-style');
       applySettings();
       renderSettingsPage();
+      saveSettings();
     });
   });
 
-  // Color pickers — live preview on input
+  // Color pickers — live preview on input, and saved immediately (debounced)
+  // rather than waiting for the explicit Save button, so a selection in
+  // progress survives backgrounding the tab/app mid-pick instead of being
+  // silently lost.
   [
     { id: 'settingAccent',  hexId: 'settingAccentHex',  key: 'accent',       cssVar: '--accent'     },
     { id: 'settingBg',      hexId: 'settingBgHex',      key: 'bgColor',      cssVar: '--bg'         },
@@ -6568,6 +6576,7 @@ function renderSettingsPage() {
       var hexInput = document.getElementById(f.hexId);
       if (hexInput) hexInput.value = input.value;
       document.documentElement.style.setProperty(f.cssVar, input.value);
+      saveSettings();
     });
     // Wire hex text input → color picker (IIFE captures loop vars)
     (function(colorPicker, hexId, settingKey, cssVar) {
@@ -6582,6 +6591,7 @@ function renderSettingsPage() {
           hexInput.value = normalized;
           document.documentElement.style.setProperty(cssVar, normalized);
           hexInput.style.borderColor = '#2A313A';
+          saveSettings();
         } else {
           hexInput.style.borderColor = raw.length > 0 ? '#c0392b' : '#2A313A';
         }
@@ -6598,6 +6608,7 @@ function renderSettingsPage() {
       _settings.contentZoom = val;
       if (zoomValEl) zoomValEl.textContent = Math.round(val * 100) + '%';
       document.documentElement.style.setProperty('--content-zoom', val);
+      saveSettings();
     });
   }
 
@@ -6617,6 +6628,7 @@ function renderSettingsPage() {
       _settings.tabOrder = TABS.map(function(t) { return t.id; });
       renderTabNav();
       renderSettingsPage();
+      saveSettings();
     });
   }
 
@@ -6630,6 +6642,7 @@ function renderSettingsPage() {
       _settings.textColor = SETTINGS_DEFAULTS.textColor;
       applySettings();
       renderSettingsPage();
+      saveSettings();
     });
   }
 
@@ -6640,6 +6653,7 @@ function renderSettingsPage() {
       _settings.siteTitle = siteTitleInput.value;
       var el = document.getElementById('sidebarTitle');
       if (el) el.textContent = siteTitleInput.value || "Don's Space";
+      saveSettings();
     });
   }
 
@@ -6667,6 +6681,7 @@ function renderSettingsPage() {
             _settings.logoDataUrl = dataUrl;
             applySettings();
             renderSettingsPage();
+            saveSettings();
           };
           img.src = ev.target.result;
         };
@@ -6683,6 +6698,7 @@ function renderSettingsPage() {
       _settings.logoDataUrl = '';
       applySettings();
       renderSettingsPage();
+      saveSettings();
     });
   }
 
@@ -6698,6 +6714,7 @@ function renderSettingsPage() {
     inp.addEventListener('input', function() {
       if (!_settings.pageLabels) _settings.pageLabels = {};
       _settings.pageLabels[f.key] = inp.value;
+      saveSettings();
     });
   });
 
@@ -6706,6 +6723,7 @@ function renderSettingsPage() {
   if (userNameInp) userNameInp.addEventListener('input', function() {
     _settings.userName = userNameInp.value;
     USER_DISPLAY_NAME = userNameInp.value || 'Don';
+    saveSettings();
   });
 
   // Partner name
@@ -6713,15 +6731,16 @@ function renderSettingsPage() {
   if (partnerNameInp) partnerNameInp.addEventListener('input', function() {
     _settings.partnerName = partnerNameInp.value;
     PARTNER_DISPLAY_NAME = partnerNameInp.value || 'Wife';
+    saveSettings();
   });
 
   // Greeting lines
   var greetingInp = document.getElementById('settingGreetingLines');
-  if (greetingInp) greetingInp.addEventListener('input', function() { _settings.greetingLines = greetingInp.value; });
+  if (greetingInp) greetingInp.addEventListener('input', function() { _settings.greetingLines = greetingInp.value; saveSettings(); });
 
   // Default landing page
   var defPageSel = document.getElementById('settingDefaultPage');
-  if (defPageSel) defPageSel.addEventListener('change', function() { _settings.defaultPage = defPageSel.value; });
+  if (defPageSel) defPageSel.addEventListener('change', function() { _settings.defaultPage = defPageSel.value; saveSettings(); });
 
   // Show/hide sidebar page toggles
   sidebarPages.forEach(function(pg) {
@@ -6741,6 +6760,7 @@ function renderSettingsPage() {
       if (track) track.style.background = cb.checked ? 'var(--accent)' : '#2A313A';
       if (thumb) thumb.style.left = cb.checked ? '21px' : '3px';
       applyHiddenPages();
+      saveSettings();
     });
   });
 
@@ -7002,7 +7022,7 @@ async function renderEducationPage() {
             '<select class="edit-select" id="eduNewSemester" style="min-width:130px;">' + _eduSemesterOpts('') + '</select>' +
             '<select class="edit-select" id="eduNewStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('') + '</select>' +
             '<input class="edit-input" style="width:70px;" id="eduNewGrade" placeholder="Grade" />' +
-            '<button class="add-btn" data-action="confirm-add-course" data-group="' + group.id + '" style="background:#5BAE7A;flex-shrink:0;">Add</button>' +
+            '<button class="add-btn" data-action="confirm-add-course" data-group="' + group.id + '" style="background:var(--accent);flex-shrink:0;">Add</button>' +
             '<button class="icon-btn" data-action="cancel-add-course">✕</button>' +
           '</div>' +
         '</div>'
@@ -7022,7 +7042,7 @@ async function renderEducationPage() {
   var addGroupHtml = _eduAddingGroup
     ? '<div style="display:flex;align-items:center;gap:8px;">' +
         '<input class="edit-input grow" id="eduNewGroupName" placeholder="Group name (e.g. Electives)" />' +
-        '<button class="add-btn" id="eduConfirmAddGroup" style="background:#3DBFC4;">Add</button>' +
+        '<button class="add-btn" id="eduConfirmAddGroup" style="background:var(--accent);">Add</button>' +
         '<button class="icon-btn" id="eduCancelAddGroup">✕</button>' +
       '</div>'
     : '<button class="port-edit-btn" id="eduAddGroupBtn">+ Add group</button>';
@@ -7395,7 +7415,7 @@ async function renderCertPage() {
           '<select class="edit-select" id="certNewStatus">' + CERT_STATUSES.map(function(s) { return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('') + '</select>' +
           '<input class="edit-input date" id="certNewTarget" type="date" title="Target exam date" />' +
           '<input class="edit-input amt" id="certNewCost" type="number" min="0" placeholder="Cost $" />' +
-          '<button class="add-btn" data-action="cert-confirm-add" style="background:#5BAE7A;flex-shrink:0;">Add</button>' +
+          '<button class="add-btn" data-action="cert-confirm-add" style="background:var(--accent);flex-shrink:0;">Add</button>' +
           '<button class="icon-btn" data-action="cert-cancel-add">✕</button>' +
         '</div>' +
       '</div>'
@@ -7689,7 +7709,7 @@ async function renderJobsPage() {
         '</div>' +
         '<div class="edit-line">' +
           '<input class="edit-input grow" id="jobNewNotes" placeholder="Notes (optional)" />' +
-          '<button class="add-btn" data-action="job-confirm-add" style="background:#5B8FA8;flex-shrink:0;">Add</button>' +
+          '<button class="add-btn" data-action="job-confirm-add" style="background:var(--accent);flex-shrink:0;">Add</button>' +
           '<button class="icon-btn" data-action="job-cancel-add">✕</button>' +
         '</div>' +
       '</div>'
@@ -7926,7 +7946,7 @@ async function renderChessPage(forceRefresh) {
 
   var goal  = Number(_chessGoalData.goalRating) || 850;
   var tier  = currentRating != null ? _chessTier(currentRating) : null;
-  var accent = '#8B5E3C';
+  var accent = getAccentColor();
 
   var modeChipsHtml = modes.map(function(m) {
     var isPrimary = primary && m.key === primary.key;
@@ -7940,7 +7960,7 @@ async function renderChessPage(forceRefresh) {
 
   var goalBodyHtml = _chessGoalEditing
     ? '<div class="row-gap"><input id="chessGoalDraft" class="small-input" type="number" min="1" placeholder="Goal rating" value="' + escapeHtml(String(goal)) + '" onkeydown="if(event.key===\'Enter\')document.getElementById(\'chessSetGoal\').click();" /><button class="small-btn" id="chessSetGoal" style="background:' + accent + ';">Set</button></div>'
-    : '<div class="gauge-track"><div class="gauge-fill" style="width:' + gaugePct + '%;background:linear-gradient(90deg,' + accent + ',' + accent + 'cc);box-shadow:0 0 14px ' + accent + '55;"></div></div>';
+    : '<div class="gauge-track"><div class="gauge-fill" style="width:' + gaugePct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
 
   inner.innerHTML =
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
