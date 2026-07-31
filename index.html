@@ -1099,6 +1099,24 @@ function _matchLiftTags(name) {
   return { muscleGroup: "other", trainingStyles: [] };
 }
 
+// Suggestions offered via <datalist> on lift-name inputs — kept aligned with
+// _LIFT_KEYWORD_MAP above so picking one from the list also gets auto-tagged correctly.
+// Free text is still accepted; this is a convenience list, not an enforced whitelist.
+var COMMON_EXERCISES = [
+  "Back Squat", "Front Squat", "Bulgarian Split Squat", "Goblet Squat", "Hack Squat", "Leg Press", "Leg Extension", "Leg Curl", "Walking Lunge",
+  "Romanian Deadlift", "Deadlift", "Sumo Deadlift", "Stiff Leg Deadlift", "Hip Thrust", "Calf Raise",
+  "Bench Press", "Incline Bench Press", "Decline Bench Press", "Close Grip Bench Press", "Dumbbell Bench Press", "Dumbbell Incline Press",
+  "Chest Fly", "Cable Fly", "Push Up", "Dip",
+  "Barbell Row", "Pendlay Row", "Dumbbell Row", "Cable Row", "Seated Row", "T-Bar Row", "Pull Up", "Chin Up", "Lat Pulldown",
+  "Overhead Press", "Push Press", "Seated Shoulder Press", "Arnold Press", "Lateral Raise", "Front Raise", "Rear Delt Fly", "Face Pull",
+  "Barbell Curl", "Dumbbell Curl", "Hammer Curl", "Preacher Curl", "Tricep Pushdown", "Skull Crusher", "Overhead Tricep Extension",
+  "Plank", "Sit Up", "Crunch", "Russian Twist", "Ab Wheel Rollout", "Hanging Leg Raise",
+  "Power Clean", "Hang Clean", "Clean and Jerk", "Snatch", "Thruster", "Burpee", "Farmer's Carry",
+  "Treadmill Run", "Stationary Bike", "Rowing Machine", "Elliptical", "Jump Rope",
+  "Box Jump", "Vertical Jump", "Broad Jump", "Agility Ladder", "Cone Drills", "Sled Push", "Sled Drag", "Hill Sprint", "40 Yard Dash",
+  "Jump Shot", "Free Throw", "Layup", "Defensive Slides", "Ball Handling"
+];
+
 var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
 
 var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
@@ -3850,7 +3868,7 @@ async function renderWorkoutsTab(root) {
   var confirmReset = false;
   var showGoalInput = false;
   var goalDraft = "";
-  var expandedIds = new Set();
+  var viewingWorkoutId = null;
   var editingLiftItemId = null;
   var editingLiftId = null;
   var editingLiftForm = {};
@@ -3885,6 +3903,7 @@ async function renderWorkoutsTab(root) {
   ];
 
   root.innerHTML =
+    '<datalist id="wkExerciseList">' + COMMON_EXERCISES.map(function (n) { return '<option value="' + escapeHtml(n) + '"></option>'; }).join("") + '</datalist>' +
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="pills" id="wkSectionPills"></div>' +
@@ -3897,7 +3916,13 @@ async function renderWorkoutsTab(root) {
     }).join("");
     var pills = document.getElementById("wkSectionPills").querySelectorAll("[data-section]");
     for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) { activeSection = e.currentTarget.getAttribute("data-section"); renderSectionPills(); renderSection(); });
+      pills[i].addEventListener("click", function (e) {
+        var sec = e.currentTarget.getAttribute("data-section");
+        if (sec !== "log") viewingWorkoutId = null;
+        activeSection = sec;
+        renderSectionPills();
+        renderSection();
+      });
     }
   }
 
@@ -3919,6 +3944,7 @@ async function renderWorkoutsTab(root) {
   /* ---------------- Log section ---------------- */
 
   function renderLogSection() {
+    if (viewingWorkoutId) { renderWorkoutDetail(); return; }
     var deload = computeDeloadStatus(data.items, data.dismissedDeloadWeeks);
     var bodyEl = document.getElementById("wkSectionBody");
     bodyEl.innerHTML =
@@ -4076,7 +4102,7 @@ async function renderWorkoutsTab(root) {
         if (isEditingName) {
           var ef = editingLiftForm;
           header = '<div class="edit-line">' +
-            '<input class="edit-input grow" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" />' +
+            '<input class="edit-input grow" data-lift-edit="name" value="' + escapeHtml(ef.name) + '" list="wkExerciseList" />' +
             '<button class="icon-btn" data-action="save-lift-name" style="color:' + accent + ';">\u2713</button>' +
             '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
           "</div>";
@@ -4134,7 +4160,7 @@ async function renderWorkoutsTab(root) {
       return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
         (liftRows || '<div style="color:var(--text-2);font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
         '<div class="row-gap" style="margin-top:8px;">' +
-          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" />' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" list="wkExerciseList" />' +
           '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
           '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
           '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
@@ -4169,21 +4195,19 @@ async function renderWorkoutsTab(root) {
             '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
             "</div></div></div>";
         }
-        var expanded = expandedIds.has(item.id);
         var lifts = item.lifts || [];
         var liftSummary = lifts.length > 0 ? lifts.length + (lifts.length === 1 ? " lift logged" : " lifts logged") : "no lifts logged";
         var displayRow = '<div class="item-display">' +
           '<span class="item-bar" style="background:' + cat.color + ';"></span>' +
           '<span class="item-glyph" style="color:' + cat.color + ';">' + cat.glyph + "</span>" +
-          '<div class="item-main"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
+          '<div class="item-main" data-action="view-workout" data-id="' + item.id + '" style="cursor:pointer;"><div class="item-name">' + escapeHtml(item.name) + "</div>" +
           '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " \u00B7 " + item.duration + " min" : "") + " \u00B7 " + liftSummary + (item.notes ? " \u00B7 " + escapeHtml(item.notes) : "") + "</div></div>" +
           '<div class="item-actions">' +
-          '<button class="icon-btn" data-action="toggle-expand" data-id="' + item.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>" +
+          '<button class="icon-btn" data-action="view-workout" data-id="' + item.id + '" title="View workout">\u203A</button>' +
           '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
           '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
           "</div>";
-        var liftsBlock = expanded ? renderLiftsBlock(item, prData) : "";
-        return '<div class="item-row">' + displayRow + liftsBlock + "</div>";
+        return '<div class="item-row">' + displayRow + "</div>";
       }).join("");
     }
 
@@ -4212,10 +4236,10 @@ async function renderWorkoutsTab(root) {
       errEl.textContent = "";
       var newItem = { id: uid(), category: activeCat, name: name, date: dateVal, duration: durationVal === "" ? "" : Number(durationVal), notes: notesVal, lifts: [] };
       data.items.push(newItem);
-      expandedIds.add(newItem.id);
-      save();
       resetForm();
-      renderDynamic();
+      viewingWorkoutId = newItem.id;
+      save();
+      renderLogSection();
     }
 
     function handleStartFromTemplate(templateId) {
@@ -4231,21 +4255,22 @@ async function renderWorkoutsTab(root) {
       });
       var newItem = { id: uid(), category: tpl.category || activeCat, name: tpl.name, date: todayISO(), duration: "", notes: "", lifts: lifts };
       data.items.push(newItem);
-      expandedIds.add(newItem.id);
+      viewingWorkoutId = newItem.id;
       showTemplatePicker = false;
       save();
       renderLogSection();
     }
 
-    function toggleExpand(id) {
-      if (expandedIds.has(id)) {
-        expandedIds.delete(id);
-        if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
-        if (editingSetItemId === id) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
-      } else {
-        expandedIds.add(id);
-      }
-      renderList();
+    function viewWorkout(id) {
+      viewingWorkoutId = id;
+      renderLogSection();
+    }
+
+    // Refreshes whichever view is currently showing a workout's lifts — the
+    // single-workout detail view if one is open, otherwise the full log list.
+    function refreshLog() {
+      if (viewingWorkoutId) renderWorkoutDetail();
+      else renderDynamic();
     }
 
     function handleAddLift(itemId) {
@@ -4265,7 +4290,7 @@ async function renderWorkoutsTab(root) {
         sets: [{ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) }]
       });
       save();
-      renderList();
+      refreshLog();
     }
     function handleDeleteLift(itemId, liftId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -4274,7 +4299,7 @@ async function renderWorkoutsTab(root) {
       if (editingLiftItemId === itemId && editingLiftId === liftId) { editingLiftItemId = null; editingLiftId = null; }
       if (editingSetItemId === itemId && editingSetLiftId === liftId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
       save();
-      renderList();
+      refreshLog();
     }
 
     function startLiftEdit(itemId, liftId) {
@@ -4285,9 +4310,9 @@ async function renderWorkoutsTab(root) {
       editingLiftItemId = itemId;
       editingLiftId = liftId;
       editingLiftForm = { name: lift.name };
-      renderList();
+      refreshLog();
     }
-    function cancelLiftEdit() { editingLiftItemId = null; editingLiftId = null; renderList(); }
+    function cancelLiftEdit() { editingLiftItemId = null; editingLiftId = null; refreshLog(); }
     function saveLiftEdit() {
       var item = data.items.find(function (it) { return it.id === editingLiftItemId; });
       if (!item || !editingLiftForm.name || !editingLiftForm.name.trim()) { cancelLiftEdit(); return; }
@@ -4303,7 +4328,7 @@ async function renderWorkoutsTab(root) {
       save();
       editingLiftItemId = null;
       editingLiftId = null;
-      renderList();
+      refreshLog();
     }
 
     function handleSetMuscleGroup(itemId, liftId, value) {
@@ -4314,7 +4339,7 @@ async function renderWorkoutsTab(root) {
       lift.muscleGroup = value;
       lift.tagSource = "manual";
       save();
-      renderList();
+      refreshLog();
     }
     function handleToggleLiftStyle(itemId, liftId, styleId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -4326,7 +4351,7 @@ async function renderWorkoutsTab(root) {
       if (idx === -1) lift.trainingStyles.push(styleId); else lift.trainingStyles.splice(idx, 1);
       lift.tagSource = "manual";
       save();
-      renderList();
+      refreshLog();
     }
 
     function handleAddSet(itemId, liftId) {
@@ -4340,7 +4365,7 @@ async function renderWorkoutsTab(root) {
       if (!lift.sets) lift.sets = [];
       lift.sets.push({ id: uid(), weight: weightEl.value === "" ? "" : Number(weightEl.value), reps: repsEl.value === "" ? "" : Number(repsEl.value), isWarmup: !!(warmupEl && warmupEl.checked) });
       save();
-      renderList();
+      refreshLog();
     }
     function handleDeleteSet(itemId, liftId, setId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -4350,7 +4375,7 @@ async function renderWorkoutsTab(root) {
       lift.sets = (lift.sets || []).filter(function (s) { return s.id !== setId; });
       if (editingSetItemId === itemId && editingSetLiftId === liftId && editingSetId === setId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
       save();
-      renderList();
+      refreshLog();
     }
     function handleToggleWarmup(itemId, liftId, setId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -4361,7 +4386,7 @@ async function renderWorkoutsTab(root) {
       if (!s) return;
       s.isWarmup = !s.isWarmup;
       save();
-      renderList();
+      refreshLog();
     }
     function startSetEdit(itemId, liftId, setId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -4372,9 +4397,9 @@ async function renderWorkoutsTab(root) {
       if (!s) return;
       editingSetItemId = itemId; editingSetLiftId = liftId; editingSetId = setId;
       editingSetForm = { weight: s.weight === "" || s.weight == null ? "" : String(s.weight), reps: s.reps === "" || s.reps == null ? "" : String(s.reps) };
-      renderList();
+      refreshLog();
     }
-    function cancelSetEdit() { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; renderList(); }
+    function cancelSetEdit() { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; refreshLog(); }
     function saveSetEdit() {
       var item = data.items.find(function (it) { return it.id === editingSetItemId; });
       if (!item) { cancelSetEdit(); return; }
@@ -4386,7 +4411,7 @@ async function renderWorkoutsTab(root) {
       });
       save();
       editingSetItemId = null; editingSetLiftId = null; editingSetId = null;
-      renderList();
+      refreshLog();
     }
 
     function startRowEdit(id) {
@@ -4400,11 +4425,11 @@ async function renderWorkoutsTab(root) {
         notes: item.notes || ""
       };
       editRowError = "";
-      renderList();
+      refreshLog();
     }
-    function cancelRowEdit() { editRowId = null; editRowError = ""; renderList(); }
+    function cancelRowEdit() { editRowId = null; editRowError = ""; refreshLog(); }
     function saveRowEdit() {
-      if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; renderList(); return; }
+      if (!editRowForm.name || !editRowForm.name.trim()) { editRowError = "Needs a name."; refreshLog(); return; }
       data.items = data.items.map(function (it) {
         if (it.id !== editRowId) return it;
         return Object.assign({}, it, editRowForm, {
@@ -4414,16 +4439,16 @@ async function renderWorkoutsTab(root) {
       save();
       editRowId = null;
       editRowError = "";
-      renderDynamic();
+      refreshLog();
     }
     function handleDelete(id) {
       data.items = data.items.filter(function (it) { return it.id !== id; });
-      expandedIds.delete(id);
       if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
       if (editingSetItemId === id) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
       save();
       if (editRowId === id) editRowId = null;
-      renderDynamic();
+      if (viewingWorkoutId === id) viewingWorkoutId = null;
+      renderLogSection();
     }
     function handleResetAll() {
       var btn = document.getElementById("wkResetBtn");
@@ -4437,7 +4462,7 @@ async function renderWorkoutsTab(root) {
       data = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
       save();
       editRowId = null;
-      expandedIds.clear();
+      viewingWorkoutId = null;
       editingLiftItemId = null;
       editingLiftId = null;
       editingSetItemId = null;
@@ -4445,7 +4470,7 @@ async function renderWorkoutsTab(root) {
       editingSetId = null;
       confirmReset = false;
       resetForm();
-      renderDynamic();
+      renderLogSection();
     }
 
     document.getElementById("wkLogWeightBtn").addEventListener("click", handleLogWeight);
@@ -4474,7 +4499,11 @@ async function renderWorkoutsTab(root) {
       document.getElementById("wkSortDate").classList.remove("active");
       renderList();
     });
-    document.getElementById("wkList").addEventListener("click", function (e) {
+    // Shared click/input/change/keydown handling for a workout item's fields, lifts, and
+    // sets — attached to #wkList in list mode and reused verbatim on the single-workout
+    // detail view (see renderWorkoutDetail below), since both surfaces use the same
+    // data-action/data-lift-field/data-set-field markup.
+    function _wkItemClick(e) {
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-action");
@@ -4483,7 +4512,7 @@ async function renderWorkoutsTab(root) {
       else if (action === "delete") handleDelete(id);
       else if (action === "save-row") saveRowEdit();
       else if (action === "cancel-row") cancelRowEdit();
-      else if (action === "toggle-expand") toggleExpand(id);
+      else if (action === "view-workout") viewWorkout(id);
       else if (action === "add-lift") handleAddLift(btn.getAttribute("data-item"));
       else if (action === "delete-lift") handleDeleteLift(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
       else if (action === "edit-lift-name") startLiftEdit(btn.getAttribute("data-item"), btn.getAttribute("data-lift"));
@@ -4496,23 +4525,23 @@ async function renderWorkoutsTab(root) {
       else if (action === "save-set") saveSetEdit();
       else if (action === "cancel-set-edit") cancelSetEdit();
       else if (action === "toggle-warmup") handleToggleWarmup(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
-    });
-    document.getElementById("wkList").addEventListener("input", function (e) {
+    }
+    function _wkItemInput(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
       if (field) editRowForm[field] = e.target.value;
       var liftField = e.target.getAttribute && e.target.getAttribute("data-lift-edit");
       if (liftField) editingLiftForm[liftField] = e.target.value;
       var setField = e.target.getAttribute && e.target.getAttribute("data-set-edit");
       if (setField) editingSetForm[setField] = e.target.value;
-    });
-    document.getElementById("wkList").addEventListener("change", function (e) {
+    }
+    function _wkItemChange(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
       if (field) editRowForm[field] = e.target.value;
       if (e.target.getAttribute && e.target.getAttribute("data-action") === "set-muscle-group") {
         handleSetMuscleGroup(e.target.getAttribute("data-item"), e.target.getAttribute("data-lift"), e.target.value);
       }
-    });
-    document.getElementById("wkList").addEventListener("keydown", function (e) {
+    }
+    function _wkItemKeydown(e) {
       if (e.target.getAttribute && e.target.getAttribute("data-lift-field") === "name" && e.key === "Enter") {
         handleAddLift(e.target.getAttribute("data-item"));
         return;
@@ -4534,12 +4563,73 @@ async function renderWorkoutsTab(root) {
       if (!e.target.getAttribute || !e.target.getAttribute("data-edit")) return;
       if (e.key === "Enter") saveRowEdit();
       if (e.key === "Escape") cancelRowEdit();
-    });
+    }
+
+    document.getElementById("wkList").addEventListener("click", _wkItemClick);
+    document.getElementById("wkList").addEventListener("input", _wkItemInput);
+    document.getElementById("wkList").addEventListener("change", _wkItemChange);
+    document.getElementById("wkList").addEventListener("keydown", _wkItemKeydown);
     document.getElementById("wkResetBtn").addEventListener("click", handleResetAll);
 
     document.getElementById("wkDate").value = todayISO();
     renderPills();
     renderDynamic();
+
+    // Single-workout "click through" view — shows just this workout's header
+    // (name/date/duration/notes, editable) and its full lift/set editor, with a
+    // back link to the compact log list. Reuses the same handler functions and
+    // delegated listeners as the list view (_wkItemClick etc.) since the markup
+    // uses the same data-action attributes.
+    function renderWorkoutDetail() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var item = data.items.find(function (it) { return it.id === viewingWorkoutId; });
+    if (!item) { viewingWorkoutId = null; renderLogSection(); return; }
+    var prData = computePRs(data.items);
+    var cat = categoryById(WORKOUT_CATEGORIES, item.category);
+    var headerHtml;
+    if (editRowId === item.id) {
+      var f = editRowForm;
+      headerHtml = '<div class="item-edit">' +
+        '<div class="edit-line">' +
+          '<select class="edit-select" data-edit="category">' + WORKOUT_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (c.id === f.category ? " selected" : "") + ">" + escapeHtml(c.label) + "</option>"; }).join("") + "</select>" +
+          '<input class="edit-input grow" data-edit="name" placeholder="Name" value="' + escapeHtml(f.name) + '" />' +
+          '<input class="edit-input date" type="date" data-edit="date" value="' + escapeHtml(f.date) + '" />' +
+        "</div>" +
+        '<div class="edit-line">' +
+          '<input class="edit-input amt" type="number" min="0" data-edit="duration" placeholder="Minutes" value="' + escapeHtml(f.duration) + '" />' +
+          '<input class="edit-input grow" data-edit="notes" placeholder="Notes" value="' + escapeHtml(f.notes) + '" />' +
+          (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
+          '<button class="icon-btn" data-action="save-row" style="color:' + accent + ';">✓</button>' +
+          '<button class="icon-btn" data-action="cancel-row">✕</button>' +
+        "</div></div>";
+    } else {
+      headerHtml = '<div class="row-gap" style="align-items:flex-start;">' +
+        '<span class="item-bar" style="background:' + cat.color + ';margin-top:2px;"></span>' +
+        '<span class="item-glyph" style="color:' + cat.color + ';font-size:20px;">' + cat.glyph + "</span>" +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="color:var(--text-1);font-size:20px;font-weight:700;">' + escapeHtml(item.name) + "</div>" +
+          '<div class="item-sub">' + formatDateShort(item.date) + (item.duration !== "" && item.duration != null ? " · " + item.duration + " min" : "") + (item.notes ? " · " + escapeHtml(item.notes) : "") + "</div>" +
+        "</div>" +
+        '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">✎</button>' +
+        '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">✕</button>' +
+      "</div>";
+    }
+    bodyEl.innerHTML =
+      '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);margin-bottom:14px;">‹ Back to Log</button>' +
+      '<div class="card">' + headerHtml + renderLiftsBlock(item, prData) + "</div>";
+
+    document.getElementById("wkBackBtn").addEventListener("click", function () {
+      viewingWorkoutId = null;
+      editRowId = null;
+      editingLiftItemId = null; editingLiftId = null;
+      editingSetItemId = null; editingSetLiftId = null; editingSetId = null;
+      renderLogSection();
+    });
+    bodyEl.addEventListener("click", _wkItemClick);
+    bodyEl.addEventListener("input", _wkItemInput);
+    bodyEl.addEventListener("change", _wkItemChange);
+    bodyEl.addEventListener("keydown", _wkItemKeydown);
+  }
   }
 
   /* ---------------- Templates section ---------------- */
@@ -4559,7 +4649,7 @@ async function renderWorkoutsTab(root) {
         '<div style="margin:12px 0;">' +
           (t.lifts.length === 0 ? '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
-              '<input class="edit-input grow" style="min-width:100px;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" />' +
+              '<input class="edit-input grow" style="min-width:100px;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" list="wkExerciseList" />' +
               '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
               '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetReps" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetReps) + '" />' +
               '<input class="edit-input amt" type="number" min="0" step="0.5" data-tpl-lift-field="targetWeight" data-idx="' + i + '" placeholder="Lbs" value="' + (pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight) + '" />' +
@@ -4567,7 +4657,7 @@ async function renderWorkoutsTab(root) {
           }).join("")) +
         "</div>" +
         '<div class="row-gap" style="margin-bottom:12px;">' +
-          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkTplLiftName" placeholder="Lift name" />' +
+          '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkTplLiftName" placeholder="Lift name" list="wkExerciseList" />' +
           '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
           '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftReps" placeholder="Reps" />' +
           '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" id="wkTplLiftWeight" placeholder="Lbs" />' +
