@@ -3866,6 +3866,7 @@ async function renderWorkoutsTab(root) {
   var calMonth = new Date().getMonth();
   var templateAddMode = false;
   var templateDraft = null;
+  var templateEditId = null;
   var confirmResetTemplates = false;
 
   function save() { saveTabData("dashboard-workouts-data", data); }
@@ -4557,8 +4558,11 @@ async function renderWorkoutsTab(root) {
         }).join("") + "</div>" +
         '<div style="margin:12px 0;">' +
           (t.lifts.length === 0 ? '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
-            return '<div class="weight-log-row"><span style="color:var(--text-1);flex:1;">' + escapeHtml(pl.name) + "</span>" +
-              '<span class="mono" style="color:' + accent + ';">' + (pl.targetSets || "?") + " \u00D7 " + (pl.targetReps || "?") + (pl.targetWeight !== "" && pl.targetWeight != null ? " @ " + pl.targetWeight + " lbs" : "") + "</span>" +
+            return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
+              '<input class="edit-input grow" style="min-width:100px;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" />' +
+              '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
+              '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetReps" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetReps) + '" />' +
+              '<input class="edit-input amt" type="number" min="0" step="0.5" data-tpl-lift-field="targetWeight" data-idx="' + i + '" placeholder="Lbs" value="' + (pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight) + '" />' +
               '<button class="icon-btn" data-action="remove-tpl-lift" data-idx="' + i + '">\u2715</button></div>';
           }).join("")) +
         "</div>" +
@@ -4571,7 +4575,7 @@ async function renderWorkoutsTab(root) {
         "</div>" +
         '<div class="form-actions"><span class="error-text" id="wkTplError"></span>' +
           '<button class="link-btn" id="wkTplCancelBtn" style="color:var(--text-2);">Cancel</button>' +
-          '<button class="add-btn" id="wkTplSaveBtn" style="background:' + accent + ';">Save Template</button>' +
+          '<button class="add-btn" id="wkTplSaveBtn" style="background:' + accent + ';">' + (templateEditId ? "Update Template" : "Save Template") + '</button>' +
         "</div></div>";
     }
 
@@ -4583,7 +4587,10 @@ async function renderWorkoutsTab(root) {
             return '<div class="item-row"><div class="item-display">' +
               '<div class="item-main"><div class="item-name">' + escapeHtml(t.name) + "</div>" +
               '<div class="item-sub">' + liftCount + (liftCount === 1 ? " planned lift" : " planned lifts") + (t.category ? " \u00B7 " + escapeHtml(categoryById(WORKOUT_CATEGORIES, t.category).label) : "") + "</div></div>" +
-              '<div class="item-actions"><button class="icon-btn" data-action="delete-template" data-id="' + t.id + '">\u2715</button></div>' +
+              '<div class="item-actions">' +
+                '<button class="icon-btn" data-action="edit-template" data-id="' + t.id + '">\u270E</button>' +
+                '<button class="icon-btn" data-action="delete-template" data-id="' + t.id + '">\u2715</button>' +
+              "</div>" +
             "</div></div>";
           }).join("")) +
       "</div>" +
@@ -4594,6 +4601,14 @@ async function renderWorkoutsTab(root) {
       document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
       document.getElementById("wkTplCatPills").querySelectorAll("[data-tpl-cat]").forEach(function (btn) {
         btn.addEventListener("click", function (e) { templateDraft.category = e.currentTarget.getAttribute("data-tpl-cat"); renderTemplatesSection(); });
+      });
+      bodyEl.querySelectorAll("[data-tpl-lift-field]").forEach(function (el) {
+        el.addEventListener("input", function (e) {
+          var idx = Number(e.target.getAttribute("data-idx"));
+          var field = e.target.getAttribute("data-tpl-lift-field");
+          if (!templateDraft.lifts[idx]) return;
+          templateDraft.lifts[idx][field] = field === "targetWeight" && e.target.value !== "" ? Number(e.target.value) : e.target.value;
+        });
       });
       document.getElementById("wkTplAddLiftBtn").addEventListener("click", function () {
         var nameEl = document.getElementById("wkTplLiftName");
@@ -4612,25 +4627,47 @@ async function renderWorkoutsTab(root) {
       bodyEl.querySelectorAll("[data-action='remove-tpl-lift']").forEach(function (btn) {
         btn.addEventListener("click", function (e) { templateDraft.lifts.splice(Number(e.currentTarget.getAttribute("data-idx")), 1); renderTemplatesSection(); });
       });
-      document.getElementById("wkTplCancelBtn").addEventListener("click", function () { templateAddMode = false; templateDraft = null; renderTemplatesSection(); });
+      document.getElementById("wkTplCancelBtn").addEventListener("click", function () { templateAddMode = false; templateDraft = null; templateEditId = null; renderTemplatesSection(); });
       document.getElementById("wkTplSaveBtn").addEventListener("click", function () {
         if (!templateDraft.name.trim()) { document.getElementById("wkTplError").textContent = "Give it a name first."; return; }
-        templatesData.templates.push({ id: uid(), name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
+        if (templateEditId) {
+          var idx = templatesData.templates.findIndex(function (t) { return t.id === templateEditId; });
+          if (idx !== -1) {
+            templatesData.templates[idx] = Object.assign({}, templatesData.templates[idx], { name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
+          }
+        } else {
+          templatesData.templates.push({ id: uid(), name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
+        }
         saveTemplates();
         templateAddMode = false;
         templateDraft = null;
+        templateEditId = null;
         renderTemplatesSection();
       });
     } else {
       document.getElementById("wkNewTemplateBtn").addEventListener("click", function () {
         templateAddMode = true;
+        templateEditId = null;
         templateDraft = { name: "", category: "strength", lifts: [] };
         renderTemplatesSection();
       });
     }
+    bodyEl.querySelectorAll("[data-action='edit-template']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        var id = e.currentTarget.getAttribute("data-id");
+        var t = templatesData.templates.find(function (tpl) { return tpl.id === id; });
+        if (!t) return;
+        templateEditId = id;
+        templateAddMode = true;
+        templateDraft = { name: t.name, category: t.category, lifts: JSON.parse(JSON.stringify(t.lifts || [])) };
+        renderTemplatesSection();
+      });
+    });
     bodyEl.querySelectorAll("[data-action='delete-template']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
-        templatesData.templates = (templatesData.templates || []).filter(function (t) { return t.id !== e.currentTarget.getAttribute("data-id"); });
+        var id = e.currentTarget.getAttribute("data-id");
+        templatesData.templates = (templatesData.templates || []).filter(function (t) { return t.id !== id; });
+        if (templateEditId === id) { templateEditId = null; templateAddMode = false; templateDraft = null; }
         saveTemplates();
         renderTemplatesSection();
       });
