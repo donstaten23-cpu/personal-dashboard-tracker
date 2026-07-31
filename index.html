@@ -104,7 +104,7 @@
   /* hamburger (mobile only) */
   .hamburger {
     display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
-    background: #1B2027; border: 1px solid #2A313A;
+    background: var(--bg-sidebar); border: 1px solid var(--border);
     border-radius: 8px; width: 44px; height: 44px;
     align-items: center; justify-content: center; cursor: pointer;
     font-size: 18px; color:var(--text-1);
@@ -5158,6 +5158,10 @@ async function renderStoryPage(root) {
   function wordCount(text) {
     return (text || "").trim().split(/\s+/).filter(Boolean).length;
   }
+  function readingTime(words) {
+    if (!words) return "0 min read";
+    return Math.max(1, Math.round(words / 200)) + " min read";
+  }
 
   function renderChaptersSection() {
     var bodyEl = document.getElementById("storySectionBody");
@@ -5220,10 +5224,12 @@ async function renderStoryPage(root) {
         }
       }
       lastArcId = normArc;
+      var cWords = wordCount(c.content);
       return divider + '<div class="card" id="storyCh-' + c.id + '">' +
         '<div class="row-gap" style="margin-bottom:8px;">' +
           '<input class="form-input" style="flex:1;font-weight:600;" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
-          '<span class="mono" style="color:var(--text-3);font-size:12px;flex-shrink:0;">' + wordCount(c.content) + " words</span>" +
+          '<span class="mono" style="color:var(--text-3);font-size:12px;flex-shrink:0;">' + cWords + " words · " + readingTime(cWords) + "</span>" +
+          '<button class="icon-btn" data-action="focus-chapter" data-id="' + c.id + '" title="Focus mode">⛶</button>' +
           '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '">✕</button>' +
         "</div>" +
         '<div class="row-gap" style="margin-bottom:10px;">' +
@@ -5255,10 +5261,10 @@ async function renderStoryPage(root) {
       var bodyEl2 = document.getElementById("storyWordBody");
       if (goalNum > 0) {
         var pct = Math.min(100, (totalWords / goalNum) * 100);
-        amountEl.textContent = totalWords.toLocaleString() + " of " + goalNum.toLocaleString();
+        amountEl.textContent = totalWords.toLocaleString() + " of " + goalNum.toLocaleString() + " · " + readingTime(totalWords);
         bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
       } else {
-        amountEl.textContent = totalWords.toLocaleString();
+        amountEl.textContent = totalWords.toLocaleString() + " · " + readingTime(totalWords);
         if (showWordGoalInput) {
           bodyEl2.innerHTML = '<div class="row-gap"><input id="storyWordGoalDraft" class="small-input" type="number" min="0" placeholder="Target word count" value="' + escapeHtml(wordGoalDraft) + '" /><button class="small-btn" id="storyWordGoalSet" style="background:' + accent + ';">Set</button></div>';
           var gd = document.getElementById("storyWordGoalDraft");
@@ -5330,6 +5336,7 @@ async function renderStoryPage(root) {
       var action = btn.getAttribute("data-action");
       var id = btn.getAttribute("data-id");
       if (action === "delete-chapter") handleDeleteChapter(id);
+      else if (action === "focus-chapter") openFocusMode(id);
       else if (action === "move-chapter-up") handleMoveChapter(id, -1);
       else if (action === "move-chapter-down") handleMoveChapter(id, 1);
       else if (action === "delete-arc") handleDeleteArc(id);
@@ -5378,6 +5385,50 @@ async function renderStoryPage(root) {
     chaptersData.chapters = chaptersData.chapters.filter(function (c) { return c.id !== id; });
     saveChapters();
     renderChaptersSection();
+  }
+  // Distraction-free writing: a fullscreen overlay with just this chapter's title + body,
+  // editing the same chapter object in place so exiting just re-renders the normal card view.
+  function openFocusMode(id) {
+    var c = chaptersData.chapters.find(function (ch) { return ch.id === id; });
+    if (!c) return;
+    var overlay = document.createElement("div");
+    overlay.id = "storyFocusOverlay";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;";
+    overlay.innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;">' +
+        '<input id="focusChapterTitle" class="form-input" style="flex:1;min-width:160px;max-width:480px;font-weight:600;" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
+        '<span class="mono" id="focusStats" style="color:var(--text-3);font-size:12px;flex-shrink:0;"></span>' +
+        '<button class="small-btn" id="focusExitBtn" style="background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);flex-shrink:0;">Done (Esc)</button>' +
+      "</div>" +
+      '<textarea id="focusTextarea" style="flex:1;width:100%;box-sizing:border-box;background:var(--bg);color:var(--text-1);border:none;outline:none;resize:none;padding:36px max(20px, calc(50% - 340px));font-size:18px;line-height:1.8;font-family:inherit;tab-size:4;-moz-tab-size:4;" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>";
+    document.body.appendChild(overlay);
+    document.body.style.overflow = "hidden";
+
+    function updateStats() {
+      var words = wordCount(c.content);
+      document.getElementById("focusStats").textContent = words.toLocaleString() + " words · " + readingTime(words);
+    }
+    updateStats();
+
+    var ta = document.getElementById("focusTextarea");
+    ta.addEventListener("input", function (e) { c.content = e.target.value; updateStats(); });
+    ta.addEventListener("keydown", handleIndentKeydown);
+
+    var titleInput = document.getElementById("focusChapterTitle");
+    titleInput.addEventListener("input", function (e) { c.title = e.target.value; });
+
+    function closeFocus() {
+      document.removeEventListener("keydown", escHandler);
+      saveChapters();
+      document.body.style.overflow = "";
+      overlay.remove();
+      renderChaptersSection();
+    }
+    function escHandler(e) { if (e.key === "Escape") closeFocus(); }
+    document.addEventListener("keydown", escHandler);
+    document.getElementById("focusExitBtn").addEventListener("click", closeFocus);
+
+    setTimeout(function () { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
   }
   function handleMoveChapter(id, dir) {
     var chapters = sortedChapters();
