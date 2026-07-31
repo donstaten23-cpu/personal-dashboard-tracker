@@ -1139,6 +1139,46 @@ var COMMON_EXERCISES = [
   "Jump Shot", "Free Throw", "Layup", "Defensive Slides", "Ball Handling", "Basketball"
 ];
 
+// Custom (user-added) exercises, merged with COMMON_EXERCISES to form the full validated
+// suggestion list. Loaded lazily and shared (via this module-level var + memoized promise)
+// between the Workouts tab and the Settings page, which is the single place this list is
+// managed — both read/write the exact same object, so an edit in one shows up in the other
+// without a page reload.
+var _customExercisesData = null;
+var _customExercisesLoadPromise = null;
+function loadCustomExercisesData() {
+  if (_customExercisesData) return Promise.resolve(_customExercisesData);
+  if (!_customExercisesLoadPromise) {
+    _customExercisesLoadPromise = loadTabData("dashboard-workouts-custom-exercises", { exercises: [] }).then(function (d) {
+      if (!Array.isArray(d.exercises)) d.exercises = [];
+      _customExercisesData = d;
+      return d;
+    });
+  }
+  return _customExercisesLoadPromise;
+}
+function saveCustomExercisesData() {
+  if (_customExercisesData) saveTabData("dashboard-workouts-custom-exercises", _customExercisesData);
+}
+function handleAddCustomExerciseSettings() {
+  var inputEl = document.getElementById("settingsNewExerciseInput");
+  if (!inputEl || !_customExercisesData) return;
+  var name = inputEl.value.trim();
+  if (!name) { inputEl.focus(); return; }
+  var exists = COMMON_EXERCISES.concat(_customExercisesData.exercises).some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+  inputEl.value = "";
+  if (exists) return;
+  _customExercisesData.exercises.push(name);
+  saveCustomExercisesData();
+  renderSettingsPage();
+}
+function handleDeleteCustomExerciseSettings(idx) {
+  if (!_customExercisesData) return;
+  _customExercisesData.exercises.splice(idx, 1);
+  saveCustomExercisesData();
+  renderSettingsPage();
+}
+
 var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
 
 var BUDGET_IMPORT_BILLS = null; // intentionally left empty for the public repo
@@ -3834,8 +3874,7 @@ async function renderWorkoutsTab(root) {
   var data = await loadTabData("dashboard-workouts-data", defaultData);
   var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
   var splitsData = await loadTabData("dashboard-workouts-splits", { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
-  var customExercisesData = await loadTabData("dashboard-workouts-custom-exercises", { exercises: [] });
-  if (!customExercisesData.exercises) customExercisesData.exercises = [];
+  var customExercisesData = await loadCustomExercisesData();
 
   // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
   var migratedAny = false;
@@ -3916,12 +3955,11 @@ async function renderWorkoutsTab(root) {
   function save() { saveTabData("dashboard-workouts-data", data); }
   function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
   function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
-  function saveCustomExercises() { saveTabData("dashboard-workouts-custom-exercises", customExercisesData); }
   if (migratedAny || migratedLiftsAny) save();
 
-  // Combined suggestion list for the exercise picker — built-in COMMON_EXERCISES
-  // plus whatever the user has added, de-duped case-insensitively (user additions win
-  // when they collide with a built-in spelling, since they're appended last below).
+  // Combined suggestion list for the exercise picker — built-in COMMON_EXERCISES plus
+  // whatever the user has added from Settings, de-duped case-insensitively (user additions
+  // win when they collide with a built-in spelling, since they're appended last below).
   // Used identically by both the Log section's lift/activity fields and the Templates
   // section's planned-lift fields, so the two stay tied to one validated list.
   function allExerciseNames() {
@@ -3932,23 +3970,6 @@ async function renderWorkoutsTab(root) {
       seen[key] = true;
       return true;
     });
-  }
-  function handleAddCustomExercise() {
-    var inputEl = document.getElementById("wkNewExerciseInput");
-    if (!inputEl) return;
-    var name = inputEl.value.trim();
-    if (!name) { inputEl.focus(); return; }
-    var exists = allExerciseNames().some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
-    inputEl.value = "";
-    if (exists) return;
-    customExercisesData.exercises.push(name);
-    saveCustomExercises();
-    renderTemplatesSection();
-  }
-  function handleDeleteCustomExercise(idx) {
-    customExercisesData.exercises.splice(idx, 1);
-    saveCustomExercises();
-    renderTemplatesSection();
   }
 
   // Searchable exercise picker rendered entirely in JS instead of a native
@@ -4896,24 +4917,8 @@ async function renderWorkoutsTab(root) {
         "</div></div>";
     }
 
-    var customExercisesHtml = '<div class="card" style="margin-bottom:16px;">' +
-      '<div class="gauge-label mono" style="margin-bottom:10px;">CUSTOM EXERCISES</div>' +
-      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Add your own exercises to the suggestions list used on every lift-name field.</div>' +
-      '<div class="pills" id="wkCustomExerciseList">' +
-        ((customExercisesData.exercises || []).length === 0
-          ? '<span style="color:var(--text-3);font-size:12px;">No custom exercises yet.</span>'
-          : customExercisesData.exercises.map(function (n, i) {
-              return '<span class="pill" style="padding:4px 6px 4px 12px;gap:6px;">' + escapeHtml(n) +
-                '<button class="icon-btn" data-action="delete-custom-exercise" data-idx="' + i + '" style="padding:0 4px;">✕</button></span>';
-            }).join("")) +
-      "</div>" +
-      '<div class="row-gap" style="margin-top:8px;">' +
-        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="wkNewExerciseInput" placeholder="New exercise name" />' +
-        '<button class="small-btn" id="wkAddExerciseBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button>' +
-      "</div></div>";
-
     bodyEl.innerHTML =
-      customExercisesHtml +
+      '<div style="color:var(--text-3);font-size:12px;margin-bottom:12px;">Manage the custom exercise/activity suggestions list from <a href="#" id="wkExercisesSettingsLink" style="color:' + accent + ';">Settings</a>.</div>' +
       '<div class="list-card" style="margin-bottom:16px;">' +
         (templates.length === 0 ? '<div class="empty-state">No templates yet. Save a routine below to reuse it later.</div>' :
           templates.map(function (t) {
@@ -4931,11 +4936,7 @@ async function renderWorkoutsTab(root) {
       (templateAddMode ? templateFormHtml() : '<button class="add-btn" id="wkNewTemplateBtn" style="background:' + accent + ';">+ New Template</button>') +
       '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:var(--text-2);">Clear all templates</button></div>';
 
-    document.getElementById("wkAddExerciseBtn").addEventListener("click", handleAddCustomExercise);
-    document.getElementById("wkNewExerciseInput").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddCustomExercise(); });
-    bodyEl.querySelectorAll("[data-action='delete-custom-exercise']").forEach(function (btn) {
-      btn.addEventListener("click", function (e) { handleDeleteCustomExercise(Number(e.currentTarget.getAttribute("data-idx"))); });
-    });
+    document.getElementById("wkExercisesSettingsLink").addEventListener("click", function (e) { e.preventDefault(); switchPage("settings"); });
     initExerciseCombos(bodyEl);
 
     if (templateAddMode) {
@@ -6759,11 +6760,13 @@ function saveSettings() {
   saveTabData('user-settings', _settings);
 }
 
-function renderSettingsPage() {
+async function renderSettingsPage() {
   var page = document.getElementById('page-settings');
   if (!page) return;
+  if (!_customExercisesData) await loadCustomExercisesData();
   var s = _settings || Object.assign({}, SETTINGS_DEFAULTS);
   var inner = page.querySelector('.page-inner');
+  var customExerciseNames = _customExercisesData.exercises || [];
 
   var tabOrderRows = TABS.map(function(t, i) {
     return '<div class="item-row"><div class="item-display">' +
@@ -6833,16 +6836,24 @@ function renderSettingsPage() {
       '<span style="font-size:20px;">' + icon + '</span>' + escapeHtml(label) + '</button>';
   }
 
-  // Theme swatches
+  // Theme swatches — a swatch is "current" when every color field it defines still
+  // matches the live settings exactly. Tweaking any individual color afterward (via the
+  // pickers below) naturally un-marks it, since it's no longer a match for that preset.
+  function _themeMatchesSettings(t) {
+    return t.accent === s.accent && t.bgColor === s.bgColor && t.cardColor === s.cardColor &&
+      t.textColor === s.textColor && t.sidebarColor === s.sidebarColor && t.borderColor === s.borderColor;
+  }
   var themeSwatches = THEMES.map(function(t) {
-    return '<button data-theme="' + t.id + '" style="flex:1;min-width:80px;padding:12px 8px;border-radius:10px;border:2px solid var(--border-2);background:' + t.bgColor +
-      ';cursor:pointer;transition:border-color .15s;display:flex;flex-direction:column;gap:8px;align-items:center;">' +
+    var active = _themeMatchesSettings(t);
+    return '<button data-theme="' + t.id + '" style="flex:1;min-width:80px;padding:12px 8px;border-radius:10px;border:2px solid ' + (active ? 'var(--accent)' : 'var(--border-2)') + ';background:' + t.bgColor +
+      ';cursor:pointer;transition:border-color .15s;display:flex;flex-direction:column;gap:8px;align-items:center;position:relative;">' +
+      (active ? '<span style="position:absolute;top:6px;right:6px;color:' + t.accent + ';font-size:13px;line-height:1;">&#10003;</span>' : '') +
       '<div style="display:flex;gap:4px;">' +
         '<span style="width:14px;height:14px;border-radius:50%;background:' + t.accent + ';"></span>' +
         '<span style="width:14px;height:14px;border-radius:50%;background:' + t.cardColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
         '<span style="width:14px;height:14px;border-radius:50%;background:' + t.sidebarColor + ';border:1px solid rgba(255,255,255,.1);"></span>' +
       '</div>' +
-      '<span style="color:' + t.textColor + ';font-size:11px;font-weight:600;">' + escapeHtml(t.name) + '</span>' +
+      '<span style="color:' + t.textColor + ';font-size:11px;font-weight:600;">' + escapeHtml(t.name) + (active ? ' · Current' : '') + '</span>' +
     '</button>';
   }).join('');
 
@@ -6938,6 +6949,26 @@ function renderSettingsPage() {
         _labelRow('settingLabelBudget',   'Budget tab',    (s.pageLabels && s.pageLabels.budget)   || 'BUDGET PLANNER') +
         _labelRow('settingLabelWorkouts', 'Workouts page', (s.pageLabels && s.pageLabels.workouts) || 'WORKOUT PLANNER') +
         _labelRow('settingLabelRoutines', 'Routines tab',  (s.pageLabels && s.pageLabels.routines) || 'DAILY ROUTINES') +
+      '</div>' +
+    '</div>' +
+
+    // ── Workouts ────────────────────────────────────────────────────────
+    '<div class="port-section-label">Workouts</div>' +
+
+    '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">CUSTOM EXERCISES</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Add your own lifts and activities to the validated suggestions list used everywhere you log a workout.</div>' +
+      '<div class="pills" id="settingsCustomExerciseList" style="margin-bottom:8px;">' +
+        (customExerciseNames.length === 0
+          ? '<span style="color:var(--text-3);font-size:12px;">No custom exercises yet.</span>'
+          : customExerciseNames.map(function(n, i) {
+              return '<span class="pill" style="padding:4px 6px 4px 12px;gap:6px;">' + escapeHtml(n) +
+                '<button class="icon-btn" data-action="settings-delete-custom-exercise" data-idx="' + i + '" style="padding:0 4px;">✕</button></span>';
+            }).join('')) +
+      '</div>' +
+      '<div class="row-gap">' +
+        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="settingsNewExerciseInput" placeholder="New exercise or activity name" />' +
+        '<button class="small-btn" id="settingsAddExerciseBtn" style="background:var(--accent);flex-shrink:0;">+ Add</button>' +
       '</div>' +
     '</div>' +
 
@@ -7162,6 +7193,15 @@ function renderSettingsPage() {
       _settings.pageLabels[f.key] = inp.value;
       saveSettings();
     });
+  });
+
+  // Custom exercises
+  var settingsAddExerciseBtn = document.getElementById('settingsAddExerciseBtn');
+  if (settingsAddExerciseBtn) settingsAddExerciseBtn.addEventListener('click', handleAddCustomExerciseSettings);
+  var settingsNewExerciseInput = document.getElementById('settingsNewExerciseInput');
+  if (settingsNewExerciseInput) settingsNewExerciseInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') handleAddCustomExerciseSettings(); });
+  inner.querySelectorAll("[data-action='settings-delete-custom-exercise']").forEach(function(btn) {
+    btn.addEventListener('click', function(e) { handleDeleteCustomExerciseSettings(Number(e.currentTarget.getAttribute('data-idx'))); });
   });
 
   // User name
