@@ -155,7 +155,7 @@
     border-radius: 4px;
     padding: 2px 4px;
     margin: -2px -4px;
-    background: #12151A;
+    background: var(--bg);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 33%, transparent);
     cursor: text;
   }
@@ -173,9 +173,9 @@
   .port-metric-num { font-size: 26px; font-weight: 800; color: var(--accent); display: block; line-height: 1; font-family: ui-monospace,'SF Mono',monospace; }
   .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
   .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .port-tool { background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
+  .port-tool { background: var(--bg); border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
   .port-placeholder {
-    background: #12151A; border: 2px dashed #2A313A; border-radius: 8px;
+    background: var(--bg); border: 2px dashed #2A313A; border-radius: 8px;
     padding: 32px; text-align: center; font-size: 13px; color: #5A6168;
     margin-top: 16px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
     position: relative; overflow: hidden;
@@ -3207,7 +3207,7 @@ async function renderTravelTab(root) {
           '<div class="gauge-top"><span class="gauge-label mono">COUNTDOWN TO ' + escapeHtml(tripDate) + "</span></div>" +
           '<div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">' +
             ['days','hrs','min','sec'].map(function (label) {
-              return '<div style="flex:1;text-align:center;background:#12151A;border-radius:8px;padding:10px 4px;">' +
+              return '<div style="flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:10px 4px;">' +
                 '<div class="mono cd-' + label + '" style="color:var(--accent);font-size:22px;font-weight:700;">--</div>' +
                 '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
               "</div>";
@@ -5636,7 +5636,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       '<div class="row-gap" style="margin-bottom:12px;"><button class="add-btn" id="storyAddImageBtn" style="background:' + accent + ';">+ Add image</button></div>' +
       '<div class="card" style="padding:0;overflow:hidden;">' +
-        '<div id="storyMoodCanvas" style="position:relative;min-height:300px;background:#12151A;">' +
+        '<div id="storyMoodCanvas" style="position:relative;min-height:300px;background:var(--bg);">' +
           (images.length === 0 ? '<div class="empty-state">No images yet. Add a few for inspiration.</div>' : "") +
           images.map(function (img) {
             return '<div class="story-mood-item" data-id="' + img.id + '" style="position:absolute;left:' + img.x + "px;top:" + img.y + 'px;width:' + img.w + 'px;">' +
@@ -6794,7 +6794,7 @@ function _colorRow(id, label, value) {
       '<input type="color" id="' + id + '" value="' + value + '" ' +
         'style="width:40px;height:34px;border:1px solid #2A313A;border-radius:6px;background:none;cursor:pointer;padding:2px;flex-shrink:0;" />' +
       '<input type="text" id="' + id + 'Hex" value="' + value + '" maxlength="7" ' +
-        'class="mono" style="background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:13px;width:96px;" ' +
+        'class="mono" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:5px 8px;font-size:13px;width:96px;" ' +
         'placeholder="#000000" spellcheck="false" />' +
     '</div>' +
   '</div>';
@@ -6970,7 +6970,7 @@ async function renderEducationPage() {
   var groupsHtml = data.groups.map(function(group) {
     var isEditingGroupName = _eduEditGroupId === group.id;
     var groupLabel = isEditingGroupName
-      ? '<input type="text" id="eduGroupNameInput" value="' + escapeHtml(group.name) + '" style="background:#12151A;color:#EDEAE3;border:1px solid color-mix(in srgb, var(--accent) 33%, transparent);border-radius:4px;padding:2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;width:150px;" />' +
+      ? '<input type="text" id="eduGroupNameInput" value="' + escapeHtml(group.name) + '" style="background:var(--bg);color:var(--text-1);border:1px solid color-mix(in srgb, var(--accent) 33%, transparent);border-radius:4px;padding:2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;width:150px;" />' +
         '<button class="icon-btn" data-action="save-group-name" data-group="' + group.id + '" style="color:#5BAE7A;">✓</button>' +
         '<button class="icon-btn" data-action="cancel-group-edit">✕</button>'
       : '<span>' + escapeHtml(group.name) + '</span>' +
@@ -7108,7 +7108,7 @@ async function renderEducationPage() {
         '</div>';
       }).join('');
 
-  var viewToggle = '<div style="display:flex;background:#12151A;border-radius:8px;padding:3px;gap:2px;">' +
+  var viewToggle = '<div style="display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:2px;">' +
     '<button data-action="edu-view-groups" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'groups' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Group</button>' +
     '<button data-action="edu-view-semesters" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'semesters' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Semester</button>' +
   '</div>';
@@ -7153,7 +7153,7 @@ async function renderEducationPage() {
       '<div>' +
         '<label style="color:#8A919C;font-size:11px;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Target date</label>' +
         '<input type="date" id="eduGradDate" value="' + escapeHtml(data.gradDate || '') + '" ' +
-          'style="background:#12151A;color:#EDEAE3;border:1px solid #2A313A;border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;" />' +
+          'style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;" />' +
       '</div>' +
     '</div>' +
 
