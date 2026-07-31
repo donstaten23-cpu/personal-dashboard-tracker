@@ -1172,11 +1172,78 @@ function handleAddCustomExerciseSettings() {
   saveCustomExercisesData();
   renderSettingsPage();
 }
-function handleDeleteCustomExerciseSettings(idx) {
+
+// How many logged lifts (across every workout session) currently use each exercise name —
+// shown in Settings so deleting a suggestion is an informed choice, not a guess. Lifts store
+// their own name/muscleGroup/trainingStyles directly (see renderWorkoutsTab), so nothing here
+// actually references the suggestions list; removing a name from it can never orphan a logged
+// workout or break PR/history tracking — it only stops that name from autocompleting in the
+// future. Memoized like loadCustomExercisesData so visiting Settings repeatedly doesn't refetch.
+var _exerciseUsageCounts = null;
+var _exerciseUsageCountsPromise = null;
+function loadExerciseUsageCounts() {
+  if (_exerciseUsageCounts) return Promise.resolve(_exerciseUsageCounts);
+  if (!_exerciseUsageCountsPromise) {
+    _exerciseUsageCountsPromise = loadTabData("dashboard-workouts-data", { items: [] }).then(function (workoutsData) {
+      var counts = {};
+      (workoutsData.items || []).forEach(function (it) {
+        (it.lifts || []).forEach(function (l) {
+          var key = normalizeLiftName(l.name);
+          if (!key) return;
+          counts[key] = (counts[key] || 0) + 1;
+        });
+      });
+      _exerciseUsageCounts = counts;
+      return counts;
+    });
+  }
+  return _exerciseUsageCountsPromise;
+}
+function handleDeleteCustomExerciseSettings(name) {
   if (!_customExercisesData) return;
+  var idx = _customExercisesData.exercises.indexOf(name);
+  if (idx === -1) return;
+  var count = (_exerciseUsageCounts && _exerciseUsageCounts[normalizeLiftName(name)]) || 0;
+  if (count > 0) {
+    var msg = '"' + name + '" is used in ' + count + ' logged lift' + (count === 1 ? '' : 's') + '. Removing it here only affects future autocomplete suggestions — your existing logs, PRs, and history are untouched. Continue?';
+    if (!confirm(msg)) return;
+  }
   _customExercisesData.exercises.splice(idx, 1);
   saveCustomExercisesData();
   renderSettingsPage();
+}
+
+// Renders the full built-in + custom exercise list in Settings, filterable by name. Built-ins
+// are shown muted with a "Built-in" tag (no delete button — they're fixed so _LIFT_KEYWORD_MAP
+// auto-tagging stays reliable); custom entries get a delete button. Both show a usage count
+// when the name appears in any logged lift, so deleting is an informed choice.
+function renderAllExerciseListRows(filterText) {
+  var listEl = document.getElementById('settingsAllExerciseList');
+  if (!listEl) return;
+  var q = (filterText || '').trim().toLowerCase();
+  var customNames = (_customExercisesData && _customExercisesData.exercises) || [];
+  var all = COMMON_EXERCISES.map(function (n) { return { name: n, custom: false }; })
+    .concat(customNames.map(function (n) { return { name: n, custom: true }; }));
+  all.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  if (q) all = all.filter(function (e) { return e.name.toLowerCase().indexOf(q) !== -1; });
+  if (!all.length) {
+    listEl.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:10px 4px;">No exercises match.</div>';
+    return;
+  }
+  listEl.innerHTML = all.map(function (e) {
+    var count = (_exerciseUsageCounts && _exerciseUsageCounts[normalizeLiftName(e.name)]) || 0;
+    var countBadge = count > 0 ? '<span class="mono" style="color:var(--text-3);font-size:11px;">&times;' + count + '</span>' : '';
+    var rightSide = e.custom
+      ? countBadge + '<button class="icon-btn" data-action="settings-delete-custom-exercise" data-name="' + escapeHtml(e.name) + '" style="padding:2px 4px;" title="Delete">&#10005;</button>'
+      : countBadge + '<span style="color:var(--text-3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 4px;flex-shrink:0;">Built-in</span>';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border-2);">' +
+      '<span style="color:' + (e.custom ? 'var(--text-1)' : 'var(--text-2)') + ';font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(e.name) + '</span>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + rightSide + '</div>' +
+    '</div>';
+  }).join('');
+  listEl.querySelectorAll("[data-action='settings-delete-custom-exercise']").forEach(function (btn) {
+    btn.addEventListener('click', function (e) { handleDeleteCustomExerciseSettings(e.currentTarget.getAttribute('data-name')); });
+  });
 }
 
 var ROUTINE_COLORS = ["#e83b3b", "#5BAE7A", "#3DBFC4", "#D9A441", "#C97FBF", "#7187E0"];
@@ -1602,17 +1669,16 @@ function showDashboardScreen() {
   loadArtContent();
   loadSettings();
   initGoogleCalendar();
-  // Render routines inline on the overview page
+  // Render routines inline on the overview page (always visible there, so this one
+  // stays eager). Workouts is a separate sidebar page — it's already picked up lazily
+  // by switchPage() on first visit, and prefetched on hover/tap, so it no longer needs
+  // an unconditional load here too. That eager load fetched the whole workout log,
+  // templates, and splits on every single boot even for sessions that never opened
+  // Workouts — pure wasted egress.
   var rtRoot = document.getElementById("routinesRoot");
   if (rtRoot && !rtRoot._loaded) {
     rtRoot._loaded = true;
     renderRoutinesTab(rtRoot);
-  }
-  // Pre-load workouts page
-  var wkRoot = document.getElementById("workoutPageRoot");
-  if (wkRoot && !wkRoot._loaded) {
-    wkRoot._loaded = true;
-    renderWorkoutsTab(wkRoot);
   }
 }
 
@@ -1978,9 +2044,33 @@ function initClock() {
 // Each image is stored as its own Supabase row with tab_key = "portfolio-img-{key}"
 // This avoids hitting row-size limits when all images were in one JSON blob.
 var _portImages = {};
+var PORTFOLIO_IMAGES_CACHE_KEY = "portfolio-images-all";
+// Images are the heaviest payload in the app (base64, ~33% bigger than the original
+// binary) and used to be re-fetched in full on every single boot with zero caching —
+// the single biggest driver of PostgREST egress. Unlike loadTabData's every-load
+// background-revalidate, this deliberately skips the network entirely while the local
+// cache is still fresh, since a stale-while-revalidate policy that still re-fetches
+// every time wouldn't actually cut any egress, only perceived latency. Any edit made
+// on *this* device (upload/delete) updates the cache immediately via _writePortfolioImagesCache,
+// so the only staleness window is for changes made on a different device.
+var PORTFOLIO_IMAGES_STALE_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function _writePortfolioImagesCache() {
+  _writeCache(PORTFOLIO_IMAGES_CACHE_KEY, { images: _portImages, ts: Date.now() });
+}
 
 async function loadPortfolioImages() {
   if (!currentUserId) return;
+  var cached = _readCache(PORTFOLIO_IMAGES_CACHE_KEY);
+  if (cached && cached.images) {
+    _portImages = Object.assign({}, cached.images);
+    applyPortfolioImages();
+    if (Date.now() - (cached.ts || 0) < PORTFOLIO_IMAGES_STALE_MS) return;
+  }
+  await _fetchPortfolioImagesFromNetwork();
+}
+
+async function _fetchPortfolioImagesFromNetwork() {
   try {
     // Fetch all per-image rows for this user
     var result = await supabaseClient.from("dashboard_data")
@@ -2018,6 +2108,7 @@ async function loadPortfolioImages() {
           .delete().eq("user_id", currentUserId).eq("tab_key", "portfolio-images");
       }
     }
+    _writePortfolioImagesCache();
     applyPortfolioImages();
   } catch(e) { console.error("Portfolio images load error", e); }
 }
@@ -2073,6 +2164,7 @@ function triggerImageUpload(el) {
         canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         var compressed = canvas.toDataURL("image/jpeg", 0.78);
         _portImages[key] = compressed;
+        _writePortfolioImagesCache();
         setPlaceholderImage(el, compressed);
         // Re-apply editing class so delete button stays visible
         if (_portEditing || _artEditing) el.classList.add("editing-mode");
@@ -2104,6 +2196,7 @@ async function savePortfolioImage(key, dataUrl) {
 
 function clearPortfolioImage(el, key) {
   delete _portImages[key];
+  _writePortfolioImagesCache();
   // Reset to empty placeholder HTML
   if (el.classList.contains("art-cell")) {
     el.innerHTML = '<div class="art-cell-inner"><div class="art-cell-icon">&#127912;</div><div>Click to upload</div></div><div class="ph-overlay">&#128247; Replace</div>';
@@ -6764,9 +6857,9 @@ async function renderSettingsPage() {
   var page = document.getElementById('page-settings');
   if (!page) return;
   if (!_customExercisesData) await loadCustomExercisesData();
+  if (!_exerciseUsageCounts) await loadExerciseUsageCounts();
   var s = _settings || Object.assign({}, SETTINGS_DEFAULTS);
   var inner = page.querySelector('.page-inner');
-  var customExerciseNames = _customExercisesData.exercises || [];
 
   var tabOrderRows = TABS.map(function(t, i) {
     return '<div class="item-row"><div class="item-display">' +
@@ -6956,16 +7049,10 @@ async function renderSettingsPage() {
     '<div class="port-section-label">Workouts</div>' +
 
     '<div class="card" style="margin-bottom:16px;">' +
-      '<div class="gauge-label mono" style="margin-bottom:4px;">CUSTOM EXERCISES</div>' +
-      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Add your own lifts and activities to the validated suggestions list used everywhere you log a workout.</div>' +
-      '<div class="pills" id="settingsCustomExerciseList" style="margin-bottom:8px;">' +
-        (customExerciseNames.length === 0
-          ? '<span style="color:var(--text-3);font-size:12px;">No custom exercises yet.</span>'
-          : customExerciseNames.map(function(n, i) {
-              return '<span class="pill" style="padding:4px 6px 4px 12px;gap:6px;">' + escapeHtml(n) +
-                '<button class="icon-btn" data-action="settings-delete-custom-exercise" data-idx="' + i + '" style="padding:0 4px;">✕</button></span>';
-            }).join('')) +
-      '</div>' +
+      '<div class="gauge-label mono" style="margin-bottom:4px;">EXERCISE LIST</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Built-in suggestions (muted, tagged "Built-in") can’t be edited or removed. Custom ones — yours — can be deleted; the ×N shows how many logged lifts currently use that name. Deleting a suggestion only affects future autocomplete, never anything already logged.</div>' +
+      '<input class="form-input" id="settingsExerciseFilter" placeholder="Filter exercises…" style="margin-bottom:10px;" />' +
+      '<div id="settingsAllExerciseList" style="max-height:280px;overflow-y:auto;border:1px solid var(--border-2);border-radius:8px;padding:2px 8px;margin-bottom:12px;"></div>' +
       '<div class="row-gap">' +
         '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="settingsNewExerciseInput" placeholder="New exercise or activity name" />' +
         '<button class="small-btn" id="settingsAddExerciseBtn" style="background:var(--accent);flex-shrink:0;">+ Add</button>' +
@@ -7204,9 +7291,9 @@ async function renderSettingsPage() {
   if (settingsAddExerciseBtn) settingsAddExerciseBtn.addEventListener('click', handleAddCustomExerciseSettings);
   var settingsNewExerciseInput = document.getElementById('settingsNewExerciseInput');
   if (settingsNewExerciseInput) settingsNewExerciseInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') handleAddCustomExerciseSettings(); });
-  inner.querySelectorAll("[data-action='settings-delete-custom-exercise']").forEach(function(btn) {
-    btn.addEventListener('click', function(e) { handleDeleteCustomExerciseSettings(Number(e.currentTarget.getAttribute('data-idx'))); });
-  });
+  renderAllExerciseListRows('');
+  var settingsExerciseFilter = document.getElementById('settingsExerciseFilter');
+  if (settingsExerciseFilter) settingsExerciseFilter.addEventListener('input', function(e) { renderAllExerciseListRows(e.target.value); });
 
   // User name
   var userNameInp = document.getElementById('settingUserName');
