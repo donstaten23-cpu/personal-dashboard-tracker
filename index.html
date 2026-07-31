@@ -7003,6 +7003,10 @@ async function renderSettingsPage() {
       if (!btn) return;
       var t = THEMES.find(function(th) { return th.id === btn.getAttribute('data-theme'); });
       if (!t) return;
+      // Applying a preset overwrites every color field at once with no way to undo except
+      // re-typing hex codes by hand — confirm first so a stray click can't wipe out a
+      // custom palette the user built up manually (this silently destroyed one before).
+      if (!_themeMatchesSettings(t) && !confirm('Apply the "' + t.name + '" theme? This replaces all of your current colors.')) return;
       _settings.accent       = t.accent;
       _settings.bgColor      = t.bgColor;
       _settings.cardColor    = t.cardColor;
