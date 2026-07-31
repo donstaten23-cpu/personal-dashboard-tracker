@@ -41,7 +41,7 @@
   .serif { font-family: inherit; font-style: normal; font-weight: 800; letter-spacing: -0.01em; }
   .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
   input, button, select { font-family: inherit; }
-  input::placeholder { color: #5A6168; }
+  input::placeholder { color:var(--text-3); }
   button { cursor: pointer; }
   /* ---- app shell ---- */
   .app-shell { display: flex; min-height: 100vh; }
@@ -59,20 +59,20 @@
     border-bottom: 1px solid #1E2530;
   }
   .sidebar-clock {
-    font-size: 11px; color: #8A919C; font-family: ui-monospace,'SF Mono',monospace;
+    font-size: 11px; color:var(--text-2); font-family: ui-monospace,'SF Mono',monospace;
     margin-top: 4px; letter-spacing: 0.04em;
   }
   .sidebar-date {
-    font-size: 12px; color: #5A6168; font-family: ui-monospace,'SF Mono',monospace;
+    font-size: 12px; color:var(--text-3); font-family: ui-monospace,'SF Mono',monospace;
     margin-top: 2px;
   }
   .sidebar-nav { flex: 1; padding: 16px 0; overflow-y: auto; }
   .sidebar-section-label {
     font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
-    color: #5A6168; font-weight: 600; padding: 8px 20px 4px;
+    color:var(--text-3); font-weight: 600; padding: 8px 20px 4px;
   }
   .sidebar-section-label.collapse-header { padding-right: 16px; transition: color 0.15s; }
-  .sidebar-section-label.collapse-header:hover { color: #8A919C; }
+  .sidebar-section-label.collapse-header:hover { color:var(--text-2); }
   .sidebar-section-label .collapse-chevron { font-size: 8px; }
   /* .collapse-body's grid-row 0fr→1fr animation only actually collapses to
      zero if its direct child has overflow:hidden + min-height:0 (otherwise the
@@ -83,23 +83,23 @@
   .sidebar-item {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 20px; font-size: 14px; font-weight: 500;
-    color: #8A919C; cursor: pointer; border: none; background: none;
+    color:var(--text-2); cursor: pointer; border: none; background: none;
     width: 100%; text-align: left; border-radius: 0;
     transition: background 0.15s, color 0.15s;
     border-left: 3px solid transparent;
   }
-  .sidebar-item:hover { background: #1B2027; color: #EDEAE3; }
-  .sidebar-item.active { background: #1B2027; color: #EDEAE3; border-left-color: var(--page-accent); }
+  .sidebar-item:hover { background: #1B2027; color:var(--text-1); }
+  .sidebar-item.active { background: #1B2027; color:var(--text-1); border-left-color: var(--page-accent); }
   .sidebar-item .s-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
   .sidebar-footer {
     padding: 16px 20px; border-top: 1px solid #1E2530;
     display: flex; flex-direction: column; gap: 6px;
   }
   .sidebar-footer button {
-    background: none; border: none; color: #5A6168; font-size: 12px;
+    background: none; border: none; color:var(--text-3); font-size: 12px;
     padding: 0; text-align: left; cursor: pointer; text-decoration: underline;
   }
-  .sidebar-footer button:hover { color: #8A919C; }
+  .sidebar-footer button:hover { color:var(--text-2); }
 
   /* hamburger (mobile only) */
   .hamburger {
@@ -107,7 +107,7 @@
     background: #1B2027; border: 1px solid #2A313A;
     border-radius: 8px; width: 44px; height: 44px;
     align-items: center; justify-content: center; cursor: pointer;
-    font-size: 18px; color: #EDEAE3;
+    font-size: 18px; color:var(--text-1);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
@@ -124,11 +124,11 @@
   /* portfolio page styles */
   .port-hero { padding: 40px 0 28px; border-bottom: 1px solid #2A313A; margin-bottom: 28px; }
   .port-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--page-accent); font-weight: 700; margin-bottom: 8px; }
-  .port-title { font-size: 36px; font-weight: 800; color: #EDEAE3; line-height: 1.1; margin-bottom: 6px; }
-  .port-subtitle { color: #8A919C; font-size: 14px; }
-  .port-intro { color: #EDEAE3; font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
+  .port-title { font-size: 36px; font-weight: 800; color:var(--text-1); line-height: 1.1; margin-bottom: 6px; }
+  .port-subtitle { color:var(--text-2); font-size: 14px; }
+  .port-intro { color:var(--text-1); font-size: 16px; line-height: 1.7; max-width: 600px; margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #2A313A; }
   .port-section-label {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: #5A6168;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color:var(--text-3);
     font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 32px 0 20px;
   }
   .port-section-label::after { content: ''; flex: 1; height: 1px; background: #1E2530; }
@@ -147,8 +147,8 @@
 
   /* edit mode */
   .port-edit-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
-  .port-edit-btn { border:1px solid #2A313A; background:#1B2027; color:#8A919C; border-radius:999px; padding:7px 16px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s,color 0.15s,border-color 0.15s; }
-  .port-edit-btn:hover { background:#2A313A; color:#EDEAE3; }
+  .port-edit-btn { border:1px solid #2A313A; background:#1B2027; color:var(--text-2); border-radius:999px; padding:7px 16px; font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .port-edit-btn:hover { background:#2A313A; color:var(--text-1); }
   .port-edit-btn.editing { background:var(--accent); border-color:var(--accent); color:#12151A; }
   [data-port-key][contenteditable="true"] {
     outline: none;
@@ -159,33 +159,33 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 33%, transparent);
     cursor: text;
   }
-  .port-edit-hint { color:#5A6168; font-size:12px; }
+  .port-edit-hint { color:var(--text-3); font-size:12px; }
   /* disable placeholder clicks when locked */
   .port-placeholder.locked { pointer-events: none; cursor: default; }
   .port-placeholder.locked .ph-overlay { display: none; }
   .port-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
-  .port-card h2 { font-size: 22px; font-weight: 700; color: #EDEAE3; margin-bottom: 4px; }
-  .port-meta { color: #5A6168; font-size: 13px; margin-bottom: 14px; }
-  .port-card p { color: #8A919C; font-size: 15px; line-height: 1.65; margin-bottom: 12px; }
+  .port-card h2 { font-size: 22px; font-weight: 700; color:var(--text-1); margin-bottom: 4px; }
+  .port-meta { color:var(--text-3); font-size: 13px; margin-bottom: 14px; }
+  .port-card p { color:var(--text-2); font-size: 15px; line-height: 1.65; margin-bottom: 12px; }
   .port-card ul { margin: 0 0 14px 18px; }
-  .port-card li { color: #8A919C; font-size: 15px; margin-bottom: 6px; line-height: 1.5; }
+  .port-card li { color:var(--text-2); font-size: 15px; margin-bottom: 6px; line-height: 1.5; }
   .port-metrics { display: flex; gap: 24px; flex-wrap: wrap; margin: 18px 0; padding: 16px 0; border-top: 1px solid #2A313A; border-bottom: 1px solid #2A313A; }
   .port-metric-num { font-size: 26px; font-weight: 800; color: var(--accent); display: block; line-height: 1; font-family: ui-monospace,'SF Mono',monospace; }
-  .port-metric-label { font-size: 11px; color: #5A6168; text-transform: uppercase; letter-spacing: 0.05em; }
+  .port-metric-label { font-size: 11px; color:var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
   .port-tools { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .port-tool { background: var(--bg); border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #8A919C; }
+  .port-tool { background: var(--bg); border: 1px solid #2A313A; border-radius: 6px; padding: 4px 10px; font-size: 12px; color:var(--text-2); }
   .port-placeholder {
     background: var(--bg); border: 2px dashed #2A313A; border-radius: 8px;
-    padding: 32px; text-align: center; font-size: 13px; color: #5A6168;
+    padding: 32px; text-align: center; font-size: 13px; color:var(--text-3);
     margin-top: 16px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
     position: relative; overflow: hidden;
   }
-  .port-placeholder:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: #1B2027; color: #8A919C; }
+  .port-placeholder:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--bg-card); color:var(--text-2); }
   .port-placeholder img { width: 100%; border-radius: 6px; display: block; }
   .port-placeholder .ph-overlay {
     position: absolute; inset: 0; background: rgba(0,0,0,0.6);
     display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3;
+    opacity: 0; transition: opacity 0.2s; font-size: 13px; color:var(--text-1);
     border-radius: 6px;
   }
   .port-placeholder:hover .ph-overlay { opacity: 1; }
@@ -193,32 +193,32 @@
   /* art portfolio */
   .art-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
   .art-cell-wrap { display: flex; flex-direction: column; }
-  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: calc(var(--radius-card) - 4px); overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color: #5A6168; font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
+  .art-cell { background: #1B2027; border: 1px solid #2A313A; border-radius: calc(var(--radius-card) - 4px); overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content:center; color:var(--text-3); font-size: 13px; cursor: pointer; transition: border-color 0.2s; position: relative; }
   .art-cell:not(.locked):hover { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
   .art-cell.locked { cursor: default; }
   .art-cell.has-image:not([class*="locked"]) { cursor: zoom-in; }
   .art-cell-inner { text-align: center; padding: 16px; }
   .art-cell-icon { font-size: 32px; margin-bottom: 8px; }
   .art-cell img { width: 100%; height: auto; display: block; }
-  .art-cell .ph-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 13px; color: #EDEAE3; border-radius: 12px; }
+  .art-cell .ph-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 13px; color:var(--text-1); border-radius: 12px; }
   /* delete-image button — shown only in edit mode on filled cells */
   .img-del-btn { display: none; position: absolute; top: 6px; right: 6px; z-index: 20; background: rgba(0,0,0,.72); border: none; color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 14px; line-height: 22px; text-align: center; cursor: pointer; padding: 0; }
   .art-cell.editing-mode .img-del-btn { display: block; }
   .port-placeholder.editing-mode .img-del-btn { display: block; }
   .art-cell:not(.locked):hover .ph-overlay { opacity: 1; }
-  .art-caption { font-size: 12px; color: #8A919C; text-align: center; padding: 5px 4px 0; }
+  .art-caption { font-size: 12px; color:var(--text-2); text-align: center; padding: 5px 4px 0; }
   .art-caption:empty:not([contenteditable]) { display: none; }
   .art-caption[contenteditable="true"] { outline: 1px dashed color-mix(in srgb, var(--accent) 27%, transparent); border-radius: 3px; min-height: 18px; cursor: text; padding: 3px 4px; }
   .art-tabs { display: flex; gap: 6px; margin: 12px 0 20px; flex-wrap: wrap; }
-  .art-tab { border: 1px solid #2A313A; background: transparent; color: #8A919C; border-radius: 999px; padding: 7px 18px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background .15s, color .15s, border-color .15s; }
+  .art-tab { border: 1px solid #2A313A; background: transparent; color:var(--text-2); border-radius: 999px; padding: 7px 18px; font-size: 13px; cursor: pointer; font-family: inherit; transition: background .15s, color .15s, border-color .15s; }
   .art-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   /* lightbox */
   #artLightbox { position: fixed; inset: 0; background: rgba(0,0,0,.93); z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px; cursor: zoom-out; }
   #artLightbox.open { display: flex; }
   #artLightbox .lb-img { max-width: 94vw; max-height: 82vh; object-fit: contain; border-radius: 8px; cursor: default; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
-  #artLightbox .lb-caption { color: #EDEAE3; font-size: 15px; margin-top: 14px; text-align: center; max-width: 600px; cursor: default; }
-  #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color: #8A919C; cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
-  #artLightbox .lb-close:hover { color: #EDEAE3; }
+  #artLightbox .lb-caption { color:var(--text-1); font-size: 15px; margin-top: 14px; text-align: center; max-width: 600px; cursor: default; }
+  #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color:var(--text-2); cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
+  #artLightbox .lb-close:hover { color:var(--text-1); }
 
   @media (max-width: 700px) {
     .sidebar { transform: translateX(-100%); }
@@ -267,7 +267,7 @@
   .tab-eyebrow { color: var(--page-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
 
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
-  .tabbtn { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
+  .tabbtn { border: 1px solid #2A313A; background: #1B2027; color:var(--text-2); border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
   .tabbtn.active { color: #12151A; }
 
   /* gauge amount spans — the "$X of $Y" dollar figures next to the label */
@@ -281,11 +281,11 @@
   #wkStreak, #rtLongest { font-size: 14px !important; }
 
   /* footer total */
-  .footer-total { color: #EDEAE3; font-size: 20px; font-weight: 700; }
-  .footer-label { color: #8A919C; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .footer-total { color:var(--text-1); font-size: 20px; font-weight: 700; }
+  .footer-label { color:var(--text-2); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
 
   /* chips & pills slightly bigger */
-  .chip { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 13px; font-size: 13px; transition: filter 0.15s, border-color 0.15s; }
+  .chip { background: #1B2027; color:var(--text-1); border: 1px solid #2A313A; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 13px; font-size: 13px; transition: filter 0.15s, border-color 0.15s; }
   .pill { border: 1px solid; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 500; background: transparent; transition: filter 0.15s, transform 0.1s, border-color 0.15s; }
   .pill:hover, .chip:hover { filter: brightness(1.18); }
   .pill:active { transform: scale(0.96); }
@@ -297,23 +297,23 @@
   .weight-current { font-size: 32px; font-weight: 800; }
 
   /* entry count + sort buttons */
-  .entry-count { color: #8A919C; font-size: 13px; }
-  .sort-toggle { background: #1B2027; display: flex; gap: 4px; border-radius: 999px; padding: 4px; font-size: 13px; }
+  .entry-count { color:var(--text-2); font-size: 13px; }
+  .sort-toggle { background: var(--bg-card); display: flex; gap: 4px; border-radius: 999px; padding: 4px; font-size: 13px; }
 
-  .name-input { color: #EDEAE3; background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 30px; padding: 4px 0; }
+  .name-input { color:var(--text-1); background: transparent; border: none; border-bottom: 1px solid transparent; width: 100%; margin-bottom: 4px; font-size: 30px; padding: 4px 0; }
   .name-input:focus { outline: none; border-bottom: 1px solid #2A313A; }
-  .date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color: #8A919C; margin-bottom: 8px; }
+  .date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 12px; color:var(--text-2); margin-bottom: 8px; }
   .date-row label { display: flex; align-items: center; gap: 6px; }
-  .date-row input { background: #1B2027; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; }
+  .date-row input { background: var(--bg); color:var(--text-1); border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 8px; }
 
   .card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: var(--space-card); margin-bottom: 16px; }
   .gauge-top { margin-bottom: 10px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
-  .gauge-label { color: #8A919C; font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
+  .gauge-label { color:var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
   .gauge-track { background: #2A313A; position: relative; height: 16px; width: 100%; overflow: hidden; border-radius: 999px; }
   .gauge-fill { height: 100%; border-radius: 999px; }
   .link-btn { background: none; border: none; text-decoration: underline; font-size: 13px; padding: 0; }
   .row-gap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .small-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
+  .small-input { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 4px 8px; width: 128px; font-size: 14px; }
   .small-btn { color: #12151A; border: none; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; transition: filter 0.15s, transform 0.1s; }
   .small-btn:hover { filter: brightness(1.1); }
   .small-btn:active { transform: scale(0.96); }
@@ -324,7 +324,7 @@
   .pills { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 
   .trip-switcher { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-  .trip-pill { border: 1px solid #2A313A; background: #1B2027; color: #8A919C; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trip-pill { border: 1px solid #2A313A; background: #1B2027; color:var(--text-2); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .weight-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
   .weight-current { font-size: 28px; font-weight: 800; }
@@ -333,7 +333,7 @@
 
   .form-row { margin-bottom: 8px; display: grid; grid-template-columns: 1fr; gap: 8px; }
   .form-row-split { display: flex; gap: 8px; }
-  .form-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; font-size: 14px; width: 100%; }
+  .form-input { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; font-size: 14px; width: 100%; }
   .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
   .error-text { color: #FF8A5C; font-size: 12px; }
   .add-btn { color: #12151A; border: none; display: flex; align-items: center; gap: 6px; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 600; transition: filter 0.15s, transform 0.1s; }
@@ -348,12 +348,12 @@
   @media (min-width: 480px) { .until-payday-grid { grid-template-columns: 1fr 1fr; } }
   .until-payday-grid .card { margin-bottom: 0; }
 
-  .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color: #8A919C; transition: background 0.15s, color 0.15s; }
-  .sort-btn.active { background: #2A313A; color: #EDEAE3; }
-  .sort-btn:hover:not(.active) { background: #1E2530; color: #EDEAE3; }
+  .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color:var(--text-2); transition: background 0.15s, color 0.15s; }
+  .sort-btn.active { background: #2A313A; color:var(--text-1); }
+  .sort-btn:hover:not(.active) { background: #1E2530; color:var(--text-1); }
 
   .list-card { background: #1B2027; border: 1px solid #2A313A; border-radius: var(--radius-card); padding: 0 16px; }
-  .empty-state { color: #8A919C; padding: 40px 0; text-align: center; font-size: 14px; }
+  .empty-state { color:var(--text-2); padding: 40px 0; text-align: center; font-size: 14px; }
 
   /* ---- skeleton loading placeholders ---- */
   .skeleton-wrap { display: flex; flex-direction: column; gap: 16px; }
@@ -398,12 +398,12 @@
   .item-bar { height: 32px; width: 4px; flex-shrink: 0; border-radius: 999px; }
   .item-glyph { flex-shrink: 0; font-size: 18px; width: 20px; text-align: center; }
   .item-main { min-width: 0; flex: 1; }
-  .item-name { color: #EDEAE3; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item-sub { color: #8A919C; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-name { color:var(--text-1); font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { color:var(--text-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .item-amount { flex-shrink: 0; font-size: 15px; }
   .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
-  .icon-btn { color: #8A919C; background: none; border: none; font-size: 16px; padding: 6px; border-radius: 6px; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; }
-  .icon-btn:hover { color: #EDEAE3; background: #2A313A; }
+  .icon-btn { color:var(--text-2); background: none; border: none; font-size: 16px; padding: 6px; border-radius: 6px; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { color:var(--text-1); background: #2A313A; }
   .checkbox { flex-shrink: 0; height: 17px; width: 17px; }
 
   /* ---- reusable collapsible section (accordion) ---- */
@@ -414,7 +414,7 @@
   .collapse-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .collapse-chevron {
     display: inline-flex; align-items: center; justify-content: center;
-    flex-shrink: 0; font-size: 11px; color: #8A919C;
+    flex-shrink: 0; font-size: 11px; color:var(--text-2);
     transition: transform 0.25s cubic-bezier(0.22,1,0.36,1);
   }
   .collapse-header.open .collapse-chevron { transform: rotate(90deg); }
@@ -431,15 +431,15 @@
   /* Google Tasks — completion animation + inline-editable title */
   .gcal-task-row { transition: opacity .25s ease, transform .25s ease, max-height .25s ease, margin .25s ease; max-height: 40px; overflow: hidden; }
   .gcal-task-row.gcal-task-fading { opacity: 0; transform: translateX(8px); max-height: 0; margin: 0; }
-  .gcal-task-title.gcal-task-done { text-decoration: line-through; color: #5A6168; }
+  .gcal-task-title.gcal-task-done { text-decoration: line-through; color:var(--text-3); }
   .gcal-task-title[contenteditable="true"] { cursor: text; border-radius: 3px; padding: 1px 2px; margin: -1px -2px; }
   .gcal-task-title[contenteditable="true"]:hover { box-shadow: 0 0 0 1px #2A313A; }
   .gcal-task-title[contenteditable="true"]:focus { outline: none; box-shadow: 0 0 0 1px var(--accent); }
 
   .item-edit { display: flex; flex-direction: column; gap: 8px; }
   .edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .edit-select { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
-  .edit-input { background: #12151A; color: #EDEAE3; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
+  .edit-select { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  .edit-input { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
   .edit-input.grow { flex: 1; }
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
@@ -518,8 +518,8 @@
 <div id="authScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
   <div style="width:100%;max-width:400px;">
     <header style="margin-bottom:24px;">
-      <h1 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 8px;">Dashboard</h1>
-      <div style="color:#8A919C;font-size:13px;">Sign in to sync your data across devices.</div>
+      <h1 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 8px;">Dashboard</h1>
+      <div style="color:var(--text-2);font-size:13px;">Sign in to sync your data across devices.</div>
     </header>
     <form id="authForm" class="card" style="margin:0;" method="post" action="" autocomplete="on">
       <div class="form-row">
@@ -528,7 +528,7 @@
       </div>
       <div class="form-actions">
         <span class="error-text" id="authError"></span>
-        <button type="button" class="link-btn" id="authSignUpBtn" style="color:#8A919C;">Create account</button>
+        <button type="button" class="link-btn" id="authSignUpBtn" style="color:var(--text-2);">Create account</button>
         <button type="submit" class="add-btn" id="authSignInBtn" style="background:var(--accent);">Sign in</button>
       </div>
     </form>
@@ -546,7 +546,7 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">
       <img id="sidebarLogoImg" src="" alt="Site logo" style="display:none;max-width:100%;max-height:56px;object-fit:contain;margin-bottom:8px;border-radius:6px;" />
-      <div class="serif" id="sidebarTitle" style="color:#EDEAE3;font-size:18px;">Don's Space</div>
+      <div class="serif" id="sidebarTitle" style="color:var(--text-1);font-size:18px;">Don's Space</div>
     </div>
     <div class="sidebar-nav" id="sidebarNav">
       <div class="sidebar-group" data-group="dashboard">
@@ -663,7 +663,7 @@
             <div>
               <div class="gauge-label mono" style="margin-bottom:4px;">RIGHT NOW</div>
               <div id="overviewClock" class="mono" style="font-size:28px;font-weight:700;color:var(--text-1);line-height:1;"></div>
-              <div id="overviewDate" class="mono" style="font-size:13px;color:#8A919C;margin-top:4px;"></div>
+              <div id="overviewDate" class="mono" style="font-size:13px;color:var(--text-2);margin-top:4px;"></div>
             </div>
             <div style="text-align:right;">
               <div class="hero-eyebrow" id="heroEyebrow" style="color:var(--accent);margin-bottom:2px;text-align:right;">Hi there,</div>
@@ -672,7 +672,7 @@
           </div>
           <div style="border-top:1px solid var(--border);padding-top:14px;">
             <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
-            <p style="color:#8A919C;font-size:14px;line-height:1.7;margin:0;">
+            <p style="color:var(--text-2);font-size:14px;line-height:1.7;margin:0;">
               A personal dashboard — built to keep travel plans, finances, workouts, daily routines, hobbies, and career tracking all in one place, synced across devices in real time.
               Use the sidebar to navigate between your dashboard tabs, portfolio pages, and trackers.
             </p>
@@ -829,7 +829,7 @@
           </div>
         </div>
 
-        <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:#5A6168;font-size:13px;" data-port-key="port-footer">
+        <div style="margin-top:40px;padding-top:24px;border-top:1px solid #2A313A;color:var(--text-3);font-size:13px;" data-port-key="port-footer">
           Donovan Staten &#8212; <a href="mailto:donstaten23@gmail.com" style="color:var(--accent);text-decoration:none;">donstaten23@gmail.com</a> &#183; (470) 927-4077 &#183; <a href="https://linkedin.com/in/donovanstaten" style="color:var(--accent);text-decoration:none;" target="_blank">LinkedIn</a>
         </div>
       </div>
@@ -2213,7 +2213,7 @@ async function renderSpendTab(root, cfg) {
     : "") +
     (cfg.showSavingsGoal ?
       collapseCard("PAY SCHEDULE", "payScheduleColl", false,
-        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Pick a name, then add their payday \u2014 it\u2019s used to figure out what\u2019s due before each of you gets paid.</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Pick a name, then add their payday \u2014 it\u2019s used to figure out what\u2019s due before each of you gets paid.</div>' +
         '<div class="pills" id="payPersonPills"></div>' +
         '<div class="row-gap" style="margin-bottom:10px;">' +
           '<input class="small-input" type="number" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
@@ -2227,21 +2227,21 @@ async function renderSpendTab(root, cfg) {
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
       (cfg.showSavingsGoal ?
-        '<div style="color:#8A919C;font-size:11px;margin-top:6px;margin-bottom:18px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-top:6px;margin-bottom:18px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' +
         '<div class="gauge-top"><span class="gauge-label mono">SAVINGS GOAL</span><span class="mono" id="svGaugeAmount" style="color:#D9A441;"></span></div>' +
         '<div id="svGaugeBody"></div>'
       : "") +
     "</div>" +
     (cfg.showSavingsGoal ?
       collapseCard("PLANNED PURCHASES", "plannedColl", false,
-        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Group things you\u2019re thinking about buying under a goal \u2014 not counted against your budget yet.</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Group things you\u2019re thinking about buying under a goal \u2014 not counted against your budget yet.</div>' +
         '<div id="plannedGroups"></div>' +
         '<div class="row-gap" style="margin-top:4px;">' +
           '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="plannedGroupNameInput" placeholder="New goal (e.g. New couch)" />' +
           '<button class="small-btn" id="addPlannedGroupBtn" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add goal</button>' +
         "</div>" +
         '<div style="border-top:1px solid #2A313A;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;">' +
-          '<span style="color:#8A919C;font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
+          '<span style="color:var(--text-2);font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
         "</div>"
       )
     : "") +
@@ -2268,7 +2268,7 @@ async function renderSpendTab(root, cfg) {
     '<div class="list-card" id="stList"></div>' +
     '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="stFooterTotal"></span></div>' +
     '<div class="bottom-row">' +
-      '<button class="link-btn" id="stResetBtn" style="color:#8A919C;">Clear this tab</button>' +
+      '<button class="link-btn" id="stResetBtn" style="color:var(--text-2);">Clear this tab</button>' +
     "</div>";
 
   document.getElementById("stTitle").value = data.title;
@@ -2281,7 +2281,7 @@ async function renderSpendTab(root, cfg) {
     if (showBudgetInput) {
       amountEl.style.color = cfg.accent;
       amountEl.textContent = budgetNum > 0 ? formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) : formatCurrency(totalSpent);
-      bodyEl.innerHTML = '<div class="row-gap"><input id="stBudgetDraft" class="small-input" type="number" min="0" placeholder="' + escapeHtml(cfg.goalLabel) + '" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="stSetBudget" style="background:' + cfg.accent + ';">Set</button>' + (budgetNum > 0 ? '<button class="link-btn" id="stCancelBudget" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+      bodyEl.innerHTML = '<div class="row-gap"><input id="stBudgetDraft" class="small-input" type="number" min="0" placeholder="' + escapeHtml(cfg.goalLabel) + '" value="' + escapeHtml(budgetDraft) + '" /><button class="small-btn" id="stSetBudget" style="background:' + cfg.accent + ';">Set</button>' + (budgetNum > 0 ? '<button class="link-btn" id="stCancelBudget" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
       var bd = document.getElementById("stBudgetDraft");
       bd.addEventListener("input", function (e) { budgetDraft = e.target.value; });
       bd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitBudget(); if (e.key === "Escape") { showBudgetInput = false; renderGauge(); } });
@@ -2294,12 +2294,12 @@ async function renderSpendTab(root, cfg) {
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
       amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
       var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div><button class="link-btn" id="stEditBudget" style="color:#8A919C;margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div><button class="link-btn" id="stEditBudget" style="color:var(--text-2);margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
       document.getElementById("stEditBudget").addEventListener("click", function () { budgetDraft = String(budgetNum); showBudgetInput = true; renderGauge(); });
     } else {
       amountEl.style.color = cfg.accent;
       amountEl.textContent = formatCurrency(totalSpent);
-      bodyEl.innerHTML = '<button class="link-btn" id="stShowBudget" style="color:#8A919C;">Set a ' + escapeHtml(cfg.goalLabel.toLowerCase()) + " to track against</button>";
+      bodyEl.innerHTML = '<button class="link-btn" id="stShowBudget" style="color:var(--text-2);">Set a ' + escapeHtml(cfg.goalLabel.toLowerCase()) + " to track against</button>";
       document.getElementById("stShowBudget").addEventListener("click", function () { budgetDraft = ""; showBudgetInput = true; renderGauge(); });
     }
   }
@@ -2320,7 +2320,7 @@ async function renderSpendTab(root, cfg) {
     if (!amountEl || !bodyEl) return;
     if (showSavingsInput) {
       amountEl.textContent = goalNum > 0 ? formatCurrency(saved) + " of " + formatCurrency(goalNum) : formatCurrency(saved);
-      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
       var gd = document.getElementById("svGoalDraft");
       gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
       gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
@@ -2330,11 +2330,11 @@ async function renderSpendTab(root, cfg) {
     } else if (goalNum > 0) {
       var pct = Math.min(100, (saved / goalNum) * 100);
       amountEl.textContent = formatCurrency(saved) + " of " + formatCurrency(goalNum);
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:#8A919C;margin-top:6px;">Edit savings goal</button>';
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>';
       document.getElementById("svEditGoal").addEventListener("click", function () { savingsDraft = String(goalNum); showSavingsInput = true; renderSavingsGauge(); });
     } else {
       amountEl.textContent = formatCurrency(saved);
-      bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:#8A919C;">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
+      bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:var(--text-2);">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
       document.getElementById("svShowGoal").addEventListener("click", function () { savingsDraft = ""; showSavingsInput = true; renderSavingsGauge(); });
     }
   }
@@ -2370,11 +2370,11 @@ async function renderSpendTab(root, cfg) {
     if (!el) return;
     var sorted = (data.payPeriods || []).slice().sort(function (a, b) { return (Number(a.day) || 0) - (Number(b.day) || 0); });
     if (sorted.length === 0) {
-      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">No paychecks added yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '\u2019s below.</div>';
+      el.innerHTML = '<div style="color:var(--text-2);font-size:12px;">No paychecks added yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '\u2019s below.</div>';
       return;
     }
     el.innerHTML = sorted.map(function (p) {
-      return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(personLabel(p.person)) + ' \u00B7 ' + ordinalDay(p.day) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-pay" data-id="' + p.id + '">\u2715</button></div>';
+      return '<div class="weight-log-row"><span style="color:var(--text-1);">' + escapeHtml(personLabel(p.person)) + ' \u00B7 ' + ordinalDay(p.day) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-pay" data-id="' + p.id + '">\u2715</button></div>';
     }).join("");
   }
 
@@ -2420,7 +2420,7 @@ async function renderSpendTab(root, cfg) {
     el.innerHTML = options.map(function (o) {
       var active = billsPersonFilter === o.id;
       return '<button class="pill" data-person-filter="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
-    }).join("") + (billsPersonFilter ? '<button class="pill" id="stClearPersonFilter" style="border-color:#5A6168;color:#8A919C;">Clear</button>' : "");
+    }).join("") + (billsPersonFilter ? '<button class="pill" id="stClearPersonFilter" style="border-color:#5A6168;color:var(--text-2);">Clear</button>' : "");
     var pills = el.querySelectorAll("[data-person-filter]");
     for (var i = 0; i < pills.length; i++) {
       pills[i].addEventListener("click", function (e) {
@@ -2471,13 +2471,13 @@ async function renderSpendTab(root, cfg) {
     var grandTotal = groups.reduce(function (s, g) { return s + plannedGroupTotal(g); }, 0);
     if (totalEl) totalEl.textContent = formatCurrency(grandTotal);
     if (groups.length === 0) {
-      el.innerHTML = '<div style="color:#8A919C;font-size:12px;">No goals yet. Add one below to start grouping purchases.</div>';
+      el.innerHTML = '<div style="color:var(--text-2);font-size:12px;">No goals yet. Add one below to start grouping purchases.</div>';
       return;
     }
     el.innerHTML = groups.map(function (g) {
       var items = g.items || [];
       var itemsHtml = items.length === 0
-        ? '<div style="color:#5A6168;font-size:12px;padding:4px 0;">No items yet.</div>'
+        ? '<div style="color:var(--text-3);font-size:12px;padding:4px 0;">No items yet.</div>'
         : items.map(function (it) {
             if (it.id === plannedItemEditId) {
               var f = plannedItemEditForm;
@@ -2488,7 +2488,7 @@ async function renderSpendTab(root, cfg) {
                 '<button class="icon-btn" data-action="cancel-planned-item">\u2715</button>' +
               "</div>";
             }
-            return '<div class="weight-log-row"><span style="color:#EDEAE3;">' + escapeHtml(it.name) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(it.amount) +
+            return '<div class="weight-log-row"><span style="color:var(--text-1);">' + escapeHtml(it.name) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(it.amount) +
               '</span><button class="icon-btn" data-action="edit-planned-item" data-group="' + g.id + '" data-id="' + it.id + '">\u270E</button>' +
               '<button class="icon-btn" data-action="delete-planned-item" data-group="' + g.id + '" data-id="' + it.id + '">\u2715</button></div>';
           }).join("");
@@ -2585,7 +2585,7 @@ async function renderSpendTab(root, cfg) {
     var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); });
     if (periods.length === 0) {
       if (labelEl) labelEl.textContent = personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
-      contentEl.innerHTML = '<div style="color:#8A919C;font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(person)) + ' yet \u2014 add one in Pay Schedule below.</div>';
+      contentEl.innerHTML = '<div style="color:var(--text-2);font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(person)) + ' yet \u2014 add one in Pay Schedule below.</div>';
       return;
     }
     if (labelEl) labelEl.textContent = periods.length > 1 ? personLabel(person).toUpperCase() + "\u2019S UPCOMING PAYCHECKS" : personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
@@ -2617,8 +2617,8 @@ async function renderSpendTab(root, cfg) {
       } else {
         inner =
           '<div class="mono" style="color:#FF8A5C;font-size:18px;font-weight:700;margin-bottom:4px;">' + formatCurrency(total) + '</div>' +
-          '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">due before the ' + ordinalDay(dayNum) + '</div>' +
-          '<div style="color:#EDEAE3;font-size:13px;">' + dueBills.map(function (b) { return escapeHtml(b.name); }).join(", ") + '</div>';
+          '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">due before the ' + ordinalDay(dayNum) + '</div>' +
+          '<div style="color:var(--text-1);font-size:13px;">' + dueBills.map(function (b) { return escapeHtml(b.name); }).join(", ") + '</div>';
       }
       var isLast = idx === sortedPeriods.length - 1;
       var wrap = !isLast ? 'margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #2A313A;' : '';
@@ -2691,7 +2691,7 @@ async function renderSpendTab(root, cfg) {
     var total = data.items.filter(function (it) { return sel.has(it.id); }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
     document.getElementById("stSelectBar").innerHTML =
       '<div class="select-bar-actions"><button class="link-btn" id="stSelectAll" style="color:' + cfg.accent + ';">Select all</button>' +
-      '<button class="link-btn" id="stClearSel" style="color:#8A919C;">Clear</button>' +
+      '<button class="link-btn" id="stClearSel" style="color:var(--text-2);">Clear</button>' +
       (sel.size > 0 ? '<button class="link-btn" id="stToggleSelOnly" style="color:' + (showSelectedOnly ? cfg.accent : "#8A919C") + ';">' + (showSelectedOnly ? "Showing selected only" : "Show selected only") + '</button>' : "") +
       "</div>" +
       '<span class="mono" style="color:' + cfg.accent + ';">' + sel.size + " selected \u00B7 " + formatCurrency(total) + "</span>";
@@ -2762,7 +2762,7 @@ async function renderSpendTab(root, cfg) {
           "</div></div></div>";
       }
       var dueDayText = item.dueDay !== "" && item.dueDay != null ? "Due " + ordinalDay(item.dueDay) : "no due day set";
-      var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:#8A919C;font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
+      var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:var(--text-2);font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
       var paid = cfg.showSavingsGoal && isCurrentlyPaid(item);
       var paidBtn = cfg.showSavingsGoal ? '<button class="icon-btn" data-action="toggle-paid" data-id="' + item.id + '" title="' + (paid ? "Paid \u2014 click to undo" : "Mark as paid") + '" style="color:' + (paid ? "#7FA37A" : "#8A919C") + ';">' + (paid ? "\u2713" : "\u25CB") + '</button>' : "";
       return '<div class="item-row"><div class="item-display st-row" style="' + (paid ? "opacity:0.55;" : "") + '">' +
@@ -3136,11 +3136,11 @@ async function renderTravelTab(root) {
       '<div class="card">' +
         '<div class="gauge-top"><span class="gauge-label mono">SAVINGS FOR THIS TRIP</span><span class="mono" id="ttSavingsAmount" style="color:#D9A441;"></span></div>' +
         '<div id="ttSavingsBody"></div>' +
-        '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Tracks your overall savings balance from the Budget tab against a goal for this trip.</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-top:6px;">Tracks your overall savings balance from the Budget tab against a goal for this trip.</div>' +
       "</div>" +
       '<div class="card">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">HOTEL OPTIONS</div>' +
-        '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Compare a few stays, then pick one — only the picked hotel’s cost counts toward your budget above.</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Compare a few stays, then pick one — only the picked hotel’s cost counts toward your budget above.</div>' +
         '<div id="ttHotelLinks"></div>' +
         '<div class="row-gap" style="margin-top:8px;">' +
           '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="ttHotelName" placeholder="Hotel / stay name" />' +
@@ -3169,8 +3169,8 @@ async function renderTravelTab(root) {
       '<div class="list-card" id="ttList"></div>' +
       '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="ttFooterTotal"></span></div>' +
       '<div class="bottom-row">' +
-        '<button class="link-btn" id="ttDeleteTripBtn" style="color:#8A919C;">Delete this trip</button>' +
-        '<button class="link-btn" id="ttResetBtn" style="color:#8A919C;">Clear this trip\u2019s entries</button>' +
+        '<button class="link-btn" id="ttDeleteTripBtn" style="color:var(--text-2);">Delete this trip</button>' +
+        '<button class="link-btn" id="ttResetBtn" style="color:var(--text-2);">Clear this trip\u2019s entries</button>' +
       "</div>";
 
     document.getElementById("ttTitle").value = trip.title;
@@ -3209,7 +3209,7 @@ async function renderTravelTab(root) {
             ['days','hrs','min','sec'].map(function (label) {
               return '<div style="flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:10px 4px;">' +
                 '<div class="mono cd-' + label + '" style="color:var(--accent);font-size:22px;font-weight:700;">--</div>' +
-                '<div style="color:#8A919C;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
+                '<div style="color:var(--text-2);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">' + label + "</div>" +
               "</div>";
             }).join("") +
           "</div>" +
@@ -3277,7 +3277,7 @@ async function renderTravelTab(root) {
           bd.focus();
           document.getElementById("ttSetBudget").addEventListener("click", commitBudget);
         } else {
-          bodyEl.innerHTML = '<button class="link-btn" id="ttShowBudget" style="color:#8A919C;">Set a trip budget to track against</button>';
+          bodyEl.innerHTML = '<button class="link-btn" id="ttShowBudget" style="color:var(--text-2);">Set a trip budget to track against</button>';
           document.getElementById("ttShowBudget").addEventListener("click", function () { showBudgetInput = true; renderGauge(); });
         }
       }
@@ -3291,7 +3291,7 @@ async function renderTravelTab(root) {
       if (!amountEl || !bodyEl) return;
       if (showTripSavingsInput) {
         amountEl.textContent = goalNum > 0 ? formatCurrency(totalSaved) + " of " + formatCurrency(goalNum) : formatCurrency(totalSaved);
-        bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="ttCancelSavings" style="color:#8A919C;">Cancel</button>' : "") + '</div>';
+        bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="ttCancelSavings" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
         var sd = document.getElementById("ttSavingsDraft");
         sd.addEventListener("input", function (e) { tripSavingsDraft = e.target.value; });
         sd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitTripSavings(); if (e.key === "Escape") { showTripSavingsInput = false; renderSavingsGauge(); } });
@@ -3301,11 +3301,11 @@ async function renderTravelTab(root) {
       } else if (goalNum > 0) {
         var pct = Math.min(100, (totalSaved / goalNum) * 100);
         amountEl.textContent = formatCurrency(totalSaved) + " of " + formatCurrency(goalNum);
-        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="ttEditSavings" style="color:#8A919C;margin-top:6px;">Edit savings goal</button>';
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="ttEditSavings" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>';
         document.getElementById("ttEditSavings").addEventListener("click", function () { tripSavingsDraft = String(goalNum); showTripSavingsInput = true; renderSavingsGauge(); });
       } else {
         amountEl.textContent = formatCurrency(totalSaved);
-        bodyEl.innerHTML = '<button class="link-btn" id="ttShowSavings" style="color:#8A919C;">Set a savings goal for this trip</button>';
+        bodyEl.innerHTML = '<button class="link-btn" id="ttShowSavings" style="color:var(--text-2);">Set a savings goal for this trip</button>';
         document.getElementById("ttShowSavings").addEventListener("click", function () { tripSavingsDraft = ""; showTripSavingsInput = true; renderSavingsGauge(); });
       }
     }
@@ -3401,7 +3401,7 @@ async function renderTravelTab(root) {
       if (!el) return;
       var links = trip.hotelLinks || [];
       if (links.length === 0) {
-        el.innerHTML = '<div style="color:#5A6168;font-size:13px;">No options saved yet — add a booking page below to find it fast later.</div>';
+        el.innerHTML = '<div style="color:var(--text-3);font-size:13px;">No options saved yet — add a booking page below to find it fast later.</div>';
         return;
       }
       el.innerHTML = links.map(function (l) {
@@ -3748,10 +3748,10 @@ function _renderWorkoutCalendarGrid(year, month, items) {
       bg = "#8A919C33"; border = "#8A919C";
     }
     var isToday = dateStr === todayStr;
-    cells.push('<div style="aspect-ratio:1;border-radius:8px;border:1px solid ' + border + ';background:' + bg + ';display:flex;align-items:center;justify-content:center;font-size:12px;color:#EDEAE3;' + (isToday ? "box-shadow:0 0 0 2px #3DBFC4 inset;" : "") + '">' + d + "</div>");
+    cells.push('<div style="aspect-ratio:1;border-radius:8px;border:1px solid ' + border + ';background:' + bg + ';display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-1);' + (isToday ? "box-shadow:0 0 0 2px #3DBFC4 inset;" : "") + '">' + d + "</div>");
   }
   return '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">' +
-    ["S", "M", "T", "W", "T", "F", "S"].map(function (dl) { return '<div style="text-align:center;font-size:11px;color:#8A919C;padding-bottom:4px;">' + dl + "</div>"; }).join("") +
+    ["S", "M", "T", "W", "T", "F", "S"].map(function (dl) { return '<div style="text-align:center;font-size:11px;color:var(--text-2);padding-bottom:4px;">' + dl + "</div>"; }).join("") +
     cells.join("") +
   "</div>";
 }
@@ -3885,7 +3885,7 @@ async function renderWorkoutsTab(root) {
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
-    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="pills" id="wkSectionPills"></div>' +
     '<div id="wkSectionBody"></div>';
 
@@ -3925,7 +3925,7 @@ async function renderWorkoutsTab(root) {
         '<div class="card" style="border-color:#D9A441;background:#D9A44118;">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
             '<div><div style="color:#D9A441;font-weight:700;font-size:14px;margin-bottom:2px;">Consider a lighter week</div>' +
-            '<div style="color:#8A919C;font-size:13px;">3 tough training weeks in a row \u2014 tonnage has stayed well above your recent average. A deload week can help you keep progressing.</div></div>' +
+            '<div style="color:var(--text-2);font-size:13px;">3 tough training weeks in a row \u2014 tonnage has stayed well above your recent average. A deload week can help you keep progressing.</div></div>' +
             '<button class="icon-btn" id="wkDismissDeload" style="flex-shrink:0;">\u2715</button>' +
           "</div></div>" : "") +
       '<div class="card">' +
@@ -3944,7 +3944,7 @@ async function renderWorkoutsTab(root) {
             '<div class="row-gap" style="flex-wrap:wrap;">' + templatesData.templates.map(function (t) {
               return '<button class="pill" data-action="use-template" data-template="' + t.id + '" style="border-color:' + accent + ";color:" + accent + ';">' + escapeHtml(t.name) + "</button>";
             }).join("") + "</div>"
-            : '<div style="color:#8A919C;font-size:13px;">No templates saved yet \u2014 create one in the Templates tab.</div>') : "") +
+            : '<div style="color:var(--text-2);font-size:13px;">No templates saved yet \u2014 create one in the Templates tab.</div>') : "") +
         "</div>" +
         '<div class="form-row">' +
           '<input class="form-input" id="wkName" placeholder="Type of workout, e.g. Leg Day" />' +
@@ -3956,7 +3956,7 @@ async function renderWorkoutsTab(root) {
       '<div class="sort-row"><span class="entry-count mono" id="wkEntryCount"></span><div class="sort-toggle"><button class="sort-btn active" id="wkSortDate">By date</button><button class="sort-btn" id="wkSortCat">By type</button></div></div>' +
       '<div class="list-card" id="wkList"></div>' +
       '<div class="footer-row"><span class="footer-label">Total logged</span><span class="footer-total mono" id="wkFooterTotal"></span></div>' +
-      '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="wkResetBtn" style="color:var(--text-2);">Clear this tab</button></div>';
 
     if (deload.triggered) {
       document.getElementById("wkDismissDeload").addEventListener("click", function () {
@@ -3973,7 +3973,7 @@ async function renderWorkoutsTab(root) {
       var logEl = document.getElementById("wkWeightLog");
       if (sorted.length === 0) { logEl.innerHTML = ""; return; }
       logEl.innerHTML = sorted.slice(0, 5).map(function (w) {
-        return '<div class="weight-log-row"><span style="color:#8A919C;">' + formatDateShort(w.date) + '</span><span class="mono" style="color:' + accent + ';">' + w.weight + " lbs</span><button class=\"icon-btn\" data-action=\"delete-weight\" data-id=\"" + w.id + "\">\u2715</button></div>";
+        return '<div class="weight-log-row"><span style="color:var(--text-2);">' + formatDateShort(w.date) + '</span><span class="mono" style="color:' + accent + ';">' + w.weight + " lbs</span><button class=\"icon-btn\" data-action=\"delete-weight\" data-id=\"" + w.id + "\">\u2715</button></div>";
       }).join("");
     }
 
@@ -4013,7 +4013,7 @@ async function renderWorkoutsTab(root) {
           gd.focus();
           document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
         } else {
-          bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:#8A919C;">Set a weekly goal to track against</button>';
+          bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:var(--text-2);">Set a weekly goal to track against</button>';
           document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
         }
       }
@@ -4081,7 +4081,7 @@ async function renderWorkoutsTab(root) {
           "</div>";
         } else {
           header = '<div class="edit-line" style="justify-content:space-between;">' +
-            '<span style="color:#EDEAE3;font-weight:600;">' + escapeHtml(l.name) + "</span>" +
+            '<span style="color:var(--text-1);font-weight:600;">' + escapeHtml(l.name) + "</span>" +
             '<span style="display:flex;gap:4px;flex-shrink:0;">' +
               '<button class="icon-btn" data-action="edit-lift-name" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
               '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
@@ -4096,7 +4096,7 @@ async function renderWorkoutsTab(root) {
           if (editingSetItemId === item.id && editingSetLiftId === l.id && editingSetId === s.id) {
             var sf = editingSetForm;
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
-              '<span style="color:#8A919C;width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
+              '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
               '<input class="edit-input amt" type="number" min="0" step="0.5" data-set-edit="weight" placeholder="Lbs" value="' + escapeHtml(sf.weight) + '" />' +
               '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />' +
               '<button class="icon-btn" data-action="save-set" style="color:' + accent + ';">\u2713</button>' +
@@ -4108,9 +4108,9 @@ async function renderWorkoutsTab(root) {
           if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
           if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
           return '<div class="weight-log-row">' +
-            '<span style="color:#8A919C;width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
+            '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
             '<span class="mono" style="color:' + accent + ';flex:1;">' + bits.join(" \u00D7 ") + "</span>" +
-            (s.isWarmup ? '<span class="chip" style="padding:2px 8px;font-size:11px;color:#8A919C;">Warm-up</span>' : "") +
+            (s.isWarmup ? '<span class="chip" style="padding:2px 8px;font-size:11px;color:var(--text-2);">Warm-up</span>' : "") +
             (pr ? '<span class="chip" style="padding:2px 8px;font-size:11px;background:#D9A441;color:#12151A;border-color:#D9A441;">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
             '<span style="display:flex;gap:4px;flex-shrink:0;">' +
               '<button class="icon-btn" data-action="toggle-warmup" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" title="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";" : "") + '">W</button>' +
@@ -4121,22 +4121,22 @@ async function renderWorkoutsTab(root) {
 
         return '<div style="padding:10px 0;border-bottom:1px solid #2A313A;">' +
           header + tagRow +
-          '<div style="margin-top:6px;">' + (setRows || '<div style="color:#8A919C;font-size:12px;">No sets logged yet.</div>') + "</div>" +
+          '<div style="margin-top:6px;">' + (setRows || '<div style="color:var(--text-2);font-size:12px;">No sets logged yet.</div>') + "</div>" +
           '<div class="row-gap" style="margin-top:6px;">' +
             '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
             '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#8A919C;"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>' +
+            '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>' +
             '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">+ Add set</button>' +
           "</div></div>";
       }).join("");
 
       return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
-        (liftRows || '<div style="color:#8A919C;font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
+        (liftRows || '<div style="color:var(--text-2);font-size:12px;margin-bottom:6px;">No lifts logged for this session yet.</div>') +
         '<div class="row-gap" style="margin-top:8px;">' +
           '<input class="form-input" style="width:auto;flex:1;min-width:100px;" placeholder="Lift name" data-lift-field="name" data-item="' + item.id + '" />' +
           '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" placeholder="Lbs" data-lift-field="weight" data-item="' + item.id + '" />' +
           '<input class="form-input" style="width:70px;" type="number" min="0" placeholder="Reps" data-lift-field="reps" data-item="' + item.id + '" />' +
-          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#8A919C;"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-lift-field="warmup" data-item="' + item.id + '" /> Warm-up</label>' +
           '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add lift</button>' +
         "</div></div>";
     }
@@ -4556,8 +4556,8 @@ async function renderWorkoutsTab(root) {
           return '<button class="pill" data-tpl-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
         }).join("") + "</div>" +
         '<div style="margin:12px 0;">' +
-          (t.lifts.length === 0 ? '<div style="color:#8A919C;font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
-            return '<div class="weight-log-row"><span style="color:#EDEAE3;flex:1;">' + escapeHtml(pl.name) + "</span>" +
+          (t.lifts.length === 0 ? '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">No planned lifts yet.</div>' : t.lifts.map(function (pl, i) {
+            return '<div class="weight-log-row"><span style="color:var(--text-1);flex:1;">' + escapeHtml(pl.name) + "</span>" +
               '<span class="mono" style="color:' + accent + ';">' + (pl.targetSets || "?") + " \u00D7 " + (pl.targetReps || "?") + (pl.targetWeight !== "" && pl.targetWeight != null ? " @ " + pl.targetWeight + " lbs" : "") + "</span>" +
               '<button class="icon-btn" data-action="remove-tpl-lift" data-idx="' + i + '">\u2715</button></div>';
           }).join("")) +
@@ -4570,7 +4570,7 @@ async function renderWorkoutsTab(root) {
           '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+</button>' +
         "</div>" +
         '<div class="form-actions"><span class="error-text" id="wkTplError"></span>' +
-          '<button class="link-btn" id="wkTplCancelBtn" style="color:#8A919C;">Cancel</button>' +
+          '<button class="link-btn" id="wkTplCancelBtn" style="color:var(--text-2);">Cancel</button>' +
           '<button class="add-btn" id="wkTplSaveBtn" style="background:' + accent + ';">Save Template</button>' +
         "</div></div>";
     }
@@ -4588,7 +4588,7 @@ async function renderWorkoutsTab(root) {
           }).join("")) +
       "</div>" +
       (templateAddMode ? templateFormHtml() : '<button class="add-btn" id="wkNewTemplateBtn" style="background:' + accent + ';">+ New Template</button>') +
-      '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:#8A919C;">Clear all templates</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:var(--text-2);">Clear all templates</button></div>';
 
     if (templateAddMode) {
       document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
@@ -4696,7 +4696,7 @@ async function renderWorkoutsTab(root) {
 
     bodyEl.innerHTML =
       '<div class="card"><div class="gauge-label mono" style="margin-bottom:8px;">PICK A LIFT</div>' +
-        (liftNames.length === 0 ? '<div style="color:#8A919C;font-size:13px;">No lifts logged yet.</div>' :
+        (liftNames.length === 0 ? '<div style="color:var(--text-2);font-size:13px;">No lifts logged yet.</div>' :
           '<select class="edit-select" id="wkHistoryLiftSelect" style="width:100%;">' + liftNames.map(function (key) {
             return '<option value="' + escapeHtml(key) + '"' + (key === historyLiftName ? " selected" : "") + ">" + escapeHtml(prData.byLift[key].displayName) + "</option>";
           }).join("") + "</select>") +
@@ -4732,9 +4732,9 @@ async function renderWorkoutsTab(root) {
         if (v === 0) return "";
         var pct = Math.round((v / totalMgVol) * 100);
         return '<div style="margin-bottom:8px;">' +
-          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span style="color:#EDEAE3;">' + mg.glyph + " " + escapeHtml(mg.label) + '</span><span class="mono" style="color:' + mg.color + ';">' + pct + "%</span></div>" +
+          '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;"><span style="color:var(--text-1);">' + mg.glyph + " " + escapeHtml(mg.label) + '</span><span class="mono" style="color:' + mg.color + ';">' + pct + "%</span></div>" +
           '<div class="gauge-track" style="height:10px;"><div class="gauge-fill" style="width:' + pct + "%;background:" + mg.color + ';height:100%;"></div></div></div>';
-      }).join("") : '<div style="color:#8A919C;font-size:13px;">Nothing logged this week yet.</div>') +
+      }).join("") : '<div style="color:var(--text-2);font-size:13px;">Nothing logged this week yet.</div>') +
     "</div>";
 
     var styleHtml = '<div class="card" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">' +
@@ -4746,8 +4746,8 @@ async function renderWorkoutsTab(root) {
           var pct = styleTotal > 0 ? Math.round((v / styleTotal) * 100) : 0;
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">' +
             '<span style="width:10px;height:10px;border-radius:50%;background:' + ts.color + ';flex-shrink:0;"></span>' +
-            '<span style="color:#EDEAE3;flex:1;">' + escapeHtml(ts.label) + "</span>" +
-            '<span class="mono" style="color:#8A919C;">' + (styleTotal ? pct + "%" : "\u2013") + "</span></div>";
+            '<span style="color:var(--text-1);flex:1;">' + escapeHtml(ts.label) + "</span>" +
+            '<span class="mono" style="color:var(--text-2);">' + (styleTotal ? pct + "%" : "\u2013") + "</span></div>";
         }).join("") +
       "</div></div>";
 
@@ -4758,9 +4758,9 @@ async function renderWorkoutsTab(root) {
         var levelLabel = { "new": "Not enough data yet", beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" }[skill.level];
         var levelColor = { "new": "#5A6168", beginner: "#D9667A", intermediate: "#D9A441", advanced: "#5BAE7A" }[skill.level];
         return '<div class="card" style="flex:1;min-width:160px;margin-bottom:0;">' +
-          '<div style="color:#8A919C;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">' + escapeHtml(ts.label) + "</div>" +
+          '<div style="color:var(--text-2);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">' + escapeHtml(ts.label) + "</div>" +
           '<div style="font-weight:700;font-size:16px;color:' + levelColor + ';margin-bottom:8px;">' + levelLabel + "</div>" +
-          '<div style="color:#8A919C;font-size:12px;">' + skill.weeksTrained + "/" + skill.windowWeeks + " weeks trained \u00B7 " + skill.prCount + " PR" + (skill.prCount === 1 ? "" : "s") + "</div></div>";
+          '<div style="color:var(--text-2);font-size:12px;">' + skill.weeksTrained + "/" + skill.windowWeeks + " weeks trained \u00B7 " + skill.prCount + " PR" + (skill.prCount === 1 ? "" : "s") + "</div></div>";
       }).join("") +
       "</div>";
 
@@ -4783,7 +4783,7 @@ async function renderWorkoutsTab(root) {
       '<div class="tab-eyebrow" style="margin-top:8px;">WEEKLY SPLIT</div>' +
       '<div class="card">' +
         dayKeys.map(function (dk) {
-          return '<div class="row-gap" style="margin-bottom:8px;"><span style="width:90px;flex-shrink:0;color:#8A919C;font-size:13px;">' + dayLabels[dk] + "</span>" +
+          return '<div class="row-gap" style="margin-bottom:8px;"><span style="width:90px;flex-shrink:0;color:var(--text-2);font-size:13px;">' + dayLabels[dk] + "</span>" +
             '<input class="form-input" data-split-day="' + dk + '" placeholder="e.g. Push, Legs, Rest" value="' + escapeHtml(splitsData.days[dk] || "") + '" /></div>';
         }).join("") +
       "</div>";
@@ -4845,7 +4845,7 @@ async function renderStoryPage(root) {
   function mentionsHtml(name) {
     var mentions = findMentions(name);
     if (!mentions.length) return "";
-    return '<div style="margin-top:8px;font-size:12px;color:#8A919C;">Mentioned in: ' +
+    return '<div style="margin-top:8px;font-size:12px;color:var(--text-2);">Mentioned in: ' +
       mentions.map(function (c) {
         return '<a href="#" data-jump-chapter="' + c.id + '" style="color:' + accent + ';text-decoration:none;">' + escapeHtml(c.title || "Untitled chapter") + "</a>";
       }).join(", ") +
@@ -4907,7 +4907,7 @@ async function renderStoryPage(root) {
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('story', 'STORY')) + '</div>' +
     '<header style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
-      '<h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0;">Story</h2>' +
+      '<h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0;">Story</h2>' +
       '<div class="row-gap">' +
         '<button class="small-btn" id="storyDownloadBtn" style="background:' + accent + ';">⬇ Download</button>' +
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
@@ -4952,7 +4952,7 @@ async function renderStoryPage(root) {
     });
 
     if (results.length === 0) {
-      resultsEl.innerHTML = '<div class="card" style="padding:10px 14px;color:#8A919C;font-size:13px;">No matches.</div>';
+      resultsEl.innerHTML = '<div class="card" style="padding:10px 14px;color:var(--text-2);font-size:13px;">No matches.</div>';
       return;
     }
     resultsEl.innerHTML = '<div class="card" style="padding:6px;max-height:280px;overflow-y:auto;">' +
@@ -5138,8 +5138,8 @@ async function renderStoryPage(root) {
         var color = arcColor(arc.id);
         return '<button class="pill" data-arc-nav="' + arc.id + '" style="border-color:' + color + ';color:' + color + ';">' + escapeHtml(arc.name) + "</button>";
       }).join("") +
-      (chapters.some(function (c) { return !c.arcId; }) ? '<button class="pill" data-arc-nav="none" style="border-color:#5A6168;color:#5A6168;">No arc</button>' : "") +
-      '<button class="pill" id="storyAddArcBtn" style="border-color:#8A919C;color:#8A919C;">+ New arc</button>' +
+      (chapters.some(function (c) { return !c.arcId; }) ? '<button class="pill" data-arc-nav="none" style="border-color:#5A6168;color:var(--text-3);">No arc</button>' : "") +
+      '<button class="pill" id="storyAddArcBtn" style="border-color:#8A919C;color:var(--text-2);">+ New arc</button>' +
     "</div>";
 
     var statusManagerHtml = '<div class="pills" id="storyStatusNav" style="margin-bottom:16px;">' +
@@ -5150,7 +5150,7 @@ async function renderStoryPage(root) {
           '<button class="icon-btn" data-action="delete-status" data-id="' + st.id + '" style="padding:0 4px;color:' + color + ';">✕</button>' +
         "</span>";
       }).join("") +
-      '<button class="pill" id="storyAddStatusBtn" style="border-color:#8A919C;color:#8A919C;">+ New status</button>' +
+      '<button class="pill" id="storyAddStatusBtn" style="border-color:#8A919C;color:var(--text-2);">+ New status</button>' +
     "</div>";
 
     function arcOptionsHtml(selectedId) {
@@ -5186,7 +5186,7 @@ async function renderStoryPage(root) {
       return divider + '<div class="card" id="storyCh-' + c.id + '">' +
         '<div class="row-gap" style="margin-bottom:8px;">' +
           '<input class="form-input" style="flex:1;font-weight:600;" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
-          '<span class="mono" style="color:#5A6168;font-size:12px;flex-shrink:0;">' + wordCount(c.content) + " words</span>" +
+          '<span class="mono" style="color:var(--text-3);font-size:12px;flex-shrink:0;">' + wordCount(c.content) + " words</span>" +
           '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '">✕</button>' +
         "</div>" +
         '<div class="row-gap" style="margin-bottom:10px;">' +
@@ -5211,7 +5211,7 @@ async function renderStoryPage(root) {
       (chapters.length === 0 ? '<div class="empty-state">No chapters yet. Add your first one below.</div>' : "") +
       chapterCardsHtml +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddChapterBtn" style="background:' + accent + ';">+ New chapter</button></div>' +
-      '<div class="bottom-row"><button class="link-btn" id="storyResetChaptersBtn" style="color:#8A919C;">Clear all chapters</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="storyResetChaptersBtn" style="color:var(--text-2);">Clear all chapters</button></div>';
 
     function renderWordCount() {
       var amountEl = document.getElementById("storyWordAmount");
@@ -5230,7 +5230,7 @@ async function renderStoryPage(root) {
           gd.focus();
           document.getElementById("storyWordGoalSet").addEventListener("click", commitWordGoal);
         } else {
-          bodyEl2.innerHTML = '<button class="link-btn" id="storyShowWordGoal" style="color:#8A919C;">Set a word count goal</button>';
+          bodyEl2.innerHTML = '<button class="link-btn" id="storyShowWordGoal" style="color:var(--text-2);">Set a word count goal</button>';
           document.getElementById("storyShowWordGoal").addEventListener("click", function () { showWordGoalInput = true; renderWordCount(); });
         }
       }
@@ -5389,7 +5389,7 @@ async function renderStoryPage(root) {
       '<div class="card">' +
         _relationshipMapSvg(characters, relationships) +
         (relationships.length === 0 ? "" : '<div style="margin-top:12px;">' + relationships.map(function (rel) {
-          return '<div class="weight-log-row"><span style="color:#EDEAE3;flex:1;">' + escapeHtml(charName(rel.fromId)) + " — " + escapeHtml(rel.label || "related to") + " — " + escapeHtml(charName(rel.toId)) + "</span>" +
+          return '<div class="weight-log-row"><span style="color:var(--text-1);flex:1;">' + escapeHtml(charName(rel.fromId)) + " — " + escapeHtml(rel.label || "related to") + " — " + escapeHtml(charName(rel.toId)) + "</span>" +
             '<button class="icon-btn" data-action="delete-relationship" data-id="' + rel.id + '">✕</button></div>';
         }).join("") + "</div>") +
         (characters.length < 2 ? "" :
@@ -5415,7 +5415,7 @@ async function renderStoryPage(root) {
       }).join("") +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddCharBtn" style="background:' + accent + ';">+ Add character</button></div>' +
       relationshipsHtml +
-      '<div class="bottom-row"><button class="link-btn" id="storyResetCharactersBtn" style="color:#8A919C;">Clear all characters</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="storyResetCharactersBtn" style="color:var(--text-2);">Clear all characters</button></div>';
 
     bodyEl.querySelectorAll("[data-character-field]").forEach(function (el) {
       var isTextarea = el.tagName === "TEXTAREA";
@@ -5502,7 +5502,7 @@ async function renderStoryPage(root) {
         "</div>";
       }).join("") +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddLoreBtn" style="background:' + accent + ';">+ Add entry</button></div>' +
-      '<div class="bottom-row"><button class="link-btn" id="storyResetLoreBtn" style="color:#8A919C;">Clear all lore</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="storyResetLoreBtn" style="color:var(--text-2);">Clear all lore</button></div>';
 
     bodyEl.querySelectorAll("[data-lore-field]").forEach(function (el) {
       var isTextarea = el.tagName === "TEXTAREA";
@@ -5568,7 +5568,7 @@ async function renderStoryPage(root) {
         "</div>";
       }).join("") +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddLocationBtn" style="background:' + accent + ';">+ Add location</button></div>' +
-      '<div class="bottom-row"><button class="link-btn" id="storyResetLocationsBtn" style="color:#8A919C;">Clear all locations</button></div>';
+      '<div class="bottom-row"><button class="link-btn" id="storyResetLocationsBtn" style="color:var(--text-2);">Clear all locations</button></div>';
 
     bodyEl.querySelectorAll("[data-location-field]").forEach(function (el) {
       var isTextarea = el.tagName === "TEXTAREA";
@@ -5786,14 +5786,14 @@ async function renderRoutinesTab(root) {
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('routines', 'DAILY ROUTINES')) + '</div>' +
-    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:#EDEAE3;font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + ",color-mix(in srgb, " + accent + " 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, " + accent + ' 33%, transparent);"></div></div></div>' +
     '<div class="card">' +
       '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
       '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
     "</div>" +
     '<div class="list-card" id="rtList"></div>' +
-    '<div class="bottom-row"><button class="link-btn" id="rtResetBtn" style="color:#8A919C;">Clear this tab</button></div>';
+    '<div class="bottom-row"><button class="link-btn" id="rtResetBtn" style="color:var(--text-2);">Clear this tab</button></div>';
 
   function renderFreqPills() {
     var el = document.getElementById("rtFreqPills");
@@ -5848,7 +5848,7 @@ async function renderRoutinesTab(root) {
       if (editingNoteRoutineId === r.id && editingNoteKey === key) {
         return '<div class="weight-log-row" style="flex-wrap:wrap;align-items:flex-start;">' +
           '<div style="flex:1;min-width:140px;">' +
-            '<div style="color:#8A919C;font-size:11px;margin-bottom:4px;">' + label + '</div>' +
+            '<div style="color:var(--text-2);font-size:11px;margin-bottom:4px;">' + label + '</div>' +
             '<textarea class="form-input" id="rtNoteTextarea" rows="2" placeholder="What did you do?" style="resize:vertical;">' + escapeHtml(editingNoteText) + '</textarea>' +
           "</div>" +
           '<div style="display:flex;gap:4px;flex-shrink:0;">' +
@@ -5859,8 +5859,8 @@ async function renderRoutinesTab(root) {
       }
       return '<div class="weight-log-row" style="align-items:flex-start;">' +
         '<div style="flex:1;min-width:0;">' +
-          '<div style="color:#8A919C;font-size:11px;">' + label + '</div>' +
-          '<div style="color:#EDEAE3;font-size:13px;white-space:pre-wrap;">' + (c.note ? escapeHtml(c.note) : '<span style="color:#5A6168;">No note</span>') + "</div>" +
+          '<div style="color:var(--text-2);font-size:11px;">' + label + '</div>' +
+          '<div style="color:var(--text-1);font-size:13px;white-space:pre-wrap;">' + (c.note ? escapeHtml(c.note) : '<span style="color:var(--text-3);">No note</span>') + "</div>" +
         "</div>" +
         '<div style="display:flex;gap:4px;flex-shrink:0;">' +
           '<button class="icon-btn" data-action="edit-note" data-id="' + r.id + '" data-key="' + escapeHtml(key) + '">\u270E</button>' +
@@ -5869,7 +5869,7 @@ async function renderRoutinesTab(root) {
       "</div>";
     }).join("");
     return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
-      (rows || '<div style="color:#8A919C;font-size:12px;">Nothing logged yet.</div>') +
+      (rows || '<div style="color:var(--text-2);font-size:12px;">Nothing logged yet.</div>') +
     "</div>";
   }
 
@@ -5888,7 +5888,7 @@ async function renderRoutinesTab(root) {
       var expanded = expandedIds.has(r.id);
       var displayRow = '<div class="item-display">' +
         '<span class="item-bar" style="background:' + r.color + ';"></span>' +
-        '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + (r.frequency === "weekly" ? ' <span style="color:#8A919C;font-size:11px;font-weight:400;">(weekly)</span>' : "") + '</div><div class="item-sub mono">' + streakLabel + "</div></div>" +
+        '<div class="item-main"><div class="item-name">' + escapeHtml(r.name) + (r.frequency === "weekly" ? ' <span style="color:var(--text-2);font-size:11px;font-weight:400;">(weekly)</span>' : "") + '</div><div class="item-sub mono">' + streakLabel + "</div></div>" +
         '<button class="pill" data-action="toggle" data-id="' + r.id + '" style="background:' + (doneFlag ? r.color : "transparent") + ";border-color:" + r.color + ";color:" + (doneFlag ? "#12151A" : r.color) + ';flex-shrink:0;">' + (doneFlag ? doneLabel : markLabel) + "</button>" +
         '<button class="icon-btn" data-action="toggle-expand" data-id="' + r.id + '">' + (expanded ? "\u25B4" : "\u25BE") + "</button>" +
         '<button class="icon-btn" data-action="delete" data-id="' + r.id + '">\u2715</button>' +
@@ -6211,10 +6211,10 @@ var _settings = null;
 var _defaultPageApplied = false;
 
 var THEMES = [
-  { id: 'dark',     name: 'Dark',          accent: '#e83b3b', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', sidebarColor: '#0E1117', borderColor: '#2A313A' },
-  { id: 'warm',     name: 'Warm Dark',     accent: '#D4A853', bgColor: '#1A1410', cardColor: '#241C14', textColor: '#F0E6D3', sidebarColor: '#120E09', borderColor: '#3A2818' },
-  { id: 'light',    name: 'Light',         accent: '#e83b3b', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
-  { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', sidebarColor: '#050505', borderColor: '#2A2A2A' }
+  { id: 'dark',     name: 'Dark',          accent: '#e83b3b', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', text2Color: '#8A919C', text3Color: '#5A6168', sidebarColor: '#0E1117', borderColor: '#2A313A' },
+  { id: 'warm',     name: 'Warm Dark',     accent: '#D4A853', bgColor: '#1A1410', cardColor: '#241C14', textColor: '#F0E6D3', text2Color: '#B3A08A', text3Color: '#7A6A56', sidebarColor: '#120E09', borderColor: '#3A2818' },
+  { id: 'light',    name: 'Light',         accent: '#e83b3b', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', text2Color: '#5C5650', text3Color: '#8A8478', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
+  { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', text2Color: '#B0B0B0', text3Color: '#707070', sidebarColor: '#050505', borderColor: '#2A2A2A' }
 ];
 
 var SETTINGS_DEFAULTS = {
@@ -6222,6 +6222,8 @@ var SETTINGS_DEFAULTS = {
   bgColor: '#12151A',
   cardColor: '#1B2027',
   textColor: '#EDEAE3',
+  text2Color: '#8A919C',
+  text3Color: '#5A6168',
   sidebarColor: '#0E1117',
   borderColor: '#2A313A',
   cardStyle: 'rounded',
@@ -6266,6 +6268,8 @@ function applySettings() {
   r.style.setProperty('--bg',           _settings.bgColor      || SETTINGS_DEFAULTS.bgColor);
   r.style.setProperty('--bg-card',      _settings.cardColor    || SETTINGS_DEFAULTS.cardColor);
   r.style.setProperty('--text-1',       _settings.textColor    || SETTINGS_DEFAULTS.textColor);
+  r.style.setProperty('--text-2',       _settings.text2Color   || SETTINGS_DEFAULTS.text2Color);
+  r.style.setProperty('--text-3',       _settings.text3Color   || SETTINGS_DEFAULTS.text3Color);
   r.style.setProperty('--bg-sidebar',   _settings.sidebarColor || SETTINGS_DEFAULTS.sidebarColor);
   r.style.setProperty('--border',       _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
   r.style.setProperty('--border-2',     _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
@@ -6435,7 +6439,10 @@ function renderSettingsPage() {
         _colorRow('settingBg',      'Background',        s.bgColor)                                     +
         _colorRow('settingCard',    'Card background',   s.cardColor)                                   +
         _colorRow('settingText',    'Primary text',      s.textColor)                                   +
+        _colorRow('settingText2',   'Secondary text',    s.text2Color || SETTINGS_DEFAULTS.text2Color)   +
+        _colorRow('settingText3',   'Muted text',         s.text3Color || SETTINGS_DEFAULTS.text3Color)  +
         _colorRow('settingSidebar', 'Sidebar',           s.sidebarColor || SETTINGS_DEFAULTS.sidebarColor) +
+        _colorRow('settingBorder',  'Borders',           s.borderColor || SETTINGS_DEFAULTS.borderColor) +
       '</div>' +
       '<div style="margin-top:16px;display:flex;justify-content:flex-end;">' +
         '<button class="port-edit-btn" id="settingResetColors">Reset to defaults</button>' +
@@ -6454,9 +6461,9 @@ function renderSettingsPage() {
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:12px;">CONTENT ZOOM</div>' +
       '<div style="display:flex;align-items:center;gap:12px;">' +
-        '<span style="color:#8A919C;font-size:11px;line-height:1;">A</span>' +
+        '<span style="color:var(--text-2);font-size:11px;line-height:1;">A</span>' +
         '<input type="range" id="settingZoom" min="0.8" max="1.3" step="0.05" value="' + s.contentZoom + '" style="flex:1;accent-color:var(--accent);" />' +
-        '<span style="color:#8A919C;font-size:15px;line-height:1;">A</span>' +
+        '<span style="color:var(--text-2);font-size:15px;line-height:1;">A</span>' +
         '<span class="mono" id="settingZoomVal" style="color:var(--text-1);font-size:13px;min-width:38px;text-align:right;">' + Math.round(s.contentZoom * 100) + '%</span>' +
       '</div>' +
     '</div>' +
@@ -6472,12 +6479,12 @@ function renderSettingsPage() {
         _labelRow('settingSiteTitle',   'Dashboard name (sidebar)', s.siteTitle || "Don's Space") +
       '</div>' +
       '<div>' +
-        '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">Logo image (shown above site name)</div>' +
+        '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">Logo image (shown above site name)</div>' +
         '<div style="display:flex;align-items:center;gap:12px;">' +
           '<button class="port-edit-btn" id="settingLogoUploadBtn">Upload image</button>' +
           (s.logoDataUrl
             ? '<img id="settingLogoPreview" src="' + s.logoDataUrl + '" style="max-height:40px;max-width:120px;object-fit:contain;border-radius:4px;border:1px solid var(--border-2);" />'
-            : '<span id="settingLogoPreview" style="color:#5A6168;font-size:12px;">No logo set</span>') +
+            : '<span id="settingLogoPreview" style="color:var(--text-3);font-size:12px;">No logo set</span>') +
           (s.logoDataUrl ? '<button class="port-edit-btn" id="settingLogoClearBtn" style="color:#c0392b;border-color:#c0392b;">Remove</button>' : '') +
         '</div>' +
       '</div>' +
@@ -6485,7 +6492,7 @@ function renderSettingsPage() {
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:4px;">CUSTOM GREETING</div>' +
-      '<div style="color:#8A919C;font-size:12px;margin-bottom:10px;">One greeting per line. A random line is shown each visit. Leave blank for the default time-based greeting.</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">One greeting per line. A random line is shown each visit. Leave blank for the default time-based greeting.</div>' +
       '<textarea id="settingGreetingLines" rows="4" placeholder="Hey,\nWelcome back,\nHello," ' +
         'style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical;">' +
         escapeHtml(s.greetingLines || '') + '</textarea>' +
@@ -6496,7 +6503,7 @@ function renderSettingsPage() {
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:4px;">SECTION EYEBROWS</div>' +
-      '<div style="color:#8A919C;font-size:12px;margin-bottom:16px;">The small label shown at the top of each section.</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:16px;">The small label shown at the top of each section.</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;">' +
         _labelRow('settingLabelTravel',   'Travel tab',    (s.pageLabels && s.pageLabels.travel)   || 'TRAVEL TRACKER') +
         _labelRow('settingLabelBudget',   'Budget tab',    (s.pageLabels && s.pageLabels.budget)   || 'BUDGET PLANNER') +
@@ -6510,7 +6517,7 @@ function renderSettingsPage() {
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:8px;">DEFAULT LANDING PAGE</div>' +
-      '<div style="color:#8A919C;font-size:12px;margin-bottom:12px;">Which page opens first when you log in.</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:12px;">Which page opens first when you log in.</div>' +
       '<select id="settingDefaultPage" style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:8px 10px;font-size:14px;font-family:inherit;">' +
         pageOptions.map(function(pg) { return '<option value="' + pg.id + '"' + ((s.defaultPage || '') === pg.id ? ' selected' : '') + '>' + escapeHtml(pg.label) + '</option>'; }).join('') +
       '</select>' +
@@ -6518,13 +6525,13 @@ function renderSettingsPage() {
 
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-label mono" style="margin-bottom:4px;">SHOW / HIDE SIDEBAR ITEMS</div>' +
-      '<div style="color:#8A919C;font-size:12px;margin-bottom:4px;">Toggle pages on and off. Dashboard and Settings are always visible.</div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:4px;">Toggle pages on and off. Dashboard and Settings are always visible.</div>' +
       hiddenPagesToggles +
     '</div>' +
 
 
     '<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:40px;">' +
-      '<button onclick="switchPage(\'guide\')" style="background:none;border:none;color:#5A6168;font-size:13px;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline;">&#9432; Developer Guide</button>' +
+      '<button onclick="switchPage(\'guide\')" style="background:none;border:none;color:var(--text-3);font-size:13px;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline;">&#9432; Developer Guide</button>' +
       '<button class="add-btn" id="settingSaveBtn" style="background:var(--accent);">Save settings</button>' +
     '</div>';
 
@@ -6540,6 +6547,8 @@ function renderSettingsPage() {
       _settings.bgColor      = t.bgColor;
       _settings.cardColor    = t.cardColor;
       _settings.textColor    = t.textColor;
+      _settings.text2Color   = t.text2Color;
+      _settings.text3Color   = t.text3Color;
       _settings.sidebarColor = t.sidebarColor;
       _settings.borderColor  = t.borderColor;
       applySettings();
@@ -6567,19 +6576,23 @@ function renderSettingsPage() {
     { id: 'settingBg',      hexId: 'settingBgHex',      key: 'bgColor',      cssVar: '--bg'         },
     { id: 'settingCard',    hexId: 'settingCardHex',     key: 'cardColor',    cssVar: '--bg-card'    },
     { id: 'settingText',    hexId: 'settingTextHex',     key: 'textColor',    cssVar: '--text-1'     },
-    { id: 'settingSidebar', hexId: 'settingSidebarHex',  key: 'sidebarColor', cssVar: '--bg-sidebar' }
+    { id: 'settingText2',   hexId: 'settingText2Hex',    key: 'text2Color',   cssVar: '--text-2'     },
+    { id: 'settingText3',   hexId: 'settingText3Hex',    key: 'text3Color',   cssVar: '--text-3'     },
+    { id: 'settingSidebar', hexId: 'settingSidebarHex',  key: 'sidebarColor', cssVar: '--bg-sidebar' },
+    { id: 'settingBorder',  hexId: 'settingBorderHex',   key: 'borderColor',  cssVar: ['--border', '--border-2'] }
   ].forEach(function(f) {
     var input = document.getElementById(f.id);
     if (!input) return;
+    var cssVars = Array.isArray(f.cssVar) ? f.cssVar : [f.cssVar];
     input.addEventListener('input', function() {
       _settings[f.key] = input.value;
       var hexInput = document.getElementById(f.hexId);
       if (hexInput) hexInput.value = input.value;
-      document.documentElement.style.setProperty(f.cssVar, input.value);
+      cssVars.forEach(function(v) { document.documentElement.style.setProperty(v, input.value); });
       saveSettings();
     });
     // Wire hex text input → color picker (IIFE captures loop vars)
-    (function(colorPicker, hexId, settingKey, cssVar) {
+    (function(colorPicker, hexId, settingKey, vars) {
       var hexInput = document.getElementById(hexId);
       if (!hexInput) return;
       hexInput.addEventListener('input', function() {
@@ -6589,14 +6602,14 @@ function renderSettingsPage() {
           colorPicker.value = normalized;
           _settings[settingKey] = normalized;
           hexInput.value = normalized;
-          document.documentElement.style.setProperty(cssVar, normalized);
+          vars.forEach(function(v) { document.documentElement.style.setProperty(v, normalized); });
           hexInput.style.borderColor = '#2A313A';
           saveSettings();
         } else {
           hexInput.style.borderColor = raw.length > 0 ? '#c0392b' : '#2A313A';
         }
       });
-    })(input, f.hexId, f.key, f.cssVar);
+    })(input, f.hexId, f.key, cssVars);
   });
 
   // Zoom slider
@@ -6636,10 +6649,14 @@ function renderSettingsPage() {
   var resetBtn = document.getElementById('settingResetColors');
   if (resetBtn) {
     resetBtn.addEventListener('click', function() {
-      _settings.accent    = SETTINGS_DEFAULTS.accent;
-      _settings.bgColor   = SETTINGS_DEFAULTS.bgColor;
-      _settings.cardColor = SETTINGS_DEFAULTS.cardColor;
-      _settings.textColor = SETTINGS_DEFAULTS.textColor;
+      _settings.accent     = SETTINGS_DEFAULTS.accent;
+      _settings.bgColor    = SETTINGS_DEFAULTS.bgColor;
+      _settings.cardColor  = SETTINGS_DEFAULTS.cardColor;
+      _settings.textColor  = SETTINGS_DEFAULTS.textColor;
+      _settings.text2Color = SETTINGS_DEFAULTS.text2Color;
+      _settings.text3Color = SETTINGS_DEFAULTS.text3Color;
+      _settings.sidebarColor = SETTINGS_DEFAULTS.sidebarColor;
+      _settings.borderColor  = SETTINGS_DEFAULTS.borderColor;
       applySettings();
       renderSettingsPage();
       saveSettings();
@@ -6781,7 +6798,7 @@ function renderSettingsPage() {
 
 function _labelRow(id, label, value) {
   return '<div>' +
-    '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
+    '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">' + label + '</div>' +
     '<input type="text" id="' + id + '" value="' + escapeHtml(value) + '" maxlength="60" ' +
       'style="width:100%;background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:6px 8px;font-size:13px;box-sizing:border-box;text-transform:uppercase;letter-spacing:0.06em;" />' +
   '</div>';
@@ -6789,7 +6806,7 @@ function _labelRow(id, label, value) {
 
 function _colorRow(id, label, value) {
   return '<div>' +
-    '<div style="color:#8A919C;font-size:12px;margin-bottom:8px;">' + label + '</div>' +
+    '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">' + label + '</div>' +
     '<div style="display:flex;align-items:center;gap:10px;">' +
       '<input type="color" id="' + id + '" value="' + value + '" ' +
         'style="width:40px;height:34px;border:1px solid #2A313A;border-radius:6px;background:none;cursor:pointer;padding:2px;flex-shrink:0;" />' +
@@ -6960,9 +6977,9 @@ async function renderEducationPage() {
     var cr  = allCourses.filter(function(c) { return (c.status || 'not-started') === s.id; }).reduce(function(sum, c) { return sum + (Number(c.credits) || 0); }, 0);
     return '<div style="display:flex;align-items:center;gap:8px;">' +
       '<span style="width:10px;height:10px;border-radius:50%;background:' + s.color + ';flex-shrink:0;"></span>' +
-      '<span style="color:#8A919C;font-size:13px;flex:1;">' + s.label + '</span>' +
-      '<span class="mono" style="color:#EDEAE3;font-size:13px;">' + cnt + '</span>' +
-      '<span class="mono" style="color:#5A6168;font-size:12px;min-width:32px;text-align:right;">' + cr + ' cr</span>' +
+      '<span style="color:var(--text-2);font-size:13px;flex:1;">' + s.label + '</span>' +
+      '<span class="mono" style="color:var(--text-1);font-size:13px;">' + cnt + '</span>' +
+      '<span class="mono" style="color:var(--text-3);font-size:12px;min-width:32px;text-align:right;">' + cr + ' cr</span>' +
     '</div>';
   }).join('');
 
@@ -6998,7 +7015,7 @@ async function renderEducationPage() {
       return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
         '<span class="item-bar" style="background:' + st.color + ';"></span>' +
         '<div class="item-main">' +
-          (course.code ? '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
+          (course.code ? '<div style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
           '<div class="item-name">' + escapeHtml(course.name || 'Unnamed course') + '</div>' +
           '<div class="item-sub">' + (course.credits || 0) + ' credit' + ((Number(course.credits) || 0) !== 1 ? 's' : '') + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + (course.semester ? ' · ' + escapeHtml(course.semester) : '') + '</div>' +
         '</div>' +
@@ -7032,7 +7049,7 @@ async function renderEducationPage() {
       '<div class="port-section-label" style="margin-top:20px;">' + groupLabel + '</div>' +
       (group.courses && group.courses.length
         ? '<div class="list-card" style="margin-bottom:8px;">' + coursesHtml + '</div>'
-        : '<div style="color:#5A6168;font-size:13px;padding:4px 0 8px;">No courses added yet.</div>') +
+        : '<div style="color:var(--text-3);font-size:13px;padding:4px 0 8px;">No courses added yet.</div>') +
       addFormHtml +
       (_eduAddCourseGroupId === group.id ? '' :
         '<button class="port-edit-btn" data-action="show-add-course" data-group="' + group.id + '" style="font-size:12px;margin-top:4px;">+ Add course</button>') +
@@ -7061,7 +7078,7 @@ async function renderEducationPage() {
   if (semMap['__none__']) semKeys.push('__none__');
 
   var semesterViewHtml = semKeys.length === 0
-    ? '<div style="color:#5A6168;font-size:13px;padding:8px 0 12px;">No courses added yet.</div>'
+    ? '<div style="color:var(--text-3);font-size:13px;padding:8px 0 12px;">No courses added yet.</div>'
     : semKeys.map(function(sem) {
         var label = sem === '__none__' ? 'Unscheduled' : sem;
         var items = semMap[sem];
@@ -7088,7 +7105,7 @@ async function renderEducationPage() {
           return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
             '<span class="item-bar" style="background:' + st.color + ';"></span>' +
             '<div class="item-main">' +
-              (course.code ? '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
+              (course.code ? '<div style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(course.code) + '</div>' : '') +
               '<div class="item-name">' + escapeHtml(course.name || 'Unnamed course') + '</div>' +
               '<div class="item-sub">' + (course.credits || 0) + ' cr' + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + ' · <span style="opacity:.7;">' + escapeHtml(item.groupName) + '</span></div>' +
             '</div>' +
@@ -7102,15 +7119,15 @@ async function renderEducationPage() {
         return '<div style="margin-bottom:8px;">' +
           '<div class="port-section-label" style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;">' +
             '<span>' + escapeHtml(label) + '</span>' +
-            '<span style="color:#5A6168;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">' + semCr + ' cr</span>' +
+            '<span style="color:var(--text-3);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">' + semCr + ' cr</span>' +
           '</div>' +
           '<div class="list-card">' + rowsHtml + '</div>' +
         '</div>';
       }).join('');
 
   var viewToggle = '<div style="display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:2px;">' +
-    '<button data-action="edu-view-groups" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'groups' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Group</button>' +
-    '<button data-action="edu-view-semesters" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'semesters' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:#8A919C;') + '">By Semester</button>' +
+    '<button data-action="edu-view-groups" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'groups' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:var(--text-2);') + '">By Group</button>' +
+    '<button data-action="edu-view-semesters" style="border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;transition:background .15s;' + (_eduView === 'semesters' ? 'background:var(--accent);color:#fff;' : 'background:transparent;color:var(--text-2);') + '">By Semester</button>' +
   '</div>';
 
   inner.innerHTML =
@@ -7118,7 +7135,7 @@ async function renderEducationPage() {
       '<div class="port-eyebrow">Education</div>' +
       '<input class="name-input serif" id="eduDegreeTitle" value="' + escapeHtml(data.degreeTitle || '') + '" placeholder="Degree title" style="font-size:30px;" />' +
       '<input id="eduSchool" value="' + escapeHtml(data.school || '') + '" placeholder="School / College" ' +
-        'style="background:transparent;border:none;border-bottom:1px solid transparent;color:#8A919C;font-size:14px;padding:4px 0;width:100%;outline:none;margin-top:4px;" ' +
+        'style="background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text-2);font-size:14px;padding:4px 0;width:100%;outline:none;margin-top:4px;" ' +
         'onfocus="this.style.borderBottomColor=\'#2A313A\'" onblur="this.style.borderBottomColor=\'transparent\'" />' +
     '</div>' +
 
@@ -7128,10 +7145,10 @@ async function renderEducationPage() {
         '<div style="flex:1;min-width:160px;">' +
           '<div style="margin-bottom:20px;">' +
             '<div class="gauge-label mono" style="margin-bottom:6px;">PROGRESS</div>' +
-            '<div style="font-size:32px;font-weight:800;color:#EDEAE3;line-height:1;">' + passedCr +
-              ' <span style="color:#5A6168;font-size:16px;font-weight:400;">/ ' + totalCr + ' credits</span>' +
+            '<div style="font-size:32px;font-weight:800;color:var(--text-1);line-height:1;">' + passedCr +
+              ' <span style="color:var(--text-3);font-size:16px;font-weight:400;">/ ' + totalCr + ' credits</span>' +
             '</div>' +
-            (gpa !== null ? '<div style="color:#8A919C;font-size:13px;margin-top:8px;">GPA: <strong style="color:#EDEAE3;font-size:18px;">' + gpa + '</strong> <span style="font-size:11px;">/ 4.00</span></div>' : '') +
+            (gpa !== null ? '<div style="color:var(--text-2);font-size:13px;margin-top:8px;">GPA: <strong style="color:var(--text-1);font-size:18px;">' + gpa + '</strong> <span style="font-size:11px;">/ 4.00</span></div>' : '') +
             (inProgCr > 0 ? '<div style="color:#D9A441;font-size:12px;margin-top:6px;">' + inProgCr + ' credits in progress</div>' : '') +
             (projGrad ? '<div style="color:#3DBFC4;font-size:12px;margin-top:4px;">Est. graduation: <strong>' + escapeHtml(projGrad) + '</strong></div>' : '') +
           '</div>' +
@@ -7144,14 +7161,14 @@ async function renderEducationPage() {
       '<div style="flex:1;min-width:180px;">' +
         '<div class="gauge-label mono" style="margin-bottom:6px;">GRADUATION DATE</div>' +
         (gradDays !== null
-          ? '<div style="font-size:28px;font-weight:800;color:#EDEAE3;line-height:1;">' + Math.max(0, gradDays) +
-              ' <span style="color:#5A6168;font-size:14px;font-weight:400;">' + (gradDays > 0 ? 'days to go' : 'days ago') + '</span>' +
+          ? '<div style="font-size:28px;font-weight:800;color:var(--text-1);line-height:1;">' + Math.max(0, gradDays) +
+              ' <span style="color:var(--text-3);font-size:14px;font-weight:400;">' + (gradDays > 0 ? 'days to go' : 'days ago') + '</span>' +
             '</div>' +
-            '<div style="color:#5A6168;font-size:12px;margin-top:6px;">' + escapeHtml(data.gradDate) + '</div>'
-          : '<div style="color:#5A6168;font-size:13px;">Set a graduation date to see the countdown.</div>') +
+            '<div style="color:var(--text-3);font-size:12px;margin-top:6px;">' + escapeHtml(data.gradDate) + '</div>'
+          : '<div style="color:var(--text-3);font-size:13px;">Set a graduation date to see the countdown.</div>') +
       '</div>' +
       '<div>' +
-        '<label style="color:#8A919C;font-size:11px;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Target date</label>' +
+        '<label style="color:var(--text-2);font-size:11px;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">Target date</label>' +
         '<input type="date" id="eduGradDate" value="' + escapeHtml(data.gradDate || '') + '" ' +
           'style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;" />' +
       '</div>' +
@@ -7165,7 +7182,7 @@ async function renderEducationPage() {
     (_eduView === 'semesters' ? semesterViewHtml : groupsHtml) +
 
     (_eduView === 'semesters'
-      ? '<div style="padding:12px 0 40px;color:#5A6168;font-size:12px;">Switch to <strong>By Group</strong> to add or manage courses.</div>'
+      ? '<div style="padding:12px 0 40px;color:var(--text-3);font-size:12px;">Switch to <strong>By Group</strong> to add or manage courses.</div>'
       : '<div style="padding:20px 0 40px;">' + addGroupHtml + '</div>');
 
   // Auto-save title/school
@@ -7355,13 +7372,13 @@ async function renderCertPage() {
   var summaryHtml = CERT_STATUSES.map(function(s) {
     return '<div class="card" style="flex:1;min-width:90px;text-align:center;padding:16px 10px;">' +
       '<div style="font-size:28px;font-weight:800;color:' + s.color + ';">' + counts[s.id] + '</div>' +
-      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#8A919C;margin-top:4px;">' + s.label + '</div>' +
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-2);margin-top:4px;">' + s.label + '</div>' +
     '</div>';
   }).join('');
 
   // Cert rows
   var certsHtml = certs.length === 0
-    ? '<div style="color:#5A6168;font-size:13px;padding:8px 0 12px;">No certifications added yet.</div>'
+    ? '<div style="color:var(--text-3);font-size:13px;padding:8px 0 12px;">No certifications added yet.</div>'
     : '<div class="list-card" style="margin-bottom:8px;">' + certs.map(function(cert) {
         var st = _certStatus(cert.status || 'planned');
         if (_certEditId === cert.id) {
@@ -7390,10 +7407,10 @@ async function renderCertPage() {
         return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
           '<span class="item-bar" style="background:' + st.color + ';"></span>' +
           '<div class="item-main">' +
-            (cert.provider ? '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(cert.provider) + '</div>' : '') +
+            (cert.provider ? '<div style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' + escapeHtml(cert.provider) + '</div>' : '') +
             '<div class="item-name">' + escapeHtml(cert.name || 'Unnamed certification') + '</div>' +
             (meta.length ? '<div class="item-sub">' + meta.join(' · ') + '</div>' : '') +
-            (cert.notes ? '<div style="color:#5A6168;font-size:12px;font-style:italic;margin-top:2px;">' + escapeHtml(cert.notes) + '</div>' : '') +
+            (cert.notes ? '<div style="color:var(--text-3);font-size:12px;font-style:italic;margin-top:2px;">' + escapeHtml(cert.notes) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
             '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
@@ -7424,8 +7441,8 @@ async function renderCertPage() {
   inner.innerHTML =
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;">' +
       '<div class="port-eyebrow">Education</div>' +
-      '<div class="serif" style="font-size:30px;color:#EDEAE3;line-height:1.1;">Certifications</div>' +
-      '<div style="color:#8A919C;font-size:14px;margin-top:4px;">Plan and track your professional certifications</div>' +
+      '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Certifications</div>' +
+      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Plan and track your professional certifications</div>' +
     '</div>' +
 
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px;">' + summaryHtml + '</div>' +
@@ -7596,7 +7613,7 @@ async function renderJobsPage() {
     var active = _jobStageFilter === s.id;
     return '<button data-action="job-filter" data-stage="' + s.id + '" style="flex:1;min-width:80px;padding:14px 8px;border-radius:10px;cursor:pointer;font-family:inherit;border:2px solid ' + (active ? s.color : 'var(--border-2)') + ';background:' + (active ? s.color + '22' : 'var(--bg-card)') + ';transition:.15s;">' +
       '<div style="font-size:26px;font-weight:800;color:' + s.color + ';">' + counts[s.id] + '</div>' +
-      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#8A919C;margin-top:4px;">' + s.label + '</div>' +
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-2);margin-top:4px;">' + s.label + '</div>' +
     '</button>';
   }).join('');
 
@@ -7609,8 +7626,8 @@ async function renderJobsPage() {
           var pct = jobs.length > 0 ? Math.round((counts[s.id] / jobs.length) * 100) : 0;
           return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;">' +
             '<span style="width:10px;height:10px;border-radius:50%;background:' + s.color + ';flex-shrink:0;"></span>' +
-            '<span style="color:#EDEAE3;flex:1;">' + s.label + '</span>' +
-            '<span class="mono" style="color:#8A919C;">' + counts[s.id] + (jobs.length ? ' · ' + pct + '%' : '') + '</span>' +
+            '<span style="color:var(--text-1);flex:1;">' + s.label + '</span>' +
+            '<span class="mono" style="color:var(--text-2);">' + counts[s.id] + (jobs.length ? ' · ' + pct + '%' : '') + '</span>' +
           '</div>';
         }).join('') +
       '</div>' +
@@ -7630,9 +7647,9 @@ async function renderJobsPage() {
     '<div class="card" style="margin-bottom:16px;">' +
       '<div class="gauge-top"><span class="gauge-label mono">WEEKLY PACE</span><span class="mono" style="color:' + weekColor + ';">' + weekCount + ' of ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + '</span></div>' +
       '<div class="gauge-track"><div class="gauge-fill" style="width:' + weekPct + '%;background:' + weekColor + ';box-shadow:0 0 14px ' + weekColor + '55;"></div></div>' +
-      '<div style="color:#8A919C;font-size:11px;margin-top:6px;">Goal: ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + ' applications this week</div>' +
+      '<div style="color:var(--text-2);font-size:11px;margin-top:6px;">Goal: ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + ' applications this week</div>' +
       '<div style="border-top:1px solid var(--border-2);margin-top:12px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">' +
-        '<span style="color:#8A919C;font-size:12px;">Today · daily minimum ' + JOB_DAILY_MIN + '</span>' +
+        '<span style="color:var(--text-2);font-size:12px;">Today · daily minimum ' + JOB_DAILY_MIN + '</span>' +
         '<span class="mono" style="color:' + todayColor + ';font-weight:600;">' + todayCount + ' of ' + JOB_DAILY_MIN + '</span>' +
       '</div>' +
     '</div>';
@@ -7677,9 +7694,9 @@ async function renderJobsPage() {
           '<span class="item-bar" style="background:' + st.color + ';"></span>' +
           '<div class="item-main">' +
             '<div class="item-name">' + escapeHtml(job.company || 'Unknown Company') + '</div>' +
-            '<div style="color:#8A919C;font-size:13px;margin-bottom:2px;">' + escapeHtml(job.role || '') + '</div>' +
+            '<div style="color:var(--text-2);font-size:13px;margin-bottom:2px;">' + escapeHtml(job.role || '') + '</div>' +
             (meta.length ? '<div class="item-sub">' + meta.join(' · ') + '</div>' : '') +
-            (job.notes ? '<div style="color:#5A6168;font-size:12px;margin-top:2px;font-style:italic;">' + escapeHtml(job.notes) + '</div>' : '') +
+            (job.notes ? '<div style="color:var(--text-3);font-size:12px;margin-top:2px;font-style:italic;">' + escapeHtml(job.notes) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">' +
             '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
@@ -7719,7 +7736,7 @@ async function renderJobsPage() {
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
       '<div class="port-eyebrow">Career</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Job Tracker</div>' +
-      '<div style="color:#8A919C;font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
+      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
     '</div>' +
 
     breakdownHtml +
@@ -7730,7 +7747,7 @@ async function renderJobsPage() {
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
       '<div class="port-section-label" style="margin:0;">' +
         (_jobStageFilter === 'all' ? 'All Jobs' : _jobStage(_jobStageFilter).label) +
-        ' <span style="color:#5A6168;font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">(' + filtered.length + ')</span>' +
+        ' <span style="color:var(--text-3);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">(' + filtered.length + ')</span>' +
       '</div>' +
       '<button class="port-edit-btn" data-action="job-filter" data-stage="all" style="font-size:12px;' + (_jobStageFilter === 'all' ? 'background:var(--accent);color:#fff;border-color:var(--accent);' : '') + '">Show all</button>' +
     '</div>' +
@@ -7901,8 +7918,8 @@ async function fetchChessLiveData() {
 
 function _chessStatBlock(label, value) {
   return '<div>' +
-    '<div style="color:#5A6168;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + label + '</div>' +
-    '<div class="mono" style="color:#EDEAE3;font-size:18px;font-weight:700;">' + value + '</div>' +
+    '<div style="color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">' + label + '</div>' +
+    '<div class="mono" style="color:var(--text-1);font-size:18px;font-weight:700;">' + value + '</div>' +
   '</div>';
 }
 
@@ -7923,7 +7940,7 @@ async function renderChessPage(forceRefresh) {
     inner.innerHTML =
       '<div style="padding-top:40px;">' +
         '<div class="port-eyebrow">Hobbies</div>' +
-        '<div class="serif" style="font-size:30px;color:#EDEAE3;line-height:1.1;margin-bottom:16px;">Chess Progress</div>' +
+        '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;margin-bottom:16px;">Chess Progress</div>' +
         '<div class="card"><div class="error-text" style="margin-bottom:12px;">' + _chessLoadError + '</div>' +
         '<button class="small-btn" style="background:var(--accent);" onclick="renderChessPage(true)">Retry</button></div>' +
       '</div>';
@@ -7951,7 +7968,7 @@ async function renderChessPage(forceRefresh) {
   var modeChipsHtml = modes.map(function(m) {
     var isPrimary = primary && m.key === primary.key;
     return '<div class="chip" style="' + (isPrimary ? 'border-color:' + accent + ';' : '') + '">' +
-      '<span style="color:#8A919C;">' + m.label + '</span>' +
+      '<span style="color:var(--text-2);">' + m.label + '</span>' +
       '<span class="mono" style="color:' + (m.played ? '#EDEAE3' : '#5A6168') + ';font-weight:700;">' + (m.played ? m.rating : '—') + '</span>' +
     '</div>';
   }).join('');
@@ -7966,14 +7983,14 @@ async function renderChessPage(forceRefresh) {
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
       '<div>' +
         '<div class="port-eyebrow">Hobbies</div>' +
-        '<div class="serif" style="font-size:30px;color:#EDEAE3;line-height:1.1;">Chess Progress</div>' +
-        '<div style="color:#8A919C;font-size:14px;margin-top:4px;">' +
+        '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Chess Progress</div>' +
+        '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">' +
           (profile.name ? escapeHtml(profile.name) + ' · ' : '') +
-          '<a href="' + escapeHtml(profile.url || ('https://www.chess.com/member/' + CHESS_USERNAME)) + '" target="_blank" rel="noopener" style="color:#8A919C;">@' + escapeHtml(CHESS_USERNAME) + ' ↗</a>' +
+          '<a href="' + escapeHtml(profile.url || ('https://www.chess.com/member/' + CHESS_USERNAME)) + '" target="_blank" rel="noopener" style="color:var(--text-2);">@' + escapeHtml(CHESS_USERNAME) + ' ↗</a>' +
         '</div>' +
         (_chessLoadError ? '<div style="color:#FF8A5C;font-size:12px;margin-top:6px;">' + _chessLoadError + ' Showing last-loaded data.</div>' : '') +
       '</div>' +
-      '<button class="small-btn" style="background:none;border:1px solid #2A313A;color:#8A919C;" onclick="renderChessPage(true)">↻ Refresh</button>' +
+      '<button class="small-btn" style="background:none;border:1px solid #2A313A;color:var(--text-2);" onclick="renderChessPage(true)">↻ Refresh</button>' +
     '</div>' +
 
     '<div class="card">' +
@@ -7982,18 +7999,18 @@ async function renderChessPage(forceRefresh) {
         '<span class="mono" style="color:' + accent + ';">' + (currentRating != null ? currentRating + ' of ' + goal + ' goal' : 'No rated games yet') + '</span>' +
       '</div>' +
       goalBodyHtml +
-      (!_chessGoalEditing ? '<div style="margin-top:10px;"><button class="link-btn" id="chessEditGoalBtn" style="color:#8A919C;">Edit goal</button></div>' : '') +
+      (!_chessGoalEditing ? '<div style="margin-top:10px;"><button class="link-btn" id="chessEditGoalBtn" style="color:var(--text-2);">Edit goal</button></div>' : '') +
       '<div class="chips" style="margin-top:16px;margin-bottom:0;">' + modeChipsHtml + '</div>' +
     '</div>' +
 
     (tier ? (
       '<div class="card">' +
         '<div class="gauge-label mono" style="margin-bottom:8px;">WHAT THIS MEANS</div>' +
-        '<div style="color:#EDEAE3;font-size:16px;font-weight:700;margin-bottom:6px;">' + tier.label + ' (' + primary.label + ')</div>' +
-        '<div style="color:#8A919C;font-size:14px;line-height:1.7;">' + tier.blurb +
+        '<div style="color:var(--text-1);font-size:16px;font-weight:700;margin-bottom:6px;">' + tier.label + ' (' + primary.label + ')</div>' +
+        '<div style="color:var(--text-2);font-size:14px;line-height:1.7;">' + tier.blurb +
           (bestRating > currentRating ? ' Your best-ever rating was <strong style="color:var(--text-1);">' + bestRating + '</strong> — getting back above that is a good near-term marker.' : '') +
         '</div>' +
-        '<div style="color:#5A6168;font-size:12px;margin-top:10px;">Rough, informal read on chess.com ratings — actual skill varies by time control and shifts as the rating pool changes.</div>' +
+        '<div style="color:var(--text-3);font-size:12px;margin-top:10px;">Rough, informal read on chess.com ratings — actual skill varies by time control and shifts as the rating pool changes.</div>' +
       '</div>'
     ) : '') +
 
@@ -8049,18 +8066,18 @@ function renderGuidePage() {
       rows.map(function(r) {
         return '<tr>' +
           '<td style="padding:8px 12px 8px 0;border-bottom:1px solid var(--border-2);color:var(--text-1);font-family:ui-monospace,monospace;font-size:12px;overflow-wrap:break-word;word-break:break-word;vertical-align:top;width:38%;">' + r[0] + '</td>' +
-          '<td style="padding:8px 0 8px 12px;border-bottom:1px solid var(--border-2);color:#8A919C;font-size:13px;vertical-align:top;overflow-wrap:break-word;word-break:break-word;">' + r[1] + '</td>' +
+          '<td style="padding:8px 0 8px 12px;border-bottom:1px solid var(--border-2);color:var(--text-2);font-size:13px;vertical-align:top;overflow-wrap:break-word;word-break:break-word;">' + r[1] + '</td>' +
         '</tr>';
       }).join('') +
     '</table>';
   }
   function pre(code) {
-    return '<pre style="background:#0E1117;border:1px solid var(--border-2);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 4px;"><code style="font-family:ui-monospace,monospace;font-size:12px;color:#8A919C;line-height:1.6;">' + code + '</code></pre>';
+    return '<pre style="background:#0E1117;border:1px solid var(--border-2);border-radius:8px;padding:12px 14px;overflow-x:auto;margin:8px 0 4px;"><code style="font-family:ui-monospace,monospace;font-size:12px;color:var(--text-2);line-height:1.6;">' + code + '</code></pre>';
   }
 
   el.innerHTML =
     '<div class="port-edit-bar" style="margin-bottom:4px;">' +
-      '<button onclick="switchPage(\'settings\')" style="background:none;border:1px solid var(--border-2);color:#8A919C;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;">&#8592; Back to Settings</button>' +
+      '<button onclick="switchPage(\'settings\')" style="background:none;border:1px solid var(--border-2);color:var(--text-2);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;">&#8592; Back to Settings</button>' +
       '<div style="display:flex;gap:8px;">' +
         '<button class="port-edit-btn" id="guideResetBtn" style="font-size:12px;padding:4px 12px;" onclick="resetGuideContent()" title="Wipe any saved custom edits and restore the built-in guide text">Reset to default</button>' +
         '<button class="port-edit-btn locked" id="guideEditBtn" onclick="toggleGuideEdit()">&#128274; Locked</button>' +
@@ -8069,11 +8086,11 @@ function renderGuidePage() {
     '<div data-guide-key="body">' +
     '<div class="port-eyebrow" style="margin-top:20px;">Developer Reference</div>' +
     '<div class="port-title" style="font-size:28px;margin-bottom:4px;">Dashboard Guide</div>' +
-    '<div style="color:#5A6168;font-size:13px;margin-bottom:8px;">How the dashboard is built, stored, and extended</div>' +
+    '<div style="color:var(--text-3);font-size:13px;margin-bottom:8px;">How the dashboard is built, stored, and extended</div>' +
 
     sec('File Structure') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">The entire app is a <strong style="color:var(--text-1);">single HTML file</strong> with no build tools, no framework, and no npm. HTML structure, CSS, and JavaScript all live in <code>index.html</code>.</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:12px;">The entire app is a <strong style="color:var(--text-1);">single HTML file</strong> with no build tools, no framework, and no npm. HTML structure, CSS, and JavaScript all live in <code>index.html</code>.</div>' +
       tbl([
         ['index.html',         'The entire app (~5,300 lines). All logic lives here.'],
         ['portfolio.html',     'Standalone public portfolio — no login required. Share this on your resume.'],
@@ -8084,7 +8101,7 @@ function renderGuidePage() {
 
     sec('Key Constants') +
     card(
-      '<div style="color:#8A919C;font-size:13px;margin-bottom:10px;">At the top of the &lt;script&gt; block (~line 795). Edit these to customize the app.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-bottom:10px;">At the top of the &lt;script&gt; block (~line 795). Edit these to customize the app.</div>' +
       tbl([
         ['SUPABASE_URL',          'Your Supabase project URL — Settings → API in Supabase dashboard.'],
         ['SUPABASE_ANON_KEY',     'Your Supabase publishable key — same location.'],
@@ -8097,9 +8114,9 @@ function renderGuidePage() {
 
     sec('How Data is Stored') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">All data lives in a single Supabase table: <strong style="color:var(--text-1);">dashboard_data</strong>. Each section of the app is one row identified by a <code>tab_key</code> string. The actual content is a JSON object in the <code>data</code> column (JSONB).</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:12px;">All data lives in a single Supabase table: <strong style="color:var(--text-1);">dashboard_data</strong>. Each section of the app is one row identified by a <code>tab_key</code> string. The actual content is a JSON object in the <code>data</code> column (JSONB).</div>' +
       pre('dashboard_data\n  user_id     uuid   — ties data to the signed-in user\n  tab_key     text   — identifies which section this row is for\n  data        jsonb  — the section\'s content as a JSON object\n  updated_at  timestamptz') +
-      '<div style="color:#8A919C;font-size:13px;margin:12px 0 8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Tab keys used</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin:12px 0 8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Tab keys used</div>' +
       tbl([
         ['dashboard-travel-data',   'All trips: array of trip objects with items (flights, stay, activities…)'],
         ['dashboard-budget-data',   'Monthly expenses, savings goal, pay period config'],
@@ -8121,14 +8138,14 @@ function renderGuidePage() {
 
     sec('Page Architecture') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:10px;">Every page is a <code>&lt;div class="page" id="page-{name}"&gt;</code>. Only the active page has the <code>active</code> class — all others are hidden via CSS.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin:10px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">How navigation works</div>' +
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;">Sidebar buttons have <code>data-page="name"</code>. Clicking calls <code>switchPage("name")</code>, which: (1) toggles the <code>active</code> class on <code>#page-{name}</code>, (2) marks the sidebar button active, (3) runs the page\'s render function.</div>'
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:10px;">Every page is a <code>&lt;div class="page" id="page-{name}"&gt;</code>. Only the active page has the <code>active</code> class — all others are hidden via CSS.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin:10px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">How navigation works</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;">Sidebar buttons have <code>data-page="name"</code>. Clicking calls <code>switchPage("name")</code>, which: (1) toggles the <code>active</code> class on <code>#page-{name}</code>, (2) marks the sidebar button active, (3) runs the page\'s render function.</div>'
     ) +
 
     sec('How to Add a New Page') +
     card(
-      '<div style="color:#8A919C;font-size:13px;margin-bottom:12px;">Four edits in <code>index.html</code>:</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-bottom:12px;">Four edits in <code>index.html</code>:</div>' +
       '<div style="display:grid;grid-template-columns:24px 1fr;gap:8px 12px;">' +
         _guideStep('1', '<strong style="color:var(--text-1);">Sidebar button</strong> — inside <code>&lt;nav class="sidebar"&gt;</code>:' + pre('&lt;button class="sidebar-item" data-page="mypage"&gt;\n  &lt;span class="s-icon"&gt;&#9670;&lt;/span&gt; My Page\n&lt;/button&gt;')) +
         _guideStep('2', '<strong style="color:var(--text-1);">Page div</strong> — alongside other <code>.page</code> divs:' + pre('&lt;div class="page" id="page-mypage"&gt;\n  &lt;div class="page-inner"&gt;\n    &lt;div id="mypageRoot"&gt;&lt;/div&gt;\n  &lt;/div&gt;\n&lt;/div&gt;')) +
@@ -8139,7 +8156,7 @@ function renderGuidePage() {
 
     sec('CSS Variables (Theming)') +
     card(
-      '<div style="color:#8A919C;font-size:13px;margin-bottom:10px;">Set on <code>:root</code> by <code>applySettings()</code> when the user changes their theme. Use these in any new code you add.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-bottom:10px;">Set on <code>:root</code> by <code>applySettings()</code> when the user changes their theme. Use these in any new code you add.</div>' +
       tbl([
         ['--accent',        'Buttons, highlights, active states (#e83b3b by default)'],
         ['--bg',            'Page background'],
@@ -8168,33 +8185,33 @@ function renderGuidePage() {
 
     sec('Google Calendar Integration') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">Uses Google\'s <strong style="color:var(--text-1);">OAuth 2.0 authorization code flow</strong> (Google Identity Services\' <code>initCodeClient</code>, popup mode) instead of the old implicit grant, because only the code flow issues a <strong style="color:var(--text-1);">refresh token</strong>. Exchanging the code for tokens requires the Google client secret, which can\'t live in browser JS — that exchange happens in a small Supabase Edge Function instead.</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:12px;">Uses Google\'s <strong style="color:var(--text-1);">OAuth 2.0 authorization code flow</strong> (Google Identity Services\' <code>initCodeClient</code>, popup mode) instead of the old implicit grant, because only the code flow issues a <strong style="color:var(--text-1);">refresh token</strong>. Exchanging the code for tokens requires the Google client secret, which can\'t live in browser JS — that exchange happens in a small Supabase Edge Function instead.</div>' +
       pre('Browser                          Edge Function (google-oauth)         Google\n  |--- auth code --------------------->|                                   |\n  |                                     |--- code + client_secret -------->|\n  |                                     |<-- access_token + refresh_token --|\n  |<-- access_token ---------------------|  (refresh_token stored server-side)') +
-      '<div style="color:#8A919C;font-size:13px;margin:12px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Where things live</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin:12px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Where things live</div>' +
       tbl([
         ['supabase/functions/google-oauth', 'Edge Function: exchanges/refreshes tokens with Google, using the GOOGLE_CLIENT_SECRET function secret. Verifies the caller via their Supabase session JWT before touching any tokens.'],
         ['google_oauth_tokens table',       'Stores each user\'s refresh token. RLS is enabled with zero policies, so only the Edge Function\'s service-role key can read/write it — the browser never sees the refresh token.'],
         ['sessionStorage["gcal-token"]',    'Caches the current short-lived access token client-side so most page loads don\'t need a round trip to the Edge Function.'],
       ]) +
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management), <code>tasks</code> (read/write, for the Tasks sync list), and <code>calendar.calendarlist.readonly</code> (lists every calendar on the account for the multi-calendar toggle below) — requested together in one consent screen.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Events are fetched once for a 14-day window (this week + next, Monday-start) and split into two labeled sections in the UI — no separate call per week.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;font-weight:700;">Multi-calendar support</div>' +
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:4px;">On each fetch, <code>_fetchGcalCalendarList()</code> calls <code>users/me/calendarList</code> to get every calendar on the account, then <code>fetchAndRenderCalendarEvents()</code> fetches events from all of them in parallel and tags each with its calendar\'s id/color. Toggling a calendar chip filters the cached events client-side via <code>_renderGcalEventsFromCache()</code> — no re-fetch needed. Which calendars are hidden is stored in <code>dashboard-gcal-settings</code>.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:8px;">Accounts that connected before this feature shipped won\'t have the <code>calendar.calendarlist.readonly</code> scope yet — they silently fall back to primary-only until they Disconnect and Connect again to re-consent.</div>'
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management), <code>tasks</code> (read/write, for the Tasks sync list), and <code>calendar.calendarlist.readonly</code> (lists every calendar on the account for the multi-calendar toggle below) — requested together in one consent screen.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Events are fetched once for a 14-day window (this week + next, Monday-start) and split into two labeled sections in the UI — no separate call per week.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;font-weight:700;">Multi-calendar support</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:4px;">On each fetch, <code>_fetchGcalCalendarList()</code> calls <code>users/me/calendarList</code> to get every calendar on the account, then <code>fetchAndRenderCalendarEvents()</code> fetches events from all of them in parallel and tags each with its calendar\'s id/color. Toggling a calendar chip filters the cached events client-side via <code>_renderGcalEventsFromCache()</code> — no re-fetch needed. Which calendars are hidden is stored in <code>dashboard-gcal-settings</code>.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:8px;">Accounts that connected before this feature shipped won\'t have the <code>calendar.calendarlist.readonly</code> scope yet — they silently fall back to primary-only until they Disconnect and Connect again to re-consent.</div>'
     ) +
 
     sec('Chess.com Integration') +
     card(
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-bottom:12px;">The Chess Progress page reads directly from Chess.com\'s <strong style="color:var(--text-1);">public player API</strong> — no login, API key, or Edge Function needed, since the endpoints are unauthenticated and CORS-open.</div>' +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:12px;">The Chess Progress page reads directly from Chess.com\'s <strong style="color:var(--text-1);">public player API</strong> — no login, API key, or Edge Function needed, since the endpoints are unauthenticated and CORS-open.</div>' +
       tbl([
         ['GET /pub/player/{username}',       'Profile: name, avatar, followers, joined date, last online.'],
         ['GET /pub/player/{username}/stats', 'Ratings + win/loss/draw record for each time control (daily, rapid, blitz, bullet).'],
       ]) +
-      '<div style="color:#8A919C;font-size:14px;line-height:1.7;margin-top:12px;">On first visit, <code>fetchChessLiveData()</code> hits both endpoints and caches the result in memory for the session — revisiting the page re-renders from cache instead of re-fetching; the &#8617; Refresh button forces a re-fetch. The "current" rating shown is whichever time control was played most recently, not a fixed one, so it follows however you actually play.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">The rating goal (default 850) is the only piece of data actually stored in Supabase, under <code>dashboard-chess-data</code> — everything else is always live from Chess.com.</div>' +
-      '<div style="color:#8A919C;font-size:13px;margin-top:12px;">Key functions: <code>fetchChessLiveData()</code> · <code>renderChessPage(forceRefresh)</code> · <code>_chessTier(rating)</code> (the "what this means" blurb) · <code>_chessModeSummaries(stats)</code></div>'
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:12px;">On first visit, <code>fetchChessLiveData()</code> hits both endpoints and caches the result in memory for the session — revisiting the page re-renders from cache instead of re-fetching; the &#8617; Refresh button forces a re-fetch. The "current" rating shown is whichever time control was played most recently, not a fixed one, so it follows however you actually play.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">The rating goal (default 850) is the only piece of data actually stored in Supabase, under <code>dashboard-chess-data</code> — everything else is always live from Chess.com.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Key functions: <code>fetchChessLiveData()</code> · <code>renderChessPage(forceRefresh)</code> · <code>_chessTier(rating)</code> (the "what this means" blurb) · <code>_chessModeSummaries(stats)</code></div>'
     ) +
 
     '<div style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border-2);color:#3A4250;font-size:12px;padding-bottom:40px;">' +
@@ -8276,7 +8293,7 @@ function resetGuideContent() {
 
 function _guideStep(num, body) {
   return '<div style="width:24px;height:24px;background:var(--accent)22;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;margin-top:2px;">' + num + '</div>' +
-    '<div style="color:#8A919C;font-size:13px;line-height:1.6;margin-bottom:8px;min-width:0;overflow-wrap:break-word;">' + body + '</div>';
+    '<div style="color:var(--text-2);font-size:13px;line-height:1.6;margin-bottom:8px;min-width:0;overflow-wrap:break-word;">' + body + '</div>';
 }
 
 /* ============================================================
@@ -8483,9 +8500,9 @@ function renderGcalCard() {
       '<span class="gauge-label mono" style="letter-spacing:.12em;">UPCOMING EVENTS</span>' +
       (connected
         ? '<div style="display:flex;gap:8px;">' +
-            '<button id="gcalRefreshBtn" onclick="refreshGcalData()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">&#8635; Refresh</button>' +
-            '<button onclick="openGcalEventForm()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ New event</button>' +
-            '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' +
+            '<button id="gcalRefreshBtn" onclick="refreshGcalData()" style="background:none;border:1px solid #2A313A;color:var(--text-2);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">&#8635; Refresh</button>' +
+            '<button onclick="openGcalEventForm()" style="background:none;border:1px solid #2A313A;color:var(--text-2);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">+ New event</button>' +
+            '<button onclick="disconnectGoogleCalendar()" style="background:none;border:1px solid #2A313A;color:var(--text-2);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">Disconnect</button>' +
           '</div>'
         : "") +
     "</div>" +
@@ -8493,11 +8510,11 @@ function renderGcalCard() {
       ? '<div id="gcalMultiCalNote"></div>' +
         '<div id="gcalCalToggles" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>' +
         '<div id="gcalEventForm"></div>' +
-        '<div id="gcalEvents" style="font-size:14px;"><div style="color:#5A6168;font-size:13px;padding:4px 0;">Loading events&hellip;</div></div>' +
+        '<div id="gcalEvents" style="font-size:14px;"><div style="color:var(--text-3);font-size:13px;padding:4px 0;">Loading events&hellip;</div></div>' +
         '<div id="gcalTasks" style="margin-top:4px;"></div>'
       : '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
           '<button onclick="connectGoogleCalendar()" class="add-btn" style="background:var(--accent);color:#fff;font-size:13px;padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;">Connect Google Calendar</button>' +
-          '<span id="gcalStatus" style="color:#8A919C;font-size:12px;"></span>' +
+          '<span id="gcalStatus" style="color:var(--text-2);font-size:12px;"></span>' +
         "</div>") +
   "</div>";
 
@@ -8524,7 +8541,7 @@ function openGcalEventForm(eventId, calendarId) {
   var calendarFieldHtml = "";
   if (_gcalCalendars && _gcalCalendars.length > 1) {
     if (eventId) {
-      calendarFieldHtml = '<div style="color:#8A919C;font-size:11px;margin-bottom:8px;">Calendar: <span style="color:var(--text-1);">' + escapeHtml((ev && ev._calSummary) || "Calendar") + '</span></div>';
+      calendarFieldHtml = '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Calendar: <span style="color:var(--text-1);">' + escapeHtml((ev && ev._calSummary) || "Calendar") + '</span></div>';
     } else {
       var calOptions = writableCals.map(function(c) {
         return '<option value="' + escapeHtml(c.id) + '"' + (c.primary ? " selected" : "") + '>' + escapeHtml(c.summary) + '</option>';
@@ -8557,27 +8574,27 @@ function openGcalEventForm(eventId, calendarId) {
       '<input class="form-input" id="gcalEvTitle" placeholder="Event title" value="' + escapeHtml(ev ? (ev.summary || "") : "") + '" style="margin-bottom:8px;" />' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' +
         '<div style="flex:1;min-width:130px;">' +
-          '<div style="color:#8A919C;font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">Start</div>' +
+          '<div style="color:var(--text-2);font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">Start</div>' +
           '<div style="display:flex;gap:6px;">' +
             '<input class="form-input" type="date" id="gcalEvStartDate" value="' + startDateVal + '" style="flex:1;min-width:110px;" />' +
             '<input class="form-input" type="time" id="gcalEvStartTime" value="' + startTimeVal + '" style="flex:1;min-width:90px;" ' + (isAllDay ? "disabled" : "") + ' />' +
           '</div>' +
         '</div>' +
         '<div style="flex:1;min-width:130px;">' +
-          '<div style="color:#8A919C;font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">End</div>' +
+          '<div style="color:var(--text-2);font-size:10px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;">End</div>' +
           '<div style="display:flex;gap:6px;">' +
             '<input class="form-input" type="date" id="gcalEvEndDate" value="' + endDateVal + '" style="flex:1;min-width:110px;" />' +
             '<input class="form-input" type="time" id="gcalEvEndTime" value="' + endTimeVal + '" style="flex:1;min-width:90px;" ' + (isAllDay ? "disabled" : "") + ' />' +
           '</div>' +
         '</div>' +
       '</div>' +
-      '<label style="display:flex;align-items:center;gap:6px;color:#8A919C;font-size:12px;margin-bottom:10px;">' +
+      '<label style="display:flex;align-items:center;gap:6px;color:var(--text-2);font-size:12px;margin-bottom:10px;">' +
         '<input type="checkbox" id="gcalEvAllDay" onchange="var d=this.checked;document.getElementById(\'gcalEvStartTime\').disabled=d;document.getElementById(\'gcalEvEndTime\').disabled=d;" ' + (isAllDay ? "checked" : "") + ' /> All day' +
       '</label>' +
       '<div class="form-actions" style="display:flex;align-items:center;gap:8px;">' +
         '<span class="error-text" id="gcalEvFormError"></span>' +
         (eventId ? '<button class="add-btn" style="background:none;border:1px solid #FF8A5C;color:#FF8A5C;" onclick="deleteGcalEvent(\'' + eventId + '\', \'' + (calendarId || "primary") + '\')">Delete</button>' : "") +
-        '<button class="add-btn" style="background:none;border:1px solid #2A313A;color:#8A919C;" onclick="closeGcalEventForm()">Cancel</button>' +
+        '<button class="add-btn" style="background:none;border:1px solid #2A313A;color:var(--text-2);" onclick="closeGcalEventForm()">Cancel</button>' +
         '<button class="add-btn" style="background:var(--accent);" onclick="saveGcalEvent(' + (eventId ? "'" + eventId + "'" : "null") + ', ' + (eventId ? "'" + (calendarId || "primary") + "'" : "null") + ')">Save</button>' +
       '</div>' +
     '</div>';
@@ -8685,7 +8702,7 @@ async function fetchAndRenderCalendarEvents() {
     renderGcalCalendarToggles();
     var noteEl = document.getElementById("gcalMultiCalNote");
     if (noteEl) noteEl.innerHTML = (_gcalMultiCalSupported === false)
-      ? '<div style="color:#8A919C;font-size:11px;margin-bottom:10px;">Only your primary calendar is available — <button onclick="disconnectGoogleCalendar()" style="background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:11px;padding:0;font-family:inherit;">reconnect</button> to enable multiple calendars.</div>'
+      ? '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">Only your primary calendar is available — <button onclick="disconnectGoogleCalendar()" style="background:none;border:none;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:11px;padding:0;font-family:inherit;">reconnect</button> to enable multiple calendars.</div>'
       : "";
 
     // Two-week window, aligned to Monday-start weeks so it splits cleanly into
@@ -8773,16 +8790,16 @@ function _renderGcalEventsFromCache() {
 
         return '<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;">' +
           '<div style="flex-shrink:0;width:64px;text-align:right;padding-top:2px;">' +
-            '<span style="font-size:11px;color:#8A919C;font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
+            '<span style="font-size:11px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap;">' + timeStr + '</span>' +
           '</div>' +
           '<div style="width:2px;min-height:18px;align-self:stretch;background:' + barColor + ';border-radius:2px;flex-shrink:0;margin-top:3px;" title="' + escapeHtml(ev._calSummary || "") + '"></div>' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="color:var(--text-1);font-size:13px;font-weight:' + (isToday ? "500" : "400") + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.summary || "Untitled event") + '</div>' +
-            (ev.location ? '<div style="color:#5A6168;font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
+            (ev.location ? '<div style="color:var(--text-3);font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(ev.location.split(",")[0]) + '</div>' : '') +
           '</div>' +
           '<div style="flex-shrink:0;display:flex;gap:4px;">' +
-            '<button onclick="openGcalEventForm(\'' + ev.id + '\', \'' + ev._calId + '\')" title="Edit" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&#9998;</button>' +
-            '<button onclick="deleteGcalEvent(\'' + ev.id + '\', \'' + ev._calId + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
+            '<button onclick="openGcalEventForm(\'' + ev.id + '\', \'' + ev._calId + '\')" title="Edit" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:12px;padding:2px 4px;">&#9998;</button>' +
+            '<button onclick="deleteGcalEvent(\'' + ev.id + '\', \'' + ev._calId + '\')" title="Delete" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -8801,10 +8818,10 @@ function _renderGcalEventsFromCache() {
   function renderWeekSection(label, dateKeys) {
     var body = dateKeys.length
       ? renderDayGroups(dateKeys)
-      : '<div style="color:#5A6168;font-size:12px;padding:2px 0;">No events.</div>';
+      : '<div style="color:var(--text-3);font-size:12px;padding:2px 0;">No events.</div>';
     return '<div>' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-        '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">' + label + '</span>' +
+        '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--text-3);">' + label + '</span>' +
         '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
       '</div>' +
       body +
@@ -8842,12 +8859,12 @@ function _gcalTaskBucket(due) {
 
 function _gcalTaskRowHtml(t) {
   return '<div class="gcal-task-row" data-task-id="' + t.id + '" style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;">' +
-    '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:#5A6168;font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
+    '<button onclick="toggleGcalTaskDone(\'' + t.id + '\')" title="Mark done" style="background:none;border:none;color:var(--text-3);font-size:13px;line-height:1.4;padding:0;cursor:pointer;">&#9675;</button>' +
     '<div style="flex:1;min-width:0;">' +
       '<div class="gcal-task-title" contenteditable="true" data-task-id="' + t.id + '" style="color:var(--text-1);font-size:13px;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title || "Untitled task") + '</div>' +
-      '<input type="date" class="gcal-task-due" data-task-id="' + t.id + '" value="' + (t.due ? t.due.slice(0, 10) : "") + '" title="Due date" style="background:transparent;color:#5A6168;font-size:11px;font-family:inherit;border:none;padding:1px 0;margin-top:1px;cursor:pointer;max-width:120px;color-scheme:dark;" />' +
+      '<input type="date" class="gcal-task-due" data-task-id="' + t.id + '" value="' + (t.due ? t.due.slice(0, 10) : "") + '" title="Due date" style="background:transparent;color:var(--text-3);font-size:11px;font-family:inherit;border:none;padding:1px 0;margin-top:1px;cursor:pointer;max-width:120px;color-scheme:dark;" />' +
     '</div>' +
-    '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:#5A6168;cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
+    '<button onclick="deleteGcalTask(\'' + t.id + '\')" title="Delete" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:12px;padding:2px 4px;">&times;</button>' +
   '</div>';
 }
 
@@ -8882,14 +8899,14 @@ async function fetchAndRenderTasks() {
 
     tkEl.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px;">' +
-        '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:#5A6168;">TASKS</span>' +
+        '<span style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--text-3);">TASKS</span>' +
         '<div style="flex:1;height:1px;background:#2A313A;"></div>' +
       '</div>' +
       groupsHtml +
       '<div style="display:flex;gap:6px;margin-top:10px;">' +
         '<input id="gcalNewTaskInput" placeholder="Add a task…" style="flex:1;min-width:0;background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')addGcalTask();" />' +
         '<input id="gcalNewTaskDate" type="date" title="Due date (optional)" style="background:var(--bg);color:var(--text-1);border:1px solid #2A313A;border-radius:6px;padding:5px 6px;font-size:11px;font-family:inherit;color-scheme:dark;flex-shrink:0;" />' +
-        '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:#8A919C;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;flex-shrink:0;">+ Add</button>' +
+        '<button onclick="addGcalTask()" style="background:none;border:1px solid #2A313A;color:var(--text-2);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;flex-shrink:0;">+ Add</button>' +
       '</div>';
 
     if (!tkEl._gcalTaskEventsBound) {
