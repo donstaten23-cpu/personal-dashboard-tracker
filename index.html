@@ -271,7 +271,7 @@
   .tabbtn.active { color: #12151A; }
 
   /* gauge amount spans — the "$X of $Y" dollar figures next to the label */
-  #stGaugeAmount, #svGaugeAmount, #ttGaugeAmount, #ttSavingsAmount,
+  #stGaugeAmount, #svTotalAmount, #ttGaugeAmount, #ttSavingsAmount,
   #wkGaugeAmount, #rtTodayAmount { font-size: 16px !important; font-weight: 600; }
 
   /* before-payday total */
@@ -2547,9 +2547,10 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
+  if (!data.savingsGoals) data.savingsGoals = [];
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
@@ -2581,8 +2582,29 @@ async function renderSpendTab(root, cfg) {
         if (!isNaN(d)) dueDay = d;
       }
     }
-    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes, owner: it.owner || "", paidOn: it.paidOn || "" };
+    return { id: it.id, category: it.category, name: it.name, dueDay: dueDay, amount: it.amount, notes: it.notes, owner: it.owner || "", goalId: it.goalId || "", paidOn: it.paidOn || "" };
   });
+
+  // migrate the old single scalar savings goal into the new flexible goals list.
+  if (!data.savingsGoals.length && Number(data.savingsGoal) > 0) {
+    var migratedGoal = {
+      id: uid(),
+      name: "Overall",
+      targetAmount: data.savingsGoal,
+      targetDate: data.savingsTargetDate || "",
+      planStartDate: data.savingsPlanStartDate || "",
+      planStartAmount: data.savingsPlanStartAmount || 0
+    };
+    data.savingsGoals.push(migratedGoal);
+    data.items.forEach(function (it) {
+      if (it.category === "savings" && !it.goalId) it.goalId = migratedGoal.id;
+    });
+    delete data.savingsGoal;
+    delete data.savingsTargetDate;
+    delete data.savingsPlanStartDate;
+    delete data.savingsPlanStartAmount;
+    migratedAny = true;
+  }
 
   var sortBy = "date";
   var editRowId = null;
@@ -2591,11 +2613,11 @@ async function renderSpendTab(root, cfg) {
   var confirmReset = false;
   var showBudgetInput = false;
   var budgetDraft = "";
-  var showSavingsInput = false;
-  var savingsDraft = "";
-  var savingsDateDraft = "";
+  var savingsGoalEditId = null;
+  var savingsGoalDraft = { name: "", targetAmount: "", targetDate: "" };
   var activeCat = cfg.categories[0].id;
   var ownerChoice = "";
+  var goalChoice = "";
   var payPersonChoice = "me";
   var plannedItemEditId = null;
   var plannedItemEditForm = {};
@@ -2642,12 +2664,16 @@ async function renderSpendTab(root, cfg) {
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
-      (cfg.showSavingsGoal ?
-        '<div style="color:var(--text-2);font-size:11px;margin-top:6px;margin-bottom:18px;">Savings entries are tracked separately below and don\u2019t count against this.</div>' +
-        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS GOAL</span><span class="mono" id="svGaugeAmount" style="color:#D9A441;"></span></div>' +
-        '<div id="svGaugeBody"></div>'
-      : "") +
     "</div>" +
+    (cfg.showSavingsGoal ?
+      '<div class="card">' +
+        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS</span><span class="mono" id="svTotalAmount" style="color:#D9A441;"></span></div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:14px;">Tracked separately from spending above. Split it across as many goals as you want \u2014 each goal\u2019s progress comes from savings entries tagged to it.</div>' +
+        '<div id="svGoalsList"></div>' +
+        '<div id="svGoalForm"></div>' +
+        '<button class="link-btn" id="svAddGoalBtn" style="color:#D9A441;margin-top:4px;">+ New savings goal</button>' +
+      "</div>"
+    : "") +
     (cfg.showSavingsGoal ?
       collapseCard("PLANNED PURCHASES", "plannedColl", false,
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Group things you\u2019re thinking about buying under a goal \u2014 not counted against your budget yet.</div>' +
@@ -2665,6 +2691,7 @@ async function renderSpendTab(root, cfg) {
     collapseCard("+ ADD EXPENSE", "addExpenseColl", false,
       '<div class="pills" id="stPills"></div>' +
       (cfg.showSavingsGoal ? '<div class="pills" id="stOwnerPills" style="margin-top:-2px;"></div>' : "") +
+      (cfg.showSavingsGoal ? '<div class="pills" id="stGoalPills" style="margin-top:-2px;"></div>' : "") +
       '<div class="form-row">' +
         '<input class="form-input" id="stName" placeholder="What is it?" />' +
         '<div class="form-row-split">' +
@@ -2730,53 +2757,157 @@ async function renderSpendTab(root, cfg) {
   function getSavedTotal() {
     return data.items.filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
   }
-  function renderSavingsGauge() {
-    if (!cfg.showSavingsGoal) return;
-    var saved = getSavedTotal();
-    var goalNum = Number(data.savingsGoal) || 0;
-    var amountEl = document.getElementById("svGaugeAmount");
-    var bodyEl = document.getElementById("svGaugeBody");
-    if (!amountEl || !bodyEl) return;
-    if (showSavingsInput) {
-      amountEl.textContent = goalNum > 0 ? formatCurrency(saved) + " of " + formatCurrency(goalNum) : formatCurrency(saved);
-      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><input id="svGoalDateDraft" class="small-input" type="date" title="Target date (optional)" value="' + escapeHtml(savingsDateDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
-      var gd = document.getElementById("svGoalDraft");
-      gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
-      gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
-      gd.focus();
-      var gdd = document.getElementById("svGoalDateDraft");
-      gdd.addEventListener("input", function (e) { savingsDateDraft = e.target.value; });
-      gdd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
-      document.getElementById("svSetGoal").addEventListener("click", commitSavingsGoal);
-      if (goalNum > 0) document.getElementById("svCancelGoal").addEventListener("click", function () { showSavingsInput = false; renderSavingsGauge(); });
-    } else if (goalNum > 0) {
-      var pct = Math.min(100, (saved / goalNum) * 100);
-      amountEl.textContent = formatCurrency(saved) + " of " + formatCurrency(goalNum);
-      var plan = data.savingsTargetDate ? computeSavingsPlan({
-        targetAmount: goalNum, targetDate: data.savingsTargetDate, currentSaved: saved,
-        payPeriods: data.payPeriods, planStartDate: data.savingsPlanStartDate, planStartAmount: data.savingsPlanStartAmount
-      }) : null;
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>' + renderSavingsPlanHtml(plan, '#D9A441');
-      document.getElementById("svEditGoal").addEventListener("click", function () { savingsDraft = String(goalNum); savingsDateDraft = data.savingsTargetDate || ""; showSavingsInput = true; renderSavingsGauge(); });
-    } else {
-      amountEl.textContent = formatCurrency(saved);
-      bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:var(--text-2);">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
-      document.getElementById("svShowGoal").addEventListener("click", function () { savingsDraft = ""; savingsDateDraft = ""; showSavingsInput = true; renderSavingsGauge(); });
-    }
+  function getSavedForGoal(goalId) {
+    return data.items.filter(function (it) { return it.category === "savings" && it.goalId === goalId; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
   }
-  function commitSavingsGoal() {
-    if (savingsDraft === "" || isNaN(Number(savingsDraft))) { showSavingsInput = false; renderSavingsGauge(); return; }
-    var amountChanged = String(data.savingsGoal || "") !== savingsDraft;
-    var dateChanged = String(data.savingsTargetDate || "") !== savingsDateDraft;
-    data.savingsGoal = savingsDraft;
-    data.savingsTargetDate = savingsDateDraft || "";
-    if (amountChanged || dateChanged) {
-      data.savingsPlanStartDate = todayISO();
-      data.savingsPlanStartAmount = getSavedTotal();
+  function getUnassignedSaved() {
+    return data.items.filter(function (it) { return it.category === "savings" && !it.goalId; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+  }
+
+  function renderSavingsGoalFormHtml(isNew) {
+    var d = savingsGoalDraft;
+    return '<div style="border:1px solid #D9A441;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<div class="row-gap" style="margin-bottom:8px;">' +
+        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="svGoalNameInput" placeholder="Goal name, e.g. Personal, Emergency fund" value="' + escapeHtml(d.name) + '" />' +
+      "</div>" +
+      '<div class="row-gap">' +
+        '<input class="small-input" type="number" min="0" id="svGoalAmountInput" placeholder="Target amount" value="' + escapeHtml(d.targetAmount) + '" />' +
+        '<input class="small-input" type="date" id="svGoalDateInput" title="Target date (optional)" value="' + escapeHtml(d.targetDate) + '" />' +
+        '<button class="small-btn" id="svGoalSaveBtn" style="background:#D9A441;">' + (isNew ? "Add" : "Save") + '</button>' +
+        '<button class="link-btn" id="svGoalCancelBtn" style="color:var(--text-2);">Cancel</button>' +
+      "</div>" +
+    "</div>";
+  }
+  function wireSavingsGoalForm() {
+    var nameInput = document.getElementById("svGoalNameInput");
+    if (!nameInput) return;
+    var amountInput = document.getElementById("svGoalAmountInput");
+    var dateInput = document.getElementById("svGoalDateInput");
+    nameInput.addEventListener("input", function (e) { savingsGoalDraft.name = e.target.value; });
+    amountInput.addEventListener("input", function (e) { savingsGoalDraft.targetAmount = e.target.value; });
+    dateInput.addEventListener("input", function (e) { savingsGoalDraft.targetDate = e.target.value; });
+    [nameInput, amountInput, dateInput].forEach(function (el) {
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") commitSavingsGoalEdit();
+        if (e.key === "Escape") cancelSavingsGoalEdit();
+      });
+    });
+    document.getElementById("svGoalSaveBtn").addEventListener("click", commitSavingsGoalEdit);
+    document.getElementById("svGoalCancelBtn").addEventListener("click", cancelSavingsGoalEdit);
+    nameInput.focus();
+  }
+  function handleStartNewSavingsGoal() {
+    savingsGoalEditId = "__new__";
+    savingsGoalDraft = { name: "", targetAmount: "", targetDate: "" };
+    renderSavingsGoalsSection();
+  }
+  function handleStartEditSavingsGoal(id) {
+    var g = data.savingsGoals.find(function (gg) { return gg.id === id; });
+    if (!g) return;
+    savingsGoalEditId = id;
+    savingsGoalDraft = { name: g.name, targetAmount: g.targetAmount === "" || g.targetAmount == null ? "" : String(g.targetAmount), targetDate: g.targetDate || "" };
+    renderSavingsGoalsSection();
+  }
+  function cancelSavingsGoalEdit() {
+    savingsGoalEditId = null;
+    renderSavingsGoalsSection();
+  }
+  function commitSavingsGoalEdit() {
+    var name = savingsGoalDraft.name.trim();
+    if (!name) return;
+    var amountNum = savingsGoalDraft.targetAmount === "" || isNaN(Number(savingsGoalDraft.targetAmount)) ? "" : Number(savingsGoalDraft.targetAmount);
+    var dateVal = savingsGoalDraft.targetDate || "";
+    if (savingsGoalEditId === "__new__") {
+      data.savingsGoals.push({ id: uid(), name: name, targetAmount: amountNum, targetDate: dateVal, planStartDate: todayISO(), planStartAmount: 0 });
+    } else {
+      var g = data.savingsGoals.find(function (gg) { return gg.id === savingsGoalEditId; });
+      if (g) {
+        var amountChanged = String(g.targetAmount || "") !== String(amountNum);
+        var dateChanged = String(g.targetDate || "") !== dateVal;
+        g.name = name;
+        g.targetAmount = amountNum;
+        g.targetDate = dateVal;
+        if (amountChanged || dateChanged) {
+          g.planStartDate = todayISO();
+          g.planStartAmount = getSavedForGoal(g.id);
+        }
+      }
     }
-    showSavingsInput = false;
+    savingsGoalEditId = null;
     save();
-    renderSavingsGauge();
+    renderSavingsGoalsSection();
+  }
+  function handleDeleteSavingsGoal(id) {
+    var g = data.savingsGoals.find(function (gg) { return gg.id === id; });
+    if (!g) return;
+    var usedCount = data.items.filter(function (it) { return it.category === "savings" && it.goalId === id; }).length;
+    if (usedCount > 0 && !confirm('"' + g.name + '" has ' + usedCount + " savings " + (usedCount === 1 ? "entry" : "entries") + " tagged to it. Deleting the goal won’t delete those entries — they’ll become unassigned. Continue?")) return;
+    data.savingsGoals = data.savingsGoals.filter(function (gg) { return gg.id !== id; });
+    data.items.forEach(function (it) { if (it.goalId === id) it.goalId = ""; });
+    if (savingsGoalEditId === id) savingsGoalEditId = null;
+    save();
+    renderSavingsGoalsSection();
+    renderGoalPills();
+    renderList();
+  }
+  function renderSavingsGoalsSection() {
+    if (!cfg.showSavingsGoal) return;
+    var totalEl = document.getElementById("svTotalAmount");
+    var listEl = document.getElementById("svGoalsList");
+    var formEl = document.getElementById("svGoalForm");
+    if (!totalEl || !listEl || !formEl) return;
+    totalEl.textContent = formatCurrency(getSavedTotal());
+
+    var goals = data.savingsGoals || [];
+    var goalsHtml = goals.map(function (g) {
+      if (savingsGoalEditId === g.id) return renderSavingsGoalFormHtml(false);
+      var saved = getSavedForGoal(g.id);
+      var targetNum = Number(g.targetAmount) || 0;
+      var body;
+      if (targetNum > 0) {
+        var pct = Math.min(100, (saved / targetNum) * 100);
+        var plan = g.targetDate ? computeSavingsPlan({
+          targetAmount: targetNum, targetDate: g.targetDate, currentSaved: saved,
+          payPeriods: data.payPeriods, planStartDate: g.planStartDate, planStartAmount: g.planStartAmount
+        }) : null;
+        body = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div>' + renderSavingsPlanHtml(plan, "#D9A441");
+      } else {
+        body = '<div style="color:var(--text-2);font-size:12px;">No target amount set yet.</div>';
+      }
+      return '<div style="border:1px solid var(--border-2, #2A313A);border-radius:10px;padding:12px;margin-bottom:10px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">' +
+          '<span style="color:var(--text-1);font-weight:600;font-size:14px;">' + escapeHtml(g.name) + "</span>" +
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+            '<span class="mono" style="color:#D9A441;font-size:13px;">' + formatCurrency(saved) + (targetNum > 0 ? " of " + formatCurrency(targetNum) : "") + "</span>" +
+            '<button class="icon-btn" data-action="edit-savings-goal" data-id="' + g.id + '" title="Edit">✎</button>' +
+            '<button class="icon-btn" data-action="delete-savings-goal" data-id="' + g.id + '" title="Delete">✕</button>' +
+          "</div>" +
+        "</div>" +
+        body +
+      "</div>";
+    }).join("");
+
+    var unassigned = getUnassignedSaved();
+    var unassignedHtml = unassigned > 0
+      ? '<div style="color:var(--text-2);font-size:12px;padding:8px 0;border-top:1px solid #2A313A;margin-top:4px;">' + formatCurrency(unassigned) + " saved but not assigned to a goal yet — edit a savings entry below to assign it.</div>"
+      : "";
+
+    listEl.innerHTML = (goalsHtml || (goals.length ? "" : '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">No savings goals yet — add one below, then tag your savings entries to it.</div>')) + unassignedHtml;
+    var actionBtns = listEl.querySelectorAll("[data-action]");
+    for (var i = 0; i < actionBtns.length; i++) {
+      actionBtns[i].addEventListener("click", function (e) {
+        var action = e.currentTarget.getAttribute("data-action");
+        var id = e.currentTarget.getAttribute("data-id");
+        if (action === "edit-savings-goal") handleStartEditSavingsGoal(id);
+        else if (action === "delete-savings-goal") handleDeleteSavingsGoal(id);
+      });
+    }
+
+    formEl.innerHTML = savingsGoalEditId === "__new__" ? renderSavingsGoalFormHtml(true) : "";
+    if (savingsGoalEditId === "__new__" || goals.some(function (g) { return g.id === savingsGoalEditId; })) wireSavingsGoalForm();
+
+    var addBtn = document.getElementById("svAddGoalBtn");
+    if (addBtn) addBtn.style.display = savingsGoalEditId ? "none" : "";
   }
 
   function personLabel(p) { return p === "partner" ? PARTNER_DISPLAY_NAME : USER_DISPLAY_NAME; }
@@ -2889,6 +3020,27 @@ async function renderSpendTab(root, cfg) {
     var pills = el.querySelectorAll("[data-owner]");
     for (var i = 0; i < pills.length; i++) {
       pills[i].addEventListener("click", function (e) { ownerChoice = e.currentTarget.getAttribute("data-owner"); renderOwnerPills(); });
+    }
+  }
+
+  function renderGoalPills() {
+    var el = document.getElementById("stGoalPills");
+    if (!el) return;
+    if (activeCat !== "savings") { el.innerHTML = ""; return; }
+    var goals = data.savingsGoals || [];
+    if (!goals.length) {
+      el.innerHTML = '<span style="color:var(--text-2);font-size:11px;">No savings goals yet — add one above, then tag entries to it.</span>';
+      return;
+    }
+    var options = [{ id: "", label: "Unassigned" }].concat(goals.map(function (g) { return { id: g.id, label: g.name }; }));
+    el.innerHTML = options.map(function (o) {
+      var active = o.id === goalChoice;
+      var color = o.id === "" ? "#8A919C" : "#D9A441";
+      return '<button class="pill" data-goal="' + o.id + '" style="background:' + (active ? color : "transparent") + ";border-color:" + color + ";color:" + (active ? "#12151A" : color) + ';font-size:11px;padding:5px 10px;">' + escapeHtml(o.label) + "</button>";
+    }).join("");
+    var pills = el.querySelectorAll("[data-goal]");
+    for (var i = 0; i < pills.length; i++) {
+      pills[i].addEventListener("click", function (e) { goalChoice = e.currentTarget.getAttribute("data-goal"); renderGoalPills(); });
     }
   }
 
@@ -3077,7 +3229,7 @@ async function renderSpendTab(root, cfg) {
     }).join("");
     var pills = document.getElementById("stPills").querySelectorAll(".pill");
     for (var i = 0; i < pills.length; i++) {
-      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); });
+      pills[i].addEventListener("click", function (e) { activeCat = e.currentTarget.getAttribute("data-cat"); renderPills(); renderGoalPills(); });
     }
   }
 
@@ -3189,6 +3341,11 @@ async function renderSpendTab(root, cfg) {
           (cfg.showSavingsGoal ?
             '<select class="edit-select" data-edit="owner"><option value=""' + (f.owner === "" ? " selected" : "") + '>Unassigned</option><option value="me"' + (f.owner === "me" ? " selected" : "") + '>1 \u00B7 ' + escapeHtml(USER_DISPLAY_NAME) + '</option><option value="partner"' + (f.owner === "partner" ? " selected" : "") + '>2 \u00B7 ' + escapeHtml(PARTNER_DISPLAY_NAME) + '</option></select>'
           : "") +
+          (cfg.showSavingsGoal && f.category === "savings" ?
+            '<select class="edit-select" data-edit="goalId"><option value=""' + (f.goalId === "" ? " selected" : "") + '>Unassigned goal</option>' +
+              (data.savingsGoals || []).map(function (g) { return '<option value="' + g.id + '"' + (f.goalId === g.id ? " selected" : "") + '>' + escapeHtml(g.name) + '</option>'; }).join("") +
+            '</select>'
+          : "") +
           (editRowError ? '<span class="error-text">' + escapeHtml(editRowError) + "</span>" : "") +
           '<button class="icon-btn" data-action="save-row" style="color:' + cfg.accent + ';">\u2713</button>' +
           '<button class="icon-btn" data-action="cancel-row">\u2715</button>' +
@@ -3196,6 +3353,11 @@ async function renderSpendTab(root, cfg) {
       }
       var dueDayText = item.dueDay !== "" && item.dueDay != null ? "Due " + ordinalDay(item.dueDay) : "no due day set";
       var ownerBadge = cfg.showSavingsGoal && item.owner ? '<span class="mono" style="color:var(--text-2);font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (item.owner === "me" ? "1" : "2") + '</span>' : "";
+      var goalBadge = "";
+      if (cfg.showSavingsGoal && item.category === "savings") {
+        var itemGoal = item.goalId ? (data.savingsGoals || []).find(function (g) { return g.id === item.goalId; }) : null;
+        goalBadge = '<span class="mono" style="color:#D9A441;font-size:11px;border:1px solid #D9A44155;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + escapeHtml(itemGoal ? itemGoal.name : "Unassigned") + '</span>';
+      }
       var paid = cfg.showSavingsGoal && isCurrentlyPaid(item);
       var paidBtn = cfg.showSavingsGoal ? '<button class="icon-btn" data-action="toggle-paid" data-id="' + item.id + '" title="' + (paid ? "Paid \u2014 click to undo" : "Mark as paid") + '" style="color:' + (paid ? "#7FA37A" : "#8A919C") + ';">' + (paid ? "\u2713" : "\u25CB") + '</button>' : "";
       return '<div class="item-row"><div class="item-display st-row" style="' + (paid ? "opacity:0.55;" : "") + '">' +
@@ -3208,6 +3370,7 @@ async function renderSpendTab(root, cfg) {
         "</div>" +
         '<div class="st-row-bottom">' +
           ownerBadge +
+          goalBadge +
           '<div class="item-amount mono" style="color:' + cfg.accent + ';">' + formatCurrency(item.amount) + "</div>" +
           '<div class="item-actions">' + paidBtn + '<button class="icon-btn" data-action="edit" data-id="' + item.id + '">\u270E</button>' +
           '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
@@ -3223,7 +3386,7 @@ async function renderSpendTab(root, cfg) {
 
   function renderDynamic() {
     renderGauge();
-    renderSavingsGauge();
+    renderSavingsGoalsSection();
     renderBeforePayFor("me");
     renderBeforePayFor("partner");
     renderChips();
@@ -3240,7 +3403,9 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("stNotes").value = "";
     document.getElementById("stFormError").textContent = "";
     ownerChoice = "";
+    goalChoice = "";
     renderOwnerPills();
+    renderGoalPills();
   }
 
   function handleAdd() {
@@ -3252,7 +3417,7 @@ async function renderSpendTab(root, cfg) {
     if (!name) { errEl.textContent = "Give it a name first."; return; }
     if (amountVal === "" || isNaN(Number(amountVal))) { errEl.textContent = "Add " + cfg.amountLabel.toLowerCase() + "."; return; }
     errEl.textContent = "";
-    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal, owner: ownerChoice, paidOn: "" });
+    data.items.push({ id: uid(), category: activeCat, name: name, dueDay: dueDayVal === "" ? "" : Number(dueDayVal), amount: Number(amountVal), notes: notesVal, owner: ownerChoice, goalId: activeCat === "savings" ? goalChoice : "", paidOn: "" });
     save();
     resetForm();
     renderDynamic();
@@ -3262,7 +3427,7 @@ async function renderSpendTab(root, cfg) {
     var item = data.items.find(function (it) { return it.id === id; });
     if (!item) return;
     editRowId = id;
-    editRowForm = { category: item.category, name: item.name, dueDay: item.dueDay === "" || item.dueDay == null ? "" : String(item.dueDay), amount: String(item.amount), notes: item.notes || "", owner: item.owner || "" };
+    editRowForm = { category: item.category, name: item.name, dueDay: item.dueDay === "" || item.dueDay == null ? "" : String(item.dueDay), amount: String(item.amount), notes: item.notes || "", owner: item.owner || "", goalId: item.goalId || "" };
     editRowError = "";
     renderList();
   }
@@ -3305,7 +3470,8 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoal: "", items: [], selectedIds: [], payPeriods: [], plannedGroups: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true };
+    savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
     editRowId = null;
@@ -3439,7 +3605,9 @@ async function renderSpendTab(root, cfg) {
       }
     });
     renderOwnerPills();
+    renderGoalPills();
     renderPersonFilterRow();
+    document.getElementById("svAddGoalBtn").addEventListener("click", handleStartNewSavingsGoal);
 
     wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
     wireCollapseToggle("beforePay-partner", function () { return data.beforePayCollapsed.partner; }, function (v) { data.beforePayCollapsed.partner = v; });
