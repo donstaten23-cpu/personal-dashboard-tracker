@@ -2429,6 +2429,120 @@ async function savePortfolioImages() {
   } catch(e) { console.error("Portfolio images save error", e); }
 }
 
+/* ---------------- shared savings-planning helpers (Budget + Travel) ----------------
+   A "savings plan" is a target amount + target date, evaluated against the household's
+   configured pay schedule (dashboard-budget-data.payPeriods, day-of-month recurring —
+   shared across Budget and every trip, since it's the same paychecks either way) to work
+   out an exact per-paycheck contribution. Reused as-is by both the Budget tab's own
+   savings goal and each Travel trip's savings goal. */
+
+function daysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
+
+// How many times a given day-of-month payday falls within [fromISO, toISO] (inclusive).
+// Clamps to the last day of shorter months (e.g. day=31 still lands once in February).
+function countPaydayOccurrences(day, fromISO, toISO) {
+  if (!day || !fromISO || !toISO || fromISO > toISO) return 0;
+  var from = new Date(fromISO + "T00:00:00");
+  var to = new Date(toISO + "T00:00:00");
+  var count = 0;
+  var cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+  var guard = 0;
+  while (cursor <= to && guard < 1200) {
+    guard++;
+    var occDay = Math.min(day, daysInMonth(cursor.getFullYear(), cursor.getMonth()));
+    var occurrence = new Date(cursor.getFullYear(), cursor.getMonth(), occDay);
+    if (occurrence >= from && occurrence <= to) count++;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return count;
+}
+
+function countRemainingPaychecks(payPeriods, fromISO, toISO) {
+  return (payPeriods || []).reduce(function (sum, p) {
+    return sum + countPaydayOccurrences(Number(p.day), fromISO, toISO);
+  }, 0);
+}
+
+// Walks forward day-by-day (capped at 3 years) accumulating `perPaycheckRate` on every
+// upcoming payday until it covers `remaining`, returning the date that happens on. Used
+// for "at this pace, you'll be done by ___" projections — a real calendar answer instead
+// of a naive remaining/rate division, since paydays aren't evenly spaced through a month.
+function projectFundingDate(remaining, perPaycheckRate, payPeriods) {
+  if (remaining <= 0) return todayISO();
+  if (!perPaycheckRate || perPaycheckRate <= 0 || !(payPeriods && payPeriods.length)) return null;
+  var cumulative = 0;
+  var cursor = new Date(todayISO() + "T00:00:00");
+  for (var i = 0; i < 1096; i++) {
+    var mm = cursor.getMonth(), dd = cursor.getDate();
+    for (var j = 0; j < payPeriods.length; j++) {
+      var day = Number(payPeriods[j].day);
+      if (!day) continue;
+      if (dd === Math.min(day, daysInMonth(cursor.getFullYear(), mm))) cumulative += perPaycheckRate;
+    }
+    if (cumulative >= remaining) return cursor.toISOString().slice(0, 10);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return null;
+}
+
+// cfg: { targetAmount, targetDate, currentSaved, payPeriods, planStartDate, planStartAmount }
+// planStartDate/planStartAmount are a baseline snapshot taken whenever the goal is set or
+// edited, used purely to judge "on pace" — how much should be saved by now if progress was
+// linear from that baseline to the target, versus what's actually saved.
+function computeSavingsPlan(cfg) {
+  var target = Number(cfg.targetAmount) || 0;
+  if (!target || !cfg.targetDate) return null;
+  var todayStr = todayISO();
+  var currentSaved = Number(cfg.currentSaved) || 0;
+  var remaining = Math.max(0, target - currentSaved);
+  var result = { target: target, targetDate: cfg.targetDate, remaining: remaining, funded: remaining <= 0.005, expired: false, paycheckCount: 0, perPaycheck: null, pace: null };
+  if (result.funded) return result;
+  if (cfg.targetDate <= todayStr) { result.expired = true; return result; }
+  var count = countRemainingPaychecks(cfg.payPeriods, todayStr, cfg.targetDate);
+  result.paycheckCount = count;
+  result.perPaycheck = count > 0 ? remaining / count : null;
+  if (cfg.planStartDate && cfg.planStartDate < todayStr && cfg.planStartDate < cfg.targetDate) {
+    var totalDays = (new Date(cfg.targetDate + "T00:00:00") - new Date(cfg.planStartDate + "T00:00:00")) / 86400000;
+    var elapsedDays = (new Date(todayStr + "T00:00:00") - new Date(cfg.planStartDate + "T00:00:00")) / 86400000;
+    if (totalDays > 0) {
+      var frac = Math.min(1, Math.max(0, elapsedDays / totalDays));
+      var startAmt = Number(cfg.planStartAmount) || 0;
+      var expected = startAmt + (target - startAmt) * frac;
+      result.pace = { expected: expected, diff: currentSaved - expected };
+    }
+  }
+  return result;
+}
+
+function renderSavingsPlanHtml(plan, accentColor) {
+  if (!plan) return "";
+  if (plan.funded) {
+    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:#5BAE7A;font-size:13px;">&#10003; Goal fully funded.</div>';
+  }
+  if (plan.expired) {
+    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:#FF8A5C;font-size:13px;">Target date has passed — ' + formatCurrency(plan.remaining) + ' still needed.</div>';
+  }
+  if (!plan.paycheckCount) {
+    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:var(--text-2);font-size:13px;">No paydays configured before ' + formatDateShort(plan.targetDate) + ' — add your pay schedule in Budget to see a per-paycheck breakdown.</div>';
+  }
+  var paceHtml = "";
+  if (plan.pace) {
+    if (plan.pace.diff < -1) {
+      paceHtml = '<div style="color:#FF8A5C;font-size:12px;margin-top:6px;">Behind pace by ' + formatCurrency(-plan.pace.diff) + ' — expected about ' + formatCurrency(plan.pace.expected) + ' saved by now.</div>';
+    } else if (plan.pace.diff > 1) {
+      paceHtml = '<div style="color:#5BAE7A;font-size:12px;margin-top:6px;">Ahead of pace by ' + formatCurrency(plan.pace.diff) + '.</div>';
+    } else {
+      paceHtml = '<div style="color:var(--text-2);font-size:12px;margin-top:6px;">Right on pace.</div>';
+    }
+  }
+  return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);">' +
+    '<div style="color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">PER-PAYCHECK PLAN</div>' +
+    '<div style="font-size:20px;font-weight:800;color:' + accentColor + ';">' + formatCurrency(plan.perPaycheck) + ' <span style="font-size:12px;color:var(--text-3);font-weight:400;">/ paycheck</span></div>' +
+    '<div style="color:var(--text-2);font-size:12px;margin-top:4px;">' + formatCurrency(plan.remaining) + ' remaining across ' + plan.paycheckCount + ' paycheck' + (plan.paycheckCount === 1 ? '' : 's') + ' before ' + formatDateShort(plan.targetDate) + '</div>' +
+    paceHtml +
+  '</div>';
+}
+
 /* ---------------- budget tab ---------------- */
 
 async function renderSpendTab(root, cfg) {
@@ -2479,6 +2593,7 @@ async function renderSpendTab(root, cfg) {
   var budgetDraft = "";
   var showSavingsInput = false;
   var savingsDraft = "";
+  var savingsDateDraft = "";
   var activeCat = cfg.categories[0].id;
   var ownerChoice = "";
   var payPersonChoice = "me";
@@ -2612,36 +2727,53 @@ async function renderSpendTab(root, cfg) {
     renderGauge();
   }
 
+  function getSavedTotal() {
+    return data.items.filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+  }
   function renderSavingsGauge() {
     if (!cfg.showSavingsGoal) return;
-    var saved = data.items.filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+    var saved = getSavedTotal();
     var goalNum = Number(data.savingsGoal) || 0;
     var amountEl = document.getElementById("svGaugeAmount");
     var bodyEl = document.getElementById("svGaugeBody");
     if (!amountEl || !bodyEl) return;
     if (showSavingsInput) {
       amountEl.textContent = goalNum > 0 ? formatCurrency(saved) + " of " + formatCurrency(goalNum) : formatCurrency(saved);
-      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
+      bodyEl.innerHTML = '<div class="row-gap"><input id="svGoalDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(savingsDraft) + '" /><input id="svGoalDateDraft" class="small-input" type="date" title="Target date (optional)" value="' + escapeHtml(savingsDateDraft) + '" /><button class="small-btn" id="svSetGoal" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="svCancelGoal" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
       var gd = document.getElementById("svGoalDraft");
       gd.addEventListener("input", function (e) { savingsDraft = e.target.value; });
       gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
       gd.focus();
+      var gdd = document.getElementById("svGoalDateDraft");
+      gdd.addEventListener("input", function (e) { savingsDateDraft = e.target.value; });
+      gdd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitSavingsGoal(); if (e.key === "Escape") { showSavingsInput = false; renderSavingsGauge(); } });
       document.getElementById("svSetGoal").addEventListener("click", commitSavingsGoal);
       if (goalNum > 0) document.getElementById("svCancelGoal").addEventListener("click", function () { showSavingsInput = false; renderSavingsGauge(); });
     } else if (goalNum > 0) {
       var pct = Math.min(100, (saved / goalNum) * 100);
       amountEl.textContent = formatCurrency(saved) + " of " + formatCurrency(goalNum);
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>';
-      document.getElementById("svEditGoal").addEventListener("click", function () { savingsDraft = String(goalNum); showSavingsInput = true; renderSavingsGauge(); });
+      var plan = data.savingsTargetDate ? computeSavingsPlan({
+        targetAmount: goalNum, targetDate: data.savingsTargetDate, currentSaved: saved,
+        payPeriods: data.payPeriods, planStartDate: data.savingsPlanStartDate, planStartAmount: data.savingsPlanStartAmount
+      }) : null;
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="svEditGoal" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>' + renderSavingsPlanHtml(plan, '#D9A441');
+      document.getElementById("svEditGoal").addEventListener("click", function () { savingsDraft = String(goalNum); savingsDateDraft = data.savingsTargetDate || ""; showSavingsInput = true; renderSavingsGauge(); });
     } else {
       amountEl.textContent = formatCurrency(saved);
       bodyEl.innerHTML = '<button class="link-btn" id="svShowGoal" style="color:var(--text-2);">Set a savings goal. Add entries to the Savings category to fill it in.</button>';
-      document.getElementById("svShowGoal").addEventListener("click", function () { savingsDraft = ""; showSavingsInput = true; renderSavingsGauge(); });
+      document.getElementById("svShowGoal").addEventListener("click", function () { savingsDraft = ""; savingsDateDraft = ""; showSavingsInput = true; renderSavingsGauge(); });
     }
   }
   function commitSavingsGoal() {
     if (savingsDraft === "" || isNaN(Number(savingsDraft))) { showSavingsInput = false; renderSavingsGauge(); return; }
+    var amountChanged = String(data.savingsGoal || "") !== savingsDraft;
+    var dateChanged = String(data.savingsTargetDate || "") !== savingsDateDraft;
     data.savingsGoal = savingsDraft;
+    data.savingsTargetDate = savingsDateDraft || "";
+    if (amountChanged || dateChanged) {
+      data.savingsPlanStartDate = todayISO();
+      data.savingsPlanStartAmount = getSavedTotal();
+    }
     showSavingsInput = false;
     save();
     renderSavingsGauge();
@@ -3327,8 +3459,9 @@ async function renderSpendTab(root, cfg) {
 
 async function renderTravelTab(root) {
   root.innerHTML = skeletonCards(3);
-  var budgetData = await loadTabData("dashboard-budget-data", { items: [] });
+  var budgetData = await loadTabData("dashboard-budget-data", { items: [], payPeriods: [] });
   var totalSaved = (budgetData.items || []).filter(function (it) { return it.category === "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+  var payPeriods = budgetData.payPeriods || [];
 
   var raw = await loadTabData("dashboard-travel-data", { trips: [], activeTripId: null });
 
@@ -3366,6 +3499,7 @@ async function renderTravelTab(root) {
   var budgetDraft = "";
   var showTripSavingsInput = false;
   var tripSavingsDraft = "";
+  var tripSavingsDateDraft = "";
   var confirmDeleteTrip = false;
   var countdownInterval = null;
   var activeCat = TRAVEL_CATEGORIES[0].id;
@@ -3438,6 +3572,11 @@ async function renderTravelTab(root) {
         '<div class="gauge-top"><span class="gauge-label mono">SAVINGS FOR THIS TRIP</span><span class="mono" id="ttSavingsAmount" style="color:#D9A441;"></span></div>' +
         '<div id="ttSavingsBody"></div>' +
         '<div style="color:var(--text-2);font-size:11px;margin-top:6px;">Tracks your overall savings balance from the Budget tab against a goal for this trip.</div>' +
+      "</div>" +
+      '<div class="card">' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">BOOKING STATUS</div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">A rolling read on what your savings actually cover right now, not a lock — costed categories clear for booking as they get funded.</div>' +
+        '<div id="ttBookingAdvisor"></div>' +
       "</div>" +
       '<div class="card">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">HOTEL OPTIONS</div>' +
@@ -3592,30 +3731,116 @@ async function renderTravelTab(root) {
       if (!amountEl || !bodyEl) return;
       if (showTripSavingsInput) {
         amountEl.textContent = goalNum > 0 ? formatCurrency(totalSaved) + " of " + formatCurrency(goalNum) : formatCurrency(totalSaved);
-        bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="ttCancelSavings" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
+        bodyEl.innerHTML = '<div class="row-gap"><input id="ttSavingsDraft" class="small-input" type="number" min="0" placeholder="Savings goal" value="' + escapeHtml(tripSavingsDraft) + '" /><input id="ttSavingsDateDraft" class="small-input" type="date" title="Target date (optional)" value="' + escapeHtml(tripSavingsDateDraft) + '" /><button class="small-btn" id="ttSetSavings" style="background:#D9A441;">Set</button>' + (goalNum > 0 ? '<button class="link-btn" id="ttCancelSavings" style="color:var(--text-2);">Cancel</button>' : "") + '</div>';
         var sd = document.getElementById("ttSavingsDraft");
         sd.addEventListener("input", function (e) { tripSavingsDraft = e.target.value; });
         sd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitTripSavings(); if (e.key === "Escape") { showTripSavingsInput = false; renderSavingsGauge(); } });
         sd.focus();
+        var sdd = document.getElementById("ttSavingsDateDraft");
+        sdd.addEventListener("input", function (e) { tripSavingsDateDraft = e.target.value; });
+        sdd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitTripSavings(); if (e.key === "Escape") { showTripSavingsInput = false; renderSavingsGauge(); } });
         document.getElementById("ttSetSavings").addEventListener("click", commitTripSavings);
         if (goalNum > 0) document.getElementById("ttCancelSavings").addEventListener("click", function () { showTripSavingsInput = false; renderSavingsGauge(); });
       } else if (goalNum > 0) {
         var pct = Math.min(100, (totalSaved / goalNum) * 100);
         amountEl.textContent = formatCurrency(totalSaved) + " of " + formatCurrency(goalNum);
-        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="ttEditSavings" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>';
-        document.getElementById("ttEditSavings").addEventListener("click", function () { tripSavingsDraft = String(goalNum); showTripSavingsInput = true; renderSavingsGauge(); });
+        var plan = trip.savingsTargetDate ? computeSavingsPlan({
+          targetAmount: goalNum, targetDate: trip.savingsTargetDate, currentSaved: totalSaved,
+          payPeriods: payPeriods, planStartDate: trip.savingsPlanStartDate, planStartAmount: trip.savingsPlanStartAmount
+        }) : null;
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,#D9A441,#D9A441cc);box-shadow:0 0 14px #D9A44155;"></div></div><button class="link-btn" id="ttEditSavings" style="color:var(--text-2);margin-top:6px;">Edit savings goal</button>' + renderSavingsPlanHtml(plan, '#D9A441');
+        document.getElementById("ttEditSavings").addEventListener("click", function () { tripSavingsDraft = String(goalNum); tripSavingsDateDraft = trip.savingsTargetDate || ""; showTripSavingsInput = true; renderSavingsGauge(); });
       } else {
         amountEl.textContent = formatCurrency(totalSaved);
         bodyEl.innerHTML = '<button class="link-btn" id="ttShowSavings" style="color:var(--text-2);">Set a savings goal for this trip</button>';
-        document.getElementById("ttShowSavings").addEventListener("click", function () { tripSavingsDraft = ""; showTripSavingsInput = true; renderSavingsGauge(); });
+        document.getElementById("ttShowSavings").addEventListener("click", function () { tripSavingsDraft = ""; tripSavingsDateDraft = ""; showTripSavingsInput = true; renderSavingsGauge(); });
       }
     }
     function commitTripSavings() {
       if (tripSavingsDraft === "" || isNaN(Number(tripSavingsDraft))) { showTripSavingsInput = false; renderSavingsGauge(); return; }
+      var amountChanged = String(trip.savingsGoal || "") !== tripSavingsDraft;
+      var dateChanged = String(trip.savingsTargetDate || "") !== tripSavingsDateDraft;
       trip.savingsGoal = tripSavingsDraft;
+      trip.savingsTargetDate = tripSavingsDateDraft || "";
+      if (amountChanged || dateChanged) {
+        trip.savingsPlanStartDate = todayISO();
+        trip.savingsPlanStartAmount = totalSaved;
+      }
       showTripSavingsInput = false;
       save();
       renderSavingsGauge();
+    }
+
+    // Smart booking advisor: walks TRAVEL_CATEGORIES in their existing display order as a
+    // funding "waterfall" — the same order shown everywhere else on this tab, reused here
+    // as the priority order savings gets applied in (flights and the hotel first, since
+    // those are the categories that actually need booking ahead; day-to-day categories like
+    // food fall later). Each category is either fully covered, the next one still being
+    // saved toward, or not yet started — a rolling status rather than a single hard gate.
+    function renderBookingAdvisor() {
+      var el = document.getElementById("ttBookingAdvisor");
+      if (!el) return;
+      var hotel = selectedHotel();
+      var categoryTotals = {};
+      TRAVEL_CATEGORIES.forEach(function (cat) {
+        var sum = trip.items.filter(function (it) { return it.category === cat.id; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
+        if (cat.id === "stay" && hotel) sum += Number(hotel.amount) || 0;
+        categoryTotals[cat.id] = sum;
+      });
+      var relevantCats = TRAVEL_CATEGORIES.filter(function (cat) { return categoryTotals[cat.id] > 0; });
+      if (!relevantCats.length) {
+        el.innerHTML = '<div style="color:var(--text-2);font-size:13px;">Add some estimated costs below (or pick a hotel above) to see what’s funded and what still needs saving.</div>';
+        return;
+      }
+      var cumulative = 0;
+      var firstShortfallShown = false;
+      var rowsHtml = relevantCats.map(function (cat) {
+        var cost = categoryTotals[cat.id];
+        var fundedBefore = Math.max(0, totalSaved - cumulative);
+        var shortfall = Math.max(0, cost - fundedBefore);
+        cumulative += cost;
+        var icon, iconColor, textColor, text;
+        if (shortfall <= 0.005) {
+          icon = "&#10003;"; iconColor = "#5BAE7A"; textColor = "var(--text-1)";
+          text = "You have enough to book " + cat.label.toLowerCase() + " now.";
+        } else if (!firstShortfallShown) {
+          firstShortfallShown = true;
+          icon = "&#9679;"; iconColor = "#D9A441"; textColor = "var(--text-1)";
+          text = "You need " + formatCurrency(shortfall) + " more to cover " + cat.label.toLowerCase() +
+            (trip.savingsTargetDate ? " by " + formatDateShort(trip.savingsTargetDate) + "." : ".");
+        } else {
+          icon = "&#9675;"; iconColor = "var(--text-3)"; textColor = "var(--text-3)";
+          text = escapeHtml(cat.label) + " isn’t funded yet — " + formatCurrency(shortfall) + " needed.";
+        }
+        return '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;">' +
+          '<span style="color:' + iconColor + ';font-size:14px;flex-shrink:0;margin-top:1px;">' + icon + '</span>' +
+          '<span style="color:' + textColor + ';font-size:13px;">' + text + '</span>' +
+        '</div>';
+      }).join('');
+
+      var tripTotalCost = Object.keys(categoryTotals).reduce(function (s, k) { return s + categoryTotals[k]; }, 0);
+      var overallRemaining = Math.max(0, tripTotalCost - totalSaved);
+      var paceHtml;
+      if (overallRemaining <= 0.005) {
+        paceHtml = '<div style="color:#5BAE7A;font-size:13px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);">&#10003; Fully funded for the whole trip.</div>';
+      } else {
+        var goalNum = Number(trip.savingsGoal) || 0;
+        var plan = goalNum && trip.savingsTargetDate ? computeSavingsPlan({
+          targetAmount: goalNum, targetDate: trip.savingsTargetDate, currentSaved: totalSaved,
+          payPeriods: payPeriods, planStartDate: trip.savingsPlanStartDate, planStartAmount: trip.savingsPlanStartAmount
+        }) : null;
+        if (plan && plan.perPaycheck) {
+          var projected = projectFundingDate(overallRemaining, plan.perPaycheck, payPeriods);
+          paceHtml = '<div style="font-size:13px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:var(--text-2);">' +
+            (projected
+              ? 'At your current savings pace (' + formatCurrency(plan.perPaycheck) + '/paycheck) you’ll be fully funded by <strong style="color:var(--text-1);">' + formatDateShort(projected) + '</strong>.'
+              : 'At your current savings pace, full funding is more than 3 years out — consider increasing your per-paycheck contribution.') +
+          '</div>';
+        } else {
+          paceHtml = '<div style="color:var(--text-3);font-size:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);">Set a savings goal with a target date above to see a projected full-funding date.</div>';
+        }
+      }
+      el.innerHTML = rowsHtml + paceHtml;
     }
 
     function renderChips() {
@@ -3745,6 +3970,7 @@ async function renderTravelTab(root) {
       amtEl.value = "";
       renderHotelLinks();
       renderGauge();
+      renderBookingAdvisor();
     }
     function handleDeleteHotelLink(id) {
       trip.hotelLinks = (trip.hotelLinks || []).filter(function (l) { return l.id !== id; });
@@ -3752,12 +3978,14 @@ async function renderTravelTab(root) {
       save();
       renderHotelLinks();
       renderGauge();
+      renderBookingAdvisor();
     }
     function handleSelectHotel(id) {
       (trip.hotelLinks || []).forEach(function (l) { l.selected = l.id === id ? !l.selected : false; });
       save();
       renderHotelLinks();
       renderGauge();
+      renderBookingAdvisor();
     }
     function startHotelEdit(id) {
       var l = (trip.hotelLinks || []).find(function (l2) { return l2.id === id; });
@@ -3781,11 +4009,13 @@ async function renderTravelTab(root) {
       editHotelId = null;
       renderHotelLinks();
       renderGauge();
+      renderBookingAdvisor();
     }
 
     function renderDynamic() {
       renderGauge();
       renderSavingsGauge();
+      renderBookingAdvisor();
       renderHotelLinks();
       renderChips();
       renderList();
@@ -3855,6 +4085,9 @@ async function renderTravelTab(root) {
       trip.items = [];
       trip.budget = "";
       trip.savingsGoal = "";
+      trip.savingsTargetDate = "";
+      trip.savingsPlanStartDate = "";
+      trip.savingsPlanStartAmount = 0;
       save();
       editRowId = null;
       confirmReset = false;
