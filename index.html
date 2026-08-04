@@ -2537,7 +2537,7 @@ function renderSavingsPlanHtml(plan, accentColor) {
   }
   return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);">' +
     '<div style="color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">PER-PAYCHECK PLAN</div>' +
-    '<div style="font-size:20px;font-weight:800;color:' + accentColor + ';">' + formatCurrency(plan.perPaycheck) + ' <span style="font-size:12px;color:var(--text-3);font-weight:400;">/ paycheck</span></div>' +
+    '<div style="font-size:20px;font-weight:800;color:' + accentColor + ';">' + formatCurrency(plan.perPaycheck) + ' <span style="font-size:12px;color:var(--text-3);font-weight:400;">/ each person’s paycheck</span></div>' +
     '<div style="color:var(--text-2);font-size:12px;margin-top:4px;">' + formatCurrency(plan.remaining) + ' remaining across ' + plan.paycheckCount + ' paycheck' + (plan.paycheckCount === 1 ? '' : 's') + ' before ' + formatDateShort(plan.targetDate) + '</div>' +
     paceHtml +
   '</div>';
