@@ -525,7 +525,7 @@
 </head>
 <body>
 <!-- Auth Screen -->
-<div id="authScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+<div id="authScreen" style="min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;">
   <div style="width:100%;max-width:400px;">
     <header style="margin-bottom:24px;">
       <h1 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 8px;">Dashboard</h1>
@@ -1874,10 +1874,15 @@ function bootAuth() {
     }
   });
 
-  if (!window.supabase) { document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection."; return; }
+  if (!window.supabase) {
+    document.getElementById("authScreen").style.display = "flex";
+    document.getElementById("authError").textContent = "Couldn't load the Supabase library. Check your internet connection.";
+    return;
+  }
   try {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (e) {
+    document.getElementById("authScreen").style.display = "flex";
     document.getElementById("authError").textContent = "Supabase isn't set up yet \u2014 check SUPABASE_URL and SUPABASE_ANON_KEY near the top of the file.";
     return;
   }
