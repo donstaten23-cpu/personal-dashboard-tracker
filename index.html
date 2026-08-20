@@ -340,6 +340,19 @@
   .add-btn:hover { filter: brightness(1.1); }
   .add-btn:active { transform: scale(0.97); }
 
+  .chapter-toolbar { display: flex; gap: 4px; margin-bottom: 6px; }
+  .chapter-toolbar button { min-width: 32px; font-weight: 700; color: var(--text-2); background: none; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .chapter-toolbar button:hover { color: var(--text-1); background: #2A313A; }
+  .chapter-toolbar button i { font-style: italic; }
+  .chapter-editor { min-height: 160px; line-height: 1.6; font-family: inherit; font-size: 14px; color: var(--text-1); background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; outline: none; }
+  .chapter-editor:focus { border-color: var(--accent); }
+  .chapter-editor p { margin: 0 0 0.9em; text-indent: 2em; }
+  .chapter-editor p:first-child { text-indent: 0; }
+  .chapter-editor b { font-weight: 700; }
+  .chapter-editor i { font-style: italic; }
+  .chapter-editor.is-empty { position: relative; }
+  .chapter-editor.is-empty:before { content: attr(data-placeholder); color: var(--text-3); position: absolute; text-indent: 0; pointer-events: none; }
+
   .select-bar { margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
   .select-bar-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -994,6 +1007,84 @@
 </div><!-- end #dashboardScreen -->
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="module">
+  /* ---------------- Firebase (Story data only) ----------------
+     Everything else in this app stays on Supabase. Story data (chapters,
+     characters, locations, lore, moodboard) lives in Firestore + Storage.
+     This is a module script, so it always runs AFTER the classic script
+     below has finished executing (module scripts are deferred by spec) —
+     see window.firebaseReadyPromise in the classic script for how the two
+     sides hand off safely regardless of load timing. */
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+    signInWithEmailAndPassword, signOut as fbSignOut
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import {
+    getFirestore, doc, getDoc, setDoc
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import {
+    getStorage, ref, uploadBytes, uploadString, getDownloadURL, deleteObject
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+
+  var firebaseConfig = {
+    apiKey: "AIzaSyCewyZGcI8qvEb2QG_tk9zE7mI1qXh8JP8",
+    authDomain: "personal-dashboard-eaf01.firebaseapp.com",
+    projectId: "personal-dashboard-eaf01",
+    storageBucket: "personal-dashboard-eaf01.firebasestorage.app",
+    messagingSenderId: "301729263533",
+    appId: "1:301729263533:web:8a5ab69859d66ac87b3b24",
+    measurementId: "G-XBXN56W21V"
+  };
+  var fbApp = initializeApp(firebaseConfig);
+  var fbAuth = getAuth(fbApp);
+  var fbDb = getFirestore(fbApp);
+  var fbStorage = getStorage(fbApp);
+
+  function requireUid() {
+    if (!fbAuth.currentUser) throw new Error("firebase-not-signed-in");
+    return fbAuth.currentUser.uid;
+  }
+
+  window.FirebaseBridge = {
+    auth: {
+      createUser: function (email, password) { return createUserWithEmailAndPassword(fbAuth, email, password); },
+      signIn: function (email, password) { return signInWithEmailAndPassword(fbAuth, email, password); },
+      signOut: function () { return fbSignOut(fbAuth); },
+      currentUser: function () { return fbAuth.currentUser; },
+      onChange: function (cb) { return onAuthStateChanged(fbAuth, cb); }
+    },
+    firestore: {
+      getStoryDoc: function (tabKey) {
+        var uid = requireUid();
+        return getDoc(doc(fbDb, "users", uid, "storyData", tabKey)).then(function (snap) {
+          return snap.exists() ? (snap.data().data || null) : null;
+        });
+      },
+      setStoryDoc: function (tabKey, data) {
+        var uid = requireUid();
+        return setDoc(doc(fbDb, "users", uid, "storyData", tabKey), { data: data, updatedAt: Date.now() });
+      }
+    },
+    storage: {
+      uploadMoodboardImageBlob: function (imageId, blob) {
+        var uid = requireUid();
+        var r = ref(fbStorage, "users/" + uid + "/story/moodboard/" + imageId + ".jpg");
+        return uploadBytes(r, blob, { contentType: "image/jpeg" }).then(function () { return getDownloadURL(r); });
+      },
+      uploadMoodboardImageFromDataUrl: function (imageId, dataUrl) {
+        var uid = requireUid();
+        var r = ref(fbStorage, "users/" + uid + "/story/moodboard/" + imageId + ".jpg");
+        return uploadString(r, dataUrl, "data_url").then(function () { return getDownloadURL(r); });
+      },
+      deleteMoodboardImage: function (imageId) {
+        var uid = requireUid();
+        return deleteObject(ref(fbStorage, "users/" + uid + "/story/moodboard/" + imageId + ".jpg"));
+      }
+    }
+  };
+  if (window._resolveFirebaseReady) window._resolveFirebaseReady(window.FirebaseBridge);
+</script>
 <script>
 /* ---------------- Supabase config ----------------
    Replace these two values with your own project's URL and publishable key.
@@ -1012,6 +1103,14 @@ var CHESS_USERNAME = "donstaten23";
 
 var supabaseClient = null;
 var currentUserId = null;
+
+/* Resolved by the Firebase module script above once window.FirebaseBridge is
+   ready. Module scripts always execute after this classic script finishes,
+   so any code here that needs Firebase must `await` this first rather than
+   assuming FirebaseBridge already exists. */
+var firebaseReadyPromise = new Promise(function (resolve) { window._resolveFirebaseReady = resolve; });
+window.firebaseReadyPromise = firebaseReadyPromise;
+var _dualAuthPromise = null;
 
 /* ---------------- shared constants ---------------- */
 
@@ -1440,6 +1539,128 @@ function escapeHtml(s) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
+
+/* ---------------- chapter rich-text helpers ----------------
+   Chapter content is stored as sanitized HTML (allowlist: p/b/i/br only) so
+   the writing editor can support real bold/italic + automatic first-line
+   paragraph indent. Everything that used to treat chapter content as a plain
+   string (search, mentions, word count, Markdown export) goes through
+   chapterPlainText/chapterHtmlToMarkdown below instead of reading it raw. */
+var CHAPTER_TAG_MAP = { P: "p", DIV: "p", B: "b", STRONG: "b", I: "i", EM: "i", BR: "br" };
+var CHAPTER_DROP_TAGS = { SCRIPT: 1, STYLE: 1, IMG: 1, IFRAME: 1, OBJECT: 1, EMBED: 1 };
+var CHAPTER_BLOCK_TAGS = { DIV: 1, P: 1, UL: 1, OL: 1, LI: 1, H1: 1, H2: 1, H3: 1, H4: 1, H5: 1, H6: 1, BLOCKQUOTE: 1, TABLE: 1, TR: 1, TD: 1 };
+
+function _appendSanitizedChapterNode(node, parent) {
+  if (node.nodeType === Node.TEXT_NODE) { parent.appendChild(document.createTextNode(node.nodeValue)); return; }
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  var tag = node.tagName;
+  if (CHAPTER_DROP_TAGS[tag]) return;
+  var mapped = CHAPTER_TAG_MAP[tag];
+  var target = mapped ? document.createElement(mapped) : parent;
+  if (mapped) parent.appendChild(target);
+  Array.prototype.forEach.call(node.childNodes, function (child) { _appendSanitizedChapterNode(child, target); });
+  if (!mapped && CHAPTER_BLOCK_TAGS[tag]) parent.appendChild(document.createElement("br"));
+}
+// Ensures no bare text/inline node sits directly under the root — the
+// auto-indent CSS keys off real <p> elements, so stray inline content left
+// over after sanitizing needs to be wrapped into a paragraph of its own.
+function _wrapStrayChapterInlineNodes(container) {
+  var run = [];
+  function flush(beforeNode) {
+    if (!run.length) return;
+    var p = document.createElement("p");
+    run.forEach(function (n) { p.appendChild(n); });
+    container.insertBefore(p, beforeNode || null);
+    run = [];
+  }
+  Array.prototype.slice.call(container.childNodes).forEach(function (n) {
+    if (n.tagName === "P") { flush(n); return; }
+    run.push(n);
+  });
+  flush(null);
+}
+function sanitizeChapterHtml(html) {
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  var out = document.createElement("div");
+  Array.prototype.forEach.call(tmp.childNodes, function (n) { _appendSanitizedChapterNode(n, out); });
+  _wrapStrayChapterInlineNodes(out);
+  return out.innerHTML || "<p></p>";
+}
+
+function looksLikeChapterHtml(s) { return /<\/?(p|b|i|br)\b[^>]*>/i.test(s || ""); }
+// One-time migration from the old plain-string chapter format: one <p> per
+// non-empty line (lossless for actual words). Also strips leading
+// tabs/spaces left over from the old handleIndentKeydown behavior, since
+// paragraph indent is automatic CSS now.
+function plainTextToChapterHtml(text) {
+  var lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  var paras = lines
+    .map(function (line) { return line.replace(/^[\t ]+/, ""); })
+    .filter(function (line) { return line.trim() !== ""; })
+    .map(function (line) { return "<p>" + escapeHtml(line) + "</p>"; });
+  return paras.length ? paras.join("") : "<p></p>";
+}
+
+function chapterPlainText(html) {
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  tmp.querySelectorAll("br").forEach(function (br) { br.replaceWith("\n"); });
+  tmp.querySelectorAll("p").forEach(function (p) { p.insertAdjacentText("afterend", "\n\n"); });
+  return tmp.textContent.replace(/\n{3,}/g, "\n\n").trim();
+}
+function chapterHtmlToMarkdown(html) {
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    var inner = Array.prototype.map.call(node.childNodes, walk).join("");
+    if (node.tagName === "B") return "**" + inner + "**";
+    if (node.tagName === "I") return "*" + inner + "*";
+    if (node.tagName === "BR") return "\n";
+    if (node.tagName === "P") return inner + "\n\n";
+    return inner;
+  }
+  return Array.prototype.map.call(tmp.childNodes, walk).join("").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Wires Ctrl/Cmd+B, Ctrl/Cmd+I, paste-sanitizing, live model sync, and
+// save-on-blur for a .chapter-editor contenteditable surface.
+// onInput(rawHtml) fires on every keystroke so the in-memory model never goes
+// stale (e.g. clicking Download mid-edit) — mirrors the old textarea's
+// input handler, which updated the model on every keystroke but only saved
+// on blur. onCommit(sanitizedHtml) fires on blur/paste only and also saves;
+// sanitizing never happens on plain "input" since rewriting innerHTML
+// mid-type would reset the caret position.
+function initChapterEditor(el, onInput, onCommit) {
+  document.execCommand("defaultParagraphSeparator", false, "p");
+  function updateEmptyState() { el.classList.toggle("is-empty", el.textContent.trim() === ""); }
+  updateEmptyState();
+  el.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      var k = e.key.toLowerCase();
+      if (k === "b") { e.preventDefault(); document.execCommand("bold"); }
+      else if (k === "i") { e.preventDefault(); document.execCommand("italic"); }
+    }
+  });
+  el.addEventListener("input", function () { updateEmptyState(); onInput(el.innerHTML); });
+  el.addEventListener("paste", function (e) {
+    e.preventDefault();
+    var cd = e.clipboardData || window.clipboardData;
+    var html = cd.getData("text/html");
+    var clean = html ? sanitizeChapterHtml(html) : sanitizeChapterHtml(plainTextToChapterHtml(cd.getData("text/plain")));
+    document.execCommand("insertHTML", false, clean);
+    updateEmptyState();
+    onInput(el.innerHTML);
+  });
+  el.addEventListener("blur", function () {
+    var clean = sanitizeChapterHtml(el.innerHTML);
+    el.innerHTML = clean;
+    updateEmptyState();
+    onCommit(clean);
+  });
+}
 // Shimmering placeholder cards shown in place of a blank "Loading…" state.
 // Shown only while data is genuinely being fetched over the network — with
 // the cache-first loadTabData, that's just first-ever loads and slow
@@ -1765,9 +1986,112 @@ function _flushAllPendingSaves() {
   Object.keys(_pendingSaves).forEach(function (key) { _flushTabDataSave(key); });
 }
 document.addEventListener("visibilitychange", function () {
-  if (document.visibilityState === "hidden") _flushAllPendingSaves();
+  if (document.visibilityState === "hidden") { _flushAllPendingSaves(); _flushAllPendingStorySaves(); }
 });
-window.addEventListener("pagehide", _flushAllPendingSaves);
+window.addEventListener("pagehide", function () { _flushAllPendingSaves(); _flushAllPendingStorySaves(); });
+
+/* ---------------- Firebase story data I/O ----------------
+   Only the 5 Story tab_keys below live in Firestore; every other tab keeps
+   using loadTabData/saveTabData (Supabase) above, untouched. Same cache-first
+   + debounced-write shape as loadTabData/saveTabData, but backed by
+   users/{firebaseUid}/storyData/{tabKey} docs instead of the dashboard_data
+   table. Falls back to read-only Supabase access when Firebase isn't
+   connected yet (see checkFirebaseConnected / showConnectFirebasePrompt), so
+   the Story page keeps working during that window — writes still land safely
+   in localStorage via _writeCache and get flushed to Firestore once
+   connected. */
+var STORY_TAB_KEYS = [
+  "dashboard-story-chapters", "dashboard-story-characters",
+  "dashboard-story-moodboard", "dashboard-story-lore", "dashboard-story-locations"
+];
+
+async function ensureFirebaseAuthed() {
+  await window.firebaseReadyPromise;
+  if (window.FirebaseBridge.auth.currentUser()) return true;
+  if (_dualAuthPromise) { try { await _dualAuthPromise; } catch (e) {} }
+  return !!window.FirebaseBridge.auth.currentUser();
+}
+
+var _storyMigrationChecked = {};
+async function maybeMigrateStoryTabToFirestore(key, defaultData) {
+  if (_storyMigrationChecked[key]) return;
+  _storyMigrationChecked[key] = true;
+  try {
+    var existing = await window.FirebaseBridge.firestore.getStoryDoc(key);
+    if (existing !== null) return; // already migrated — Firestore is the source of truth from here on
+    var supabaseResult = await _fetchTabDataFromNetwork(key, defaultData);
+    if (key === "dashboard-story-moodboard" && supabaseResult.images && supabaseResult.images.length) {
+      supabaseResult.images = await Promise.all(supabaseResult.images.map(async function (img, i) {
+        if (!img.src || img.src.indexOf("data:") !== 0) return img; // already a URL — nothing to migrate
+        try {
+          var url = await window.FirebaseBridge.storage.uploadMoodboardImageFromDataUrl(img.id || ("legacy-" + i), img.src);
+          return Object.assign({}, img, { src: url });
+        } catch (e) {
+          console.error("Moodboard image migration upload failed for", img.id, e);
+          return img; // keep the base64 fallback; a later retry (see catch below) can pick it up again
+        }
+      }));
+    }
+    await window.FirebaseBridge.firestore.setStoryDoc(key, supabaseResult);
+    _writeCache(key, supabaseResult);
+  } catch (e) {
+    console.error("Story migration failed [" + key + "]", e);
+    _storyMigrationChecked[key] = false; // allow retry on next load instead of getting silently stuck
+  }
+}
+
+async function loadStoryData(key, defaultData) {
+  var cached = _readCache(key);
+  if (cached !== null) {
+    _bgRefreshStoryData(key, defaultData);
+    return Object.assign({}, defaultData, cached);
+  }
+  return _fetchStoryDataFromNetwork(key, defaultData);
+}
+
+async function _fetchStoryDataFromNetwork(key, defaultData) {
+  var connected = await ensureFirebaseAuthed();
+  if (!connected) return _fetchTabDataFromNetwork(key, defaultData); // read-only Supabase fallback until connected
+  await maybeMigrateStoryTabToFirestore(key, defaultData);
+  try {
+    var data = await window.FirebaseBridge.firestore.getStoryDoc(key);
+    if (data) { _writeCache(key, data); return Object.assign({}, defaultData, data); }
+    return JSON.parse(JSON.stringify(defaultData));
+  } catch (e) {
+    console.error("Firestore load error [" + key + "]", e);
+    return JSON.parse(JSON.stringify(defaultData));
+  }
+}
+
+function _bgRefreshStoryData(key, defaultData) {
+  ensureFirebaseAuthed().then(function (connected) {
+    if (!connected) return;
+    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) { if (data) _writeCache(key, data); });
+  }).catch(function () { /* silent — best-effort, same pattern as _bgRefreshTabData */ });
+}
+
+var _storySaveDebounceTimers = {};
+var _storyPendingSaves = {};
+function saveStoryData(key, data) {
+  _writeCache(key, data); // synchronous, durable regardless of Firebase connection state
+  _storyPendingSaves[key] = data;
+  if (_storySaveDebounceTimers[key]) clearTimeout(_storySaveDebounceTimers[key]);
+  _storySaveDebounceTimers[key] = setTimeout(function () { _flushStoryDataSave(key); }, 500);
+}
+async function _flushStoryDataSave(key) {
+  delete _storySaveDebounceTimers[key];
+  if (!_storyPendingSaves.hasOwnProperty(key)) return;
+  var data = _storyPendingSaves[key];
+  delete _storyPendingSaves[key];
+  var connected = await ensureFirebaseAuthed();
+  if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); return; }
+  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); }
+  catch (e) { console.error("Firestore save failed [" + key + "]", e); }
+}
+function _flushAllPendingStorySaves() {
+  Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
+  Object.keys(_storyPendingSaves).forEach(function (key) { _flushStoryDataSave(key); });
+}
 
 /* ---------------- auth ---------------- */
 
@@ -1810,6 +2134,84 @@ function showDashboardScreen() {
   }
 }
 
+/* ---------------- Firebase dual sign-in (Story data lives on Firebase; auth
+   of record stays Supabase) ----------------
+   Every Supabase sign-in/sign-up also signs into Firebase Auth with the same
+   email/password so Firestore/Storage security rules have a real
+   request.auth.uid to key off. Accounts created before this existed have no
+   Firebase side yet — see showConnectFirebasePrompt for the one-time
+   reconnect flow that links them. */
+async function dualSignInFirebase(email, password) {
+  try {
+    await window.firebaseReadyPromise;
+    await window.FirebaseBridge.auth.signIn(email, password);
+  } catch (e) {
+    var code = e && e.code;
+    if (code === "auth/user-not-found" || code === "auth/invalid-credential") {
+      try { await window.FirebaseBridge.auth.createUser(email, password); return; }
+      catch (e2) { console.error("Firebase account creation failed", e2); }
+    } else if (code === "auth/wrong-password") {
+      // Firebase side exists under a different password than Supabase (drifted) —
+      // surface the reconnect prompt rather than leaving story sync silently stuck.
+      showConnectFirebasePrompt(email, "Your story sync password doesn't match. Enter it again to reconnect.");
+    } else if (code === "auth/network-request-failed") {
+      console.warn("Firebase offline — story sync will retry next time you're online.");
+    } else {
+      console.error("Firebase dual sign-in error", e);
+    }
+  }
+}
+
+var _connectPromptOpen = false;
+function showConnectFirebasePrompt(email, message) {
+  if (_connectPromptOpen) return;
+  _connectPromptOpen = true;
+  var overlay = document.createElement("div");
+  overlay.id = "fbConnectOverlay";
+  overlay.style.cssText = "position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.innerHTML =
+    '<div class="card" style="max-width:360px;width:100%;">' +
+      '<div style="font-weight:600;margin-bottom:6px;color:var(--text-1);">Reconnect story sync</div>' +
+      '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px;">' + escapeHtml(message) + '</div>' +
+      '<input class="form-input" id="fbConnectEmail" value="' + escapeHtml(email) + '" disabled style="margin-bottom:8px;opacity:.6;" />' +
+      '<input class="form-input" id="fbConnectPassword" type="password" placeholder="Password" autocomplete="current-password" style="margin-bottom:8px;" />' +
+      '<div class="error-text" id="fbConnectError" style="margin-bottom:8px;"></div>' +
+      '<div class="row-gap">' +
+        '<button class="link-btn" id="fbConnectLater" style="color:var(--text-2);">Not now</button>' +
+        '<span style="flex:1;"></span>' +
+        '<button class="add-btn" id="fbConnectSubmit">Connect</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); _connectPromptOpen = false; }
+  // "Not now" only closes this instance — it reappears next reload/next Story
+  // visit until connected, since local-only story edits are at risk until then.
+  document.getElementById("fbConnectLater").addEventListener("click", close);
+  document.getElementById("fbConnectSubmit").addEventListener("click", async function () {
+    var pw = document.getElementById("fbConnectPassword").value;
+    var errEl = document.getElementById("fbConnectError");
+    errEl.textContent = "";
+    if (!pw) { errEl.textContent = "Enter your password."; return; }
+    try {
+      _dualAuthPromise = dualSignInFirebase(email, pw);
+      await _dualAuthPromise;
+      if (!window.FirebaseBridge.auth.currentUser()) { errEl.textContent = "Couldn't connect — check your password and try again."; return; }
+      close();
+      if (typeof window._onStoryFirebaseConnected === "function") window._onStoryFirebaseConnected();
+    } catch (e) {
+      errEl.textContent = "Something went wrong. Try again.";
+    }
+  });
+}
+
+async function checkFirebaseConnected(email) {
+  await window.firebaseReadyPromise;
+  if (_dualAuthPromise) { try { await _dualAuthPromise; } catch (e) {} }
+  if (!window.FirebaseBridge.auth.currentUser()) {
+    showConnectFirebasePrompt(email, "One-time step: reconnect your story sync (Story page uses a separate database).");
+  }
+}
+
 async function handleSignIn() {
   var email = document.getElementById("authEmail").value.trim();
   var password = document.getElementById("authPassword").value;
@@ -1826,6 +2228,7 @@ async function handleSignIn() {
       await navigator.credentials.store(cred);
     } catch(e) { /* non-fatal — browser may decline silently */ }
   }
+  _dualAuthPromise = dualSignInFirebase(email, password);
 }
 async function handleSignUp() {
   var email = document.getElementById("authEmail").value.trim();
@@ -1839,7 +2242,9 @@ async function handleSignUp() {
   if (!result.data || !result.data.session) {
     errEl.style.color = "#7FA37A";
     errEl.textContent = "Account created \u2014 check your email to confirm, then sign in.";
+    return;
   }
+  _dualAuthPromise = dualSignInFirebase(email, password);
 }
 
 function bootAuth() {
@@ -1887,13 +2292,17 @@ function bootAuth() {
     return;
   }
 
-  document.getElementById("signOutBtn").addEventListener("click", function () { supabaseClient.auth.signOut(); });
+  document.getElementById("signOutBtn").addEventListener("click", function () {
+    supabaseClient.auth.signOut();
+    window.firebaseReadyPromise.then(function () { window.FirebaseBridge.auth.signOut().catch(function () {}); });
+  });
 
   supabaseClient.auth.onAuthStateChange(function (event, session) {
     if (event === "TOKEN_REFRESHED") return;
     if (session) {
       currentUserId = session.user.id;
       showDashboardScreen();
+      checkFirebaseConnected(session.user.email);
     } else {
       currentUserId = null;
       _defaultPageApplied = false;
@@ -5820,11 +6229,11 @@ async function renderWorkoutsTab(root) {
 async function renderStoryPage(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
-  var chaptersData = await loadTabData("dashboard-story-chapters", { chapters: [], arcs: [], statuses: [], wordGoal: "" });
-  var charactersData = await loadTabData("dashboard-story-characters", { characters: [], relationships: [] });
-  var moodboardData = await loadTabData("dashboard-story-moodboard", { images: [] });
-  var loreData = await loadTabData("dashboard-story-lore", { entries: [] });
-  var locationsData = await loadTabData("dashboard-story-locations", { locations: [] });
+  var chaptersData = await loadStoryData("dashboard-story-chapters", { chapters: [], arcs: [], statuses: [], wordGoal: "" });
+  var charactersData = await loadStoryData("dashboard-story-characters", { characters: [], relationships: [] });
+  var moodboardData = await loadStoryData("dashboard-story-moodboard", { images: [] });
+  var loreData = await loadStoryData("dashboard-story-lore", { entries: [] });
+  var locationsData = await loadStoryData("dashboard-story-locations", { locations: [] });
   if (!chaptersData.chapters) chaptersData.chapters = [];
   if (!chaptersData.arcs) chaptersData.arcs = [];
   if (!chaptersData.statuses) chaptersData.statuses = [];
@@ -5835,18 +6244,28 @@ async function renderStoryPage(root) {
   if (!locationsData.locations) locationsData.locations = [];
   var ARC_COLOR_PALETTE = ["#C97FBF", "#5BAE7A", "#3DBFC4", "#D9A441", "#D9667A", "#7187E0"];
 
-  function saveChapters() { saveTabData("dashboard-story-chapters", chaptersData); }
-  function saveCharacters() { saveTabData("dashboard-story-characters", charactersData); }
-  function saveMoodboard() { saveTabData("dashboard-story-moodboard", moodboardData); }
-  function saveLore() { saveTabData("dashboard-story-lore", loreData); }
-  function saveLocations() { saveTabData("dashboard-story-locations", locationsData); }
+  function saveChapters() { saveStoryData("dashboard-story-chapters", chaptersData); }
+  function saveCharacters() { saveStoryData("dashboard-story-characters", charactersData); }
+  function saveMoodboard() { saveStoryData("dashboard-story-moodboard", moodboardData); }
+  function saveLore() { saveStoryData("dashboard-story-lore", loreData); }
+  function saveLocations() { saveStoryData("dashboard-story-locations", locationsData); }
+
+  window._onStoryFirebaseConnected = function () { renderStoryPage(root); };
+
+  // One-time migration from the old plain-string chapter format to sanitized
+  // HTML (see plainTextToChapterHtml) — needed for real bold/italic/indent.
+  var _chapterContentMigrated = false;
+  chaptersData.chapters.forEach(function (c) {
+    if (!looksLikeChapterHtml(c.content)) { c.content = plainTextToChapterHtml(c.content); _chapterContentMigrated = true; }
+  });
+  if (_chapterContentMigrated) saveChapters();
 
   // Any chapter (title or body) whose text contains `name` as a whole word — used for the
   // "Mentioned in" backlinks on Characters/Locations/Lore and for full-text search.
   function findMentions(name) {
     if (!name || !name.trim() || name.trim().length < 2) return [];
     var re = new RegExp("\\b" + name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
-    return sortedChapters().filter(function (c) { return re.test(c.title || "") || re.test(c.content || ""); });
+    return sortedChapters().filter(function (c) { return re.test(c.title || "") || re.test(chapterPlainText(c.content)); });
   }
   function mentionsHtml(name) {
     var mentions = findMentions(name);
@@ -5919,6 +6338,11 @@ async function renderStoryPage(root) {
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
       "</div>" +
     "</header>" +
+    (window.FirebaseBridge && window.FirebaseBridge.auth.currentUser() ? "" :
+      '<div class="card" style="margin-bottom:16px;border-color:' + accent + ';">' +
+        '<span style="color:var(--text-2);font-size:13px;">Story sync isn’t connected yet.</span> ' +
+        '<button class="link-btn" id="storyReconnectBtn" style="color:' + accent + ';">Reconnect story sync</button>' +
+      "</div>") +
     '<div style="position:relative;margin-bottom:20px;">' +
       '<input class="form-input" id="storySearchInput" placeholder="Search chapters, characters, locations, lore…" value="' + escapeHtml(searchQuery) + '" />' +
       '<div id="storySearchResults" style="position:absolute;top:100%;left:0;right:0;z-index:10;margin-top:4px;"></div>' +
@@ -5928,6 +6352,13 @@ async function renderStoryPage(root) {
 
   document.getElementById("storyDownloadBtn").addEventListener("click", downloadStoryExport);
   document.getElementById("storyManuscriptBtn").addEventListener("click", downloadManuscriptExport);
+  var reconnectBtn = document.getElementById("storyReconnectBtn");
+  if (reconnectBtn) reconnectBtn.addEventListener("click", function () {
+    supabaseClient.auth.getSession().then(function (r) {
+      var email = r && r.data && r.data.session && r.data.session.user && r.data.session.user.email;
+      if (email) showConnectFirebasePrompt(email, "Reconnect your story sync to enable Firebase-backed storage.");
+    });
+  });
   document.getElementById("storySearchInput").addEventListener("input", function (e) { searchQuery = e.target.value; renderSearchResults(); });
   renderSearchResults();
 
@@ -5937,7 +6368,7 @@ async function renderStoryPage(root) {
     if (!q) { resultsEl.innerHTML = ""; return; }
     var results = [];
     sortedChapters().forEach(function (c) {
-      if ((c.title || "").toLowerCase().indexOf(q) !== -1 || (c.content || "").toLowerCase().indexOf(q) !== -1) {
+      if ((c.title || "").toLowerCase().indexOf(q) !== -1 || chapterPlainText(c.content).toLowerCase().indexOf(q) !== -1) {
         results.push({ type: "Chapter", label: c.title || "Untitled chapter", section: "chapters", anchor: "storyCh-" + c.id });
       }
     });
@@ -6000,7 +6431,7 @@ async function renderStoryPage(root) {
           lines.push("### " + (arc ? arc.name : "No arc"), "");
           lastArcId = normArc;
         }
-        lines.push("#### " + (c.title || "Untitled chapter"), "", c.content || "_(empty)_", "");
+        lines.push("#### " + (c.title || "Untitled chapter"), "", chapterHtmlToMarkdown(c.content) || "_(empty)_", "");
       });
     }
 
@@ -6070,7 +6501,7 @@ async function renderStoryPage(root) {
         lines.push("# " + (arc ? arc.name : "No arc"), "");
         lastArcId = normArc;
       }
-      lines.push("## " + (c.title || "Untitled chapter"), "", c.content || "", "");
+      lines.push("## " + (c.title || "Untitled chapter"), "", chapterHtmlToMarkdown(c.content) || "", "");
     });
     return lines.join("\n");
   }
@@ -6135,7 +6566,7 @@ async function renderStoryPage(root) {
   function renderChaptersSection() {
     var bodyEl = document.getElementById("storySectionBody");
     var chapters = sortedChapters();
-    var totalWords = chaptersData.chapters.reduce(function (sum, c) { return sum + wordCount(c.content); }, 0);
+    var totalWords = chaptersData.chapters.reduce(function (sum, c) { return sum + wordCount(chapterPlainText(c.content)); }, 0);
     var goalNum = Number(chaptersData.wordGoal) || 0;
 
     var wordCountHtml = '<div class="card">' +
@@ -6193,7 +6624,7 @@ async function renderStoryPage(root) {
         }
       }
       lastArcId = normArc;
-      var cWords = wordCount(c.content);
+      var cWords = wordCount(chapterPlainText(c.content));
       return divider + '<div class="card" id="storyCh-' + c.id + '">' +
         '<div class="row-gap" style="margin-bottom:8px;">' +
           '<input class="form-input" style="flex:1;font-weight:600;" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
@@ -6208,7 +6639,11 @@ async function renderStoryPage(root) {
           '<button class="icon-btn" data-action="move-chapter-up" data-id="' + c.id + '">▴</button>' +
           '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '">▾</button>' +
         "</div>" +
-        '<textarea class="form-input" style="min-height:160px;resize:none;overflow:hidden;line-height:1.6;tab-size:4;-moz-tab-size:4;" data-chapter-field="content" data-id="' + c.id + '" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>" +
+        '<div class="chapter-toolbar">' +
+          '<button type="button" class="chapter-tb-btn" data-cmd="bold" data-id="' + c.id + '" title="Bold (Ctrl+B)">B</button>' +
+          '<button type="button" class="chapter-tb-btn" data-cmd="italic" data-id="' + c.id + '" title="Italic (Ctrl+I)"><i>I</i></button>' +
+        "</div>" +
+        '<div class="chapter-editor" contenteditable="true" data-chapter-rich-field="content" data-id="' + c.id + '" data-placeholder="Write here…">' + sanitizeChapterHtml(c.content) + "</div>" +
       "</div>";
     }).join("");
 
@@ -6281,6 +6716,21 @@ async function renderStoryPage(root) {
         if (c) c[e.target.getAttribute("data-chapter-field")] = e.target.value;
         saveChapters();
         renderChaptersSection();
+      });
+    });
+    bodyEl.querySelectorAll("[data-chapter-rich-field='content']").forEach(function (el) {
+      function findChapter() { return chaptersData.chapters.find(function (ch) { return ch.id === el.getAttribute("data-id"); }); }
+      initChapterEditor(el,
+        function (html) { var c = findChapter(); if (c) c.content = html; },
+        function (html) { var c = findChapter(); if (c) c.content = html; saveChapters(); }
+      );
+    });
+    bodyEl.querySelectorAll(".chapter-tb-btn").forEach(function (btn) {
+      btn.addEventListener("mousedown", function (e) { e.preventDefault(); }); // keep the text selection alive instead of losing it to the button click
+      btn.addEventListener("click", function (e) {
+        var editor = document.querySelector('.chapter-editor[data-id="' + e.currentTarget.getAttribute("data-id") + '"]');
+        if (editor) editor.focus();
+        document.execCommand(e.currentTarget.getAttribute("data-cmd"));
       });
     });
     bodyEl.querySelectorAll("[data-arc-field='name']").forEach(function (el) {
@@ -6366,28 +6816,39 @@ async function renderStoryPage(root) {
     overlay.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;">' +
         '<input id="focusChapterTitle" class="form-input" style="flex:1;min-width:160px;max-width:480px;font-weight:600;" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
+        '<div class="chapter-toolbar" style="margin-bottom:0;">' +
+          '<button type="button" id="focusBoldBtn" title="Bold (Ctrl+B)">B</button>' +
+          '<button type="button" id="focusItalicBtn" title="Italic (Ctrl+I)"><i>I</i></button>' +
+        "</div>" +
         '<span class="mono" id="focusStats" style="color:var(--text-3);font-size:12px;flex-shrink:0;"></span>' +
         '<button class="small-btn" id="focusExitBtn" style="background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);flex-shrink:0;">Done (Esc)</button>' +
       "</div>" +
-      '<textarea id="focusTextarea" style="flex:1;width:100%;box-sizing:border-box;background:var(--bg);color:var(--text-1);border:none;outline:none;resize:none;padding:36px max(20px, calc(50% - 340px));font-size:18px;line-height:1.8;font-family:inherit;tab-size:4;-moz-tab-size:4;" placeholder="Write here…">' + escapeHtml(c.content) + "</textarea>";
+      '<div id="focusChapterEditor" class="chapter-editor" contenteditable="true" data-placeholder="Write here…" style="flex:1;width:100%;box-sizing:border-box;background:var(--bg);border:none;border-radius:0;padding:36px max(20px, calc(50% - 340px));font-size:18px;line-height:1.8;overflow-y:auto;">' + sanitizeChapterHtml(c.content) + "</div>";
     document.body.appendChild(overlay);
     document.body.style.overflow = "hidden";
 
     function updateStats() {
-      var words = wordCount(c.content);
+      var words = wordCount(chapterPlainText(c.content));
       document.getElementById("focusStats").textContent = words.toLocaleString() + " words · " + readingTime(words);
     }
     updateStats();
 
-    var ta = document.getElementById("focusTextarea");
-    ta.addEventListener("input", function (e) { c.content = e.target.value; updateStats(); });
-    ta.addEventListener("keydown", handleIndentKeydown);
+    var editorEl = document.getElementById("focusChapterEditor");
+    initChapterEditor(editorEl,
+      function (html) { c.content = html; updateStats(); },
+      function (html) { c.content = html; }
+    );
+    document.getElementById("focusBoldBtn").addEventListener("mousedown", function (e) { e.preventDefault(); });
+    document.getElementById("focusBoldBtn").addEventListener("click", function () { editorEl.focus(); document.execCommand("bold"); });
+    document.getElementById("focusItalicBtn").addEventListener("mousedown", function (e) { e.preventDefault(); });
+    document.getElementById("focusItalicBtn").addEventListener("click", function () { editorEl.focus(); document.execCommand("italic"); });
 
     var titleInput = document.getElementById("focusChapterTitle");
     titleInput.addEventListener("input", function (e) { c.title = e.target.value; });
 
     function closeFocus() {
       document.removeEventListener("keydown", escHandler);
+      c.content = sanitizeChapterHtml(editorEl.innerHTML);
       saveChapters();
       document.body.style.overflow = "";
       overlay.remove();
@@ -6397,7 +6858,15 @@ async function renderStoryPage(root) {
     document.addEventListener("keydown", escHandler);
     document.getElementById("focusExitBtn").addEventListener("click", closeFocus);
 
-    setTimeout(function () { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
+    setTimeout(function () {
+      editorEl.focus();
+      var range = document.createRange();
+      range.selectNodeContents(editorEl);
+      range.collapse(false);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }, 0);
   }
   function handleMoveChapter(id, dir) {
     var chapters = sortedChapters();
@@ -6746,11 +7215,30 @@ async function renderStoryPage(root) {
           canvas.width = Math.round(imgEl.width * ratio);
           canvas.height = Math.round(imgEl.height * ratio);
           canvas.getContext("2d").drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-          var compressed = canvas.toDataURL("image/jpeg", 0.78);
-          var n = moodboardData.images.length;
-          moodboardData.images.push({ id: uid(), src: compressed, x: 20 + (n % 6) * 24, y: 20 + (n % 6) * 24, w: 220, caption: "" });
-          saveMoodboard();
-          renderMoodboardSection();
+          var addBtn = document.getElementById("storyAddImageBtn");
+          if (addBtn) { addBtn.disabled = true; addBtn.textContent = "Uploading…"; }
+          canvas.toBlob(async function (blob) {
+            var id = uid();
+            var src;
+            try {
+              var connected = await ensureFirebaseAuthed();
+              if (connected) {
+                src = await window.FirebaseBridge.storage.uploadMoodboardImageBlob(id, blob);
+              } else {
+                // Not connected yet — store locally so the add is never lost; the next
+                // successful migration/save pass can upload it to Storage properly.
+                console.warn("Firebase not connected — storing image locally until reconnected");
+                src = canvas.toDataURL("image/jpeg", 0.78);
+              }
+            } catch (err) {
+              console.error("Moodboard image upload failed", err);
+              src = canvas.toDataURL("image/jpeg", 0.78);
+            }
+            var n = moodboardData.images.length;
+            moodboardData.images.push({ id: id, src: src, x: 20 + (n % 6) * 24, y: 20 + (n % 6) * 24, w: 220, caption: "" });
+            saveMoodboard();
+            renderMoodboardSection();
+          }, "image/jpeg", 0.78);
         };
         imgEl.src = ev.target.result;
       };
@@ -6760,9 +7248,13 @@ async function renderStoryPage(root) {
   }
 
   function handleDeleteImage(id) {
-    moodboardData.images = moodboardData.images.filter(function (img) { return img.id !== id; });
+    var img = moodboardData.images.find(function (i) { return i.id === id; });
+    moodboardData.images = moodboardData.images.filter(function (i) { return i.id !== id; });
     saveMoodboard();
     renderMoodboardSection();
+    if (img && img.src && img.src.indexOf("https://") === 0) {
+      window.FirebaseBridge.storage.deleteMoodboardImage(id).catch(function () { /* best-effort — object may already be gone */ });
+    }
   }
 
   function startDragOrResize(e) {
