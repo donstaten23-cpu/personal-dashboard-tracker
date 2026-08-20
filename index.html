@@ -100,6 +100,9 @@
     padding: 0; text-align: left; cursor: pointer; text-decoration: underline;
   }
   .sidebar-footer button:hover { color:var(--text-2); }
+  .sync-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color:var(--text-3); }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #5A6168; flex-shrink: 0; transition: background 0.2s; }
+  .sync-status.synced .sync-dot { background: #5BAE7A; }
 
   /* hamburger (mobile only) */
   .hamburger {
@@ -658,6 +661,10 @@
       </div>
     </div>
     <div class="sidebar-footer">
+      <div id="syncStatus" class="sync-status" style="margin-bottom:4px;">
+        <span class="sync-dot" id="syncStatusDot"></span>
+        <span id="syncStatusText">Not synced yet</span>
+      </div>
       <form id="changePasswordForm" method="post" action="#" style="display:none;margin-bottom:12px;">
         <div class="form-row" style="margin-bottom:8px;">
           <input class="form-input" type="password" id="newPasswordInput" name="new-password" placeholder="New password" autocomplete="new-password" />
@@ -1928,6 +1935,56 @@ function _clearCache(key) {
   try { localStorage.removeItem(_cacheKey(key)); } catch (e) {}
 }
 
+/* ---------------- global "last synced" indicator ----------------
+   One shared timestamp across every save — Supabase (_flushTabDataSave) and
+   Firebase (_flushStoryDataSave) both call _markSynced() on a successful
+   write. Shown in the sidebar footer, which is present on every page, so
+   there's no need to duplicate this into each individual render* function. */
+var _lastSyncedAt = null;
+function _relativeSyncTime(ts) {
+  if (!ts) return "Not synced yet";
+  var secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 10) return "Synced just now";
+  if (secs < 60) return "Synced " + secs + "s ago";
+  var mins = Math.floor(secs / 60);
+  if (mins < 60) return "Synced " + mins + "m ago";
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return "Synced " + hrs + "h ago";
+  var days = Math.floor(hrs / 24);
+  return "Synced " + days + "d ago";
+}
+function renderSyncStatus() {
+  var el = document.getElementById("syncStatus");
+  var textEl = document.getElementById("syncStatusText");
+  if (!el || !textEl) return;
+  textEl.textContent = _relativeSyncTime(_lastSyncedAt);
+  el.classList.toggle("synced", !!_lastSyncedAt);
+}
+function _markSynced() {
+  _lastSyncedAt = Date.now();
+  renderSyncStatus();
+}
+// Separate from _lastSyncedAt: Story data syncs to Firebase, not Supabase, so
+// its own timestamp is more meaningful on the Story page than the global one
+// (which would otherwise reflect whatever other page you last saved on).
+var _lastStorySyncedAt = null;
+function renderStorySyncStatus() {
+  var el = document.getElementById("storySyncStatus");
+  var textEl = document.getElementById("storySyncStatusText");
+  if (!el || !textEl) return;
+  textEl.textContent = _relativeSyncTime(_lastStorySyncedAt);
+  el.classList.toggle("synced", !!_lastStorySyncedAt);
+}
+function _markStorySynced() {
+  _lastStorySyncedAt = Date.now();
+  renderStorySyncStatus();
+}
+function initSyncStatus() {
+  renderSyncStatus();
+  renderStorySyncStatus();
+  setInterval(function () { renderSyncStatus(); renderStorySyncStatus(); }, 15000);
+}
+
 async function loadTabData(key, defaultData) {
   var cached = _readCache(key);
   if (cached !== null) {
@@ -1982,6 +2039,7 @@ async function _flushTabDataSave(key) {
     // Supabase returns failures as a resolved { error } object, not a thrown
     // exception — without this check, a rejected write silently vanishes.
     if (result && result.error) console.error("Save failed [" + key + "]", result.error);
+    else _markSynced();
   } catch (e) {
     console.error(e);
   }
@@ -2040,6 +2098,8 @@ async function maybeMigrateStoryTabToFirestore(key, defaultData) {
     }
     await window.FirebaseBridge.firestore.setStoryDoc(key, supabaseResult);
     _writeCache(key, supabaseResult);
+    _markSynced();
+    _markStorySynced();
   } catch (e) {
     console.error("Story migration failed [" + key + "]", e);
     _storyMigrationChecked[key] = false; // allow retry on next load instead of getting silently stuck
@@ -2091,7 +2151,7 @@ async function _flushStoryDataSave(key) {
   delete _storyPendingSaves[key];
   var connected = await ensureFirebaseAuthed();
   if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); return; }
-  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); }
+  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); _markSynced(); _markStorySynced(); }
   catch (e) { console.error("Firestore save failed [" + key + "]", e); }
 }
 function _flushAllPendingStorySaves() {
@@ -2122,6 +2182,7 @@ function showDashboardScreen() {
   renderGreeting();
   initSidebar();
   initClock();
+  initSyncStatus();
   loadPortfolioImages();
   loadPortfolioContent();
   loadArtContent();
@@ -2740,6 +2801,7 @@ async function savePortfolioImage(key, dataUrl) {
     // etc.) silently looks identical to a successful one, since the image
     // is already showing locally from the optimistic UI update.
     if (result && result.error) console.error("Portfolio image save failed [" + key + "]", result.error);
+    else _markSynced();
   } catch(e) { console.error("Portfolio image save error [" + key + "]", e); }
 }
 
@@ -6339,7 +6401,10 @@ async function renderStoryPage(root) {
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('story', 'STORY')) + '</div>' +
     '<header style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
-      '<h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0;">Story</h2>' +
+      '<div>' +
+        '<h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0;">Story</h2>' +
+        '<div id="storySyncStatus" class="sync-status" style="margin-top:4px;"><span class="sync-dot" id="storySyncStatusDot"></span><span id="storySyncStatusText">Not synced yet</span></div>' +
+      "</div>" +
       '<div class="row-gap">' +
         '<button class="small-btn" id="storyDownloadBtn" style="background:' + accent + ';">⬇ Download</button>' +
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
@@ -6357,6 +6422,7 @@ async function renderStoryPage(root) {
     '<div class="pills" id="storySectionPills"></div>' +
     '<div id="storySectionBody"></div>';
 
+  renderStorySyncStatus();
   document.getElementById("storyDownloadBtn").addEventListener("click", downloadStoryExport);
   document.getElementById("storyManuscriptBtn").addEventListener("click", downloadManuscriptExport);
   var reconnectBtn = document.getElementById("storyReconnectBtn");
