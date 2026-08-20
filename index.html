@@ -525,7 +525,7 @@
   .chip { background: var(--bg-card); border-color: var(--border-2); }
   .tabbtn, .trip-pill, .port-edit-btn { background: var(--bg-card); border-color: var(--border-2); color: var(--text-1); }
   .gauge-track { background: var(--border-2); }
-  .form-input, .small-input, .edit-input, .edit-select { background: var(--bg); border-color: var(--border-2); color: var(--text-1); }
+  .form-input, .small-input, .edit-input, .edit-select, .chapter-editor { background: var(--bg); border-color: var(--border-2); color: var(--text-1); }
   .item-name, .port-title, .port-card h2 { color: var(--text-1); }
   /* Card style variants */
   body.card-flat .card, body.card-flat .list-card, body.card-flat .port-card { border-radius: 6px; box-shadow: none; }
@@ -1052,6 +1052,11 @@
       signIn: function (email, password) { return signInWithEmailAndPassword(fbAuth, email, password); },
       signOut: function () { return fbSignOut(fbAuth); },
       currentUser: function () { return fbAuth.currentUser; },
+      // Resolves once Firebase has finished restoring any persisted session
+      // from storage. currentUser() is null until this settles, even when a
+      // valid session exists — callers must await this before trusting a
+      // null currentUser() as "not signed in".
+      ready: function () { return fbAuth.authStateReady(); },
       onChange: function (cb) { return onAuthStateChanged(fbAuth, cb); }
     },
     firestore: {
@@ -2007,6 +2012,7 @@ var STORY_TAB_KEYS = [
 
 async function ensureFirebaseAuthed() {
   await window.firebaseReadyPromise;
+  await window.FirebaseBridge.auth.ready();
   if (window.FirebaseBridge.auth.currentUser()) return true;
   if (_dualAuthPromise) { try { await _dualAuthPromise; } catch (e) {} }
   return !!window.FirebaseBridge.auth.currentUser();
@@ -2206,6 +2212,7 @@ function showConnectFirebasePrompt(email, message) {
 
 async function checkFirebaseConnected(email) {
   await window.firebaseReadyPromise;
+  await window.FirebaseBridge.auth.ready();
   if (_dualAuthPromise) { try { await _dualAuthPromise; } catch (e) {} }
   if (!window.FirebaseBridge.auth.currentUser()) {
     showConnectFirebasePrompt(email, "One-time step: reconnect your story sync (Story page uses a separate database).");
