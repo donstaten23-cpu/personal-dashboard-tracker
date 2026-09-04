@@ -3045,14 +3045,16 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [] });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
+  if (!data.debts) data.debts = [];
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
   if (data.addExpenseCollapsed === undefined) data.addExpenseCollapsed = true;
+  if (data.debtCollapsed === undefined) data.debtCollapsed = true;
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
@@ -3138,10 +3140,15 @@ async function renderSpendTab(root, cfg) {
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
-    '<header style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+    '<header style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
       '<input id="stTitle" class="name-input serif" aria-label="Title" style="flex:1;min-width:180px;margin-bottom:0;" />' +
-      '<button class="small-btn" id="stExportCsvBtn" style="background:' + cfg.accent + ';flex-shrink:0;">⬇ Export CSV</button>' +
+      '<div class="row-gap" style="flex-shrink:0;">' +
+        '<button class="small-btn" id="stImportCsvBtn" style="background:#8A919C;">&#8593; Import CSV</button>' +
+        '<button class="small-btn" id="stExportCsvBtn" style="background:' + cfg.accent + ';">&#8595; Export CSV</button>' +
+      '</div>' +
+      '<input type="file" id="stImportCsvInput" accept=".csv,text/csv" style="display:none;" />' +
     "</header>" +
+    '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;margin-bottom:16px;min-height:14px;"></div>' +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
         collapseCard("BEFORE " + USER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-me", true, '<div id="beforePayContent-me"></div>') +
@@ -3172,6 +3179,15 @@ async function renderSpendTab(root, cfg) {
         '<div id="svGoalForm"></div>' +
         '<button class="link-btn" id="svAddGoalBtn" style="color:#D9A441;margin-top:4px;">+ New savings goal</button>' +
       "</div>"
+    : "") +
+    (cfg.showSavingsGoal ?
+      collapseCard("DEBT PAYOFF", "debtColl", false,
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Track what’s owed across loans, credit cards, and other debt — separate from spending and savings above.</div>' +
+        '<div class="gauge-top" style="margin-bottom:6px;"><span class="gauge-label mono">TOTAL OWED</span><span class="mono" id="dtTotalAmount" style="color:#D9667A;"></span></div>' +
+        '<div id="dtDebtsList"></div>' +
+        '<div id="dtDebtForm"></div>' +
+        '<button class="link-btn" id="dtAddDebtBtn" style="color:#D9667A;margin-top:4px;">+ New debt</button>'
+      )
     : "") +
     (cfg.showSavingsGoal ?
       collapseCard("PLANNED PURCHASES", "plannedColl", false,
@@ -3407,6 +3423,188 @@ async function renderSpendTab(root, cfg) {
 
     var addBtn = document.getElementById("svAddGoalBtn");
     if (addBtn) addBtn.style.display = savingsGoalEditId ? "none" : "";
+  }
+
+  /* ---------------- debt payoff ----------------
+     Simpler than savings goals: no contribution log, just a directly-edited
+     balance per debt. targetPayoffDate (optional) reuses the same
+     countRemainingPaychecks helper savings goals use, to show a per-paycheck
+     amount needed to hit it — no pace/history tracking since there's no
+     record of payments made, only the current balance snapshot. */
+  var debtEditId = null;
+  var debtDraft = { name: "", balance: "", originalBalance: "", minPayment: "", interestRate: "", targetPayoffDate: "", owner: "" };
+
+  function getTotalDebt() {
+    return (data.debts || []).reduce(function (s, d) { return s + (Number(d.balance) || 0); }, 0);
+  }
+  function computeDebtPlan(debt) {
+    var balance = Number(debt.balance) || 0;
+    if (balance <= 0.005) return { funded: true };
+    if (!debt.targetPayoffDate) return null;
+    var todayStr = todayISO();
+    if (debt.targetPayoffDate <= todayStr) return { expired: true, remaining: balance, targetDate: debt.targetPayoffDate };
+    var count = countRemainingPaychecks(data.payPeriods, todayStr, debt.targetPayoffDate);
+    return { remaining: balance, targetDate: debt.targetPayoffDate, paycheckCount: count, perPaycheck: count > 0 ? balance / count : null, funded: false, expired: false };
+  }
+  function renderDebtPlanHtml(plan, accentColor) {
+    if (!plan) return "";
+    if (plan.funded) {
+      return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:#5BAE7A;font-size:13px;">&#10003; Paid off!</div>';
+    }
+    if (plan.expired) {
+      return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:#FF8A5C;font-size:13px;">Target payoff date has passed — ' + formatCurrency(plan.remaining) + ' still owed.</div>';
+    }
+    if (!plan.paycheckCount) {
+      return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);color:var(--text-2);font-size:13px;">No paydays configured before ' + formatDateShort(plan.targetDate) + ' — add your pay schedule above to see a per-paycheck payoff plan.</div>';
+    }
+    return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-2);">' +
+      '<div style="color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">PER-PAYCHECK PAYOFF PLAN</div>' +
+      '<div style="font-size:20px;font-weight:800;color:' + accentColor + ';">' + formatCurrency(plan.perPaycheck) + ' <span style="font-size:12px;color:var(--text-3);font-weight:400;">/ each person’s paycheck</span></div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-top:4px;">' + formatCurrency(plan.remaining) + ' remaining across ' + plan.paycheckCount + ' paycheck' + (plan.paycheckCount === 1 ? '' : 's') + ' before ' + formatDateShort(plan.targetDate) + '</div>' +
+    '</div>';
+  }
+  function renderDebtFormHtml(isNew) {
+    var d = debtDraft;
+    return '<div style="border:1px solid #D9667A;border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<div class="row-gap" style="margin-bottom:8px;">' +
+        '<input class="form-input" style="width:auto;flex:1;min-width:100px;" id="dtNameInput" placeholder="Debt name, e.g. Car loan, Visa card" value="' + escapeHtml(d.name) + '" />' +
+      "</div>" +
+      '<div class="row-gap" style="margin-bottom:8px;">' +
+        '<input class="small-input" type="number" min="0" id="dtBalanceInput" placeholder="Current balance" value="' + escapeHtml(d.balance) + '" />' +
+        '<input class="small-input" type="number" min="0" id="dtOriginalInput" placeholder="Original balance (optional)" value="' + escapeHtml(d.originalBalance) + '" />' +
+        '<input class="small-input" type="number" min="0" id="dtMinPaymentInput" placeholder="Min payment" value="' + escapeHtml(d.minPayment) + '" />' +
+      "</div>" +
+      '<div class="row-gap">' +
+        '<input class="small-input" type="number" min="0" step="0.01" id="dtRateInput" placeholder="Interest rate % (optional)" value="' + escapeHtml(d.interestRate) + '" />' +
+        '<input class="small-input" type="date" id="dtTargetDateInput" title="Target payoff date (optional)" value="' + escapeHtml(d.targetPayoffDate) + '" />' +
+        '<select class="edit-select" id="dtOwnerInput"><option value=""' + (d.owner === "" ? " selected" : "") + '>Unassigned</option><option value="me"' + (d.owner === "me" ? " selected" : "") + '>1 · ' + escapeHtml(USER_DISPLAY_NAME) + '</option><option value="partner"' + (d.owner === "partner" ? " selected" : "") + '>2 · ' + escapeHtml(PARTNER_DISPLAY_NAME) + '</option></select>' +
+        '<button class="small-btn" id="dtSaveBtn" style="background:#D9667A;">' + (isNew ? "Add" : "Save") + '</button>' +
+        '<button class="link-btn" id="dtCancelBtn" style="color:var(--text-2);">Cancel</button>' +
+      "</div>" +
+    "</div>";
+  }
+  function wireDebtForm() {
+    var nameInput = document.getElementById("dtNameInput");
+    if (!nameInput) return;
+    var fields = [
+      ["dtNameInput", "name"], ["dtBalanceInput", "balance"], ["dtOriginalInput", "originalBalance"],
+      ["dtMinPaymentInput", "minPayment"], ["dtRateInput", "interestRate"], ["dtTargetDateInput", "targetPayoffDate"]
+    ];
+    fields.forEach(function (f) {
+      var el = document.getElementById(f[0]);
+      el.addEventListener("input", function (e) { debtDraft[f[1]] = e.target.value; });
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter") commitDebtEdit(); if (e.key === "Escape") cancelDebtEdit(); });
+    });
+    document.getElementById("dtOwnerInput").addEventListener("change", function (e) { debtDraft.owner = e.target.value; });
+    document.getElementById("dtSaveBtn").addEventListener("click", commitDebtEdit);
+    document.getElementById("dtCancelBtn").addEventListener("click", cancelDebtEdit);
+    nameInput.focus();
+  }
+  function handleStartNewDebt() {
+    debtEditId = "__new__";
+    debtDraft = { name: "", balance: "", originalBalance: "", minPayment: "", interestRate: "", targetPayoffDate: "", owner: "" };
+    renderDebtSection();
+  }
+  function handleStartEditDebt(id) {
+    var d = (data.debts || []).find(function (dd) { return dd.id === id; });
+    if (!d) return;
+    debtEditId = id;
+    debtDraft = {
+      name: d.name, balance: d.balance === "" || d.balance == null ? "" : String(d.balance),
+      originalBalance: d.originalBalance === "" || d.originalBalance == null ? "" : String(d.originalBalance),
+      minPayment: d.minPayment === "" || d.minPayment == null ? "" : String(d.minPayment),
+      interestRate: d.interestRate === "" || d.interestRate == null ? "" : String(d.interestRate),
+      targetPayoffDate: d.targetPayoffDate || "", owner: d.owner || ""
+    };
+    renderDebtSection();
+  }
+  function cancelDebtEdit() { debtEditId = null; renderDebtSection(); }
+  function commitDebtEdit() {
+    var name = debtDraft.name.trim();
+    if (!name) return;
+    var fields = {
+      name: name,
+      balance: debtDraft.balance === "" || isNaN(Number(debtDraft.balance)) ? 0 : Number(debtDraft.balance),
+      originalBalance: debtDraft.originalBalance === "" || isNaN(Number(debtDraft.originalBalance)) ? "" : Number(debtDraft.originalBalance),
+      minPayment: debtDraft.minPayment === "" || isNaN(Number(debtDraft.minPayment)) ? "" : Number(debtDraft.minPayment),
+      interestRate: debtDraft.interestRate === "" || isNaN(Number(debtDraft.interestRate)) ? "" : Number(debtDraft.interestRate),
+      targetPayoffDate: debtDraft.targetPayoffDate || "",
+      owner: debtDraft.owner || ""
+    };
+    if (debtEditId === "__new__") {
+      data.debts.push(Object.assign({ id: uid() }, fields));
+    } else {
+      var d = (data.debts || []).find(function (dd) { return dd.id === debtEditId; });
+      if (d) Object.assign(d, fields);
+    }
+    debtEditId = null;
+    save();
+    renderDebtSection();
+  }
+  function handleDeleteDebt(id) {
+    data.debts = (data.debts || []).filter(function (d) { return d.id !== id; });
+    if (debtEditId === id) debtEditId = null;
+    save();
+    renderDebtSection();
+  }
+  function renderDebtSection() {
+    if (!cfg.showSavingsGoal) return;
+    var totalEl = document.getElementById("dtTotalAmount");
+    var listEl = document.getElementById("dtDebtsList");
+    var formEl = document.getElementById("dtDebtForm");
+    if (!totalEl || !listEl || !formEl) return;
+    totalEl.textContent = formatCurrency(getTotalDebt());
+
+    var debts = data.debts || [];
+    var debtsHtml = debts.map(function (d) {
+      if (debtEditId === d.id) return renderDebtFormHtml(false);
+      var balance = Number(d.balance) || 0;
+      var original = Number(d.originalBalance) || 0;
+      var ownerBadge = d.owner ? '<span class="mono" style="color:var(--text-2);font-size:11px;border:1px solid #2A313A;border-radius:999px;padding:2px 7px;flex-shrink:0;">' + (d.owner === "me" ? "1" : "2") + '</span>' : "";
+      var progressHtml = "";
+      if (original > 0) {
+        var pctPaid = Math.min(100, Math.max(0, ((original - balance) / original) * 100));
+        progressHtml = '<div class="gauge-track" style="margin-top:8px;"><div class="gauge-fill" style="width:' + pctPaid + '%;background:linear-gradient(90deg,#5BAE7A,#5BAE7Acc);box-shadow:0 0 14px #5BAE7A55;"></div></div>' +
+          '<div style="color:var(--text-2);font-size:11px;margin-top:4px;">' + Math.round(pctPaid) + '% paid off · ' + formatCurrency(original - balance) + ' of ' + formatCurrency(original) + '</div>';
+      }
+      var metaBits = [];
+      if (d.minPayment !== "" && d.minPayment != null) metaBits.push(formatCurrency(d.minPayment) + " min/mo");
+      if (d.interestRate !== "" && d.interestRate != null) metaBits.push(d.interestRate + "% APR");
+      var planHtml = d.targetPayoffDate
+        ? renderDebtPlanHtml(computeDebtPlan(d), "#D9667A")
+        : '<div style="margin-top:8px;"><button class="link-btn" data-action="edit-debt" data-id="' + d.id + '" style="color:var(--text-2);font-size:12px;">Set a target payoff date to see a per-paycheck plan</button></div>';
+      return '<div style="border:1px solid var(--border-2, #2A313A);border-radius:10px;padding:12px;margin-bottom:10px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">' +
+          '<span style="color:var(--text-1);font-weight:600;font-size:14px;">' + escapeHtml(d.name) + "</span>" +
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+            ownerBadge +
+            '<span class="mono" style="color:#D9667A;font-size:13px;">' + formatCurrency(balance) + "</span>" +
+            '<button class="icon-btn" data-action="edit-debt" data-id="' + d.id + '" title="Edit">✎</button>' +
+            '<button class="icon-btn" data-action="delete-debt" data-id="' + d.id + '" title="Delete">✕</button>' +
+          "</div>" +
+        "</div>" +
+        (metaBits.length ? '<div style="color:var(--text-2);font-size:12px;">' + metaBits.join(" · ") + "</div>" : "") +
+        progressHtml +
+        planHtml +
+      "</div>";
+    }).join("");
+
+    listEl.innerHTML = debtsHtml || '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">No debts tracked yet — add one below.</div>';
+    var actionBtns = listEl.querySelectorAll("[data-action]");
+    for (var i = 0; i < actionBtns.length; i++) {
+      actionBtns[i].addEventListener("click", function (e) {
+        var action = e.currentTarget.getAttribute("data-action");
+        var id = e.currentTarget.getAttribute("data-id");
+        if (action === "edit-debt") handleStartEditDebt(id);
+        else if (action === "delete-debt") handleDeleteDebt(id);
+      });
+    }
+
+    formEl.innerHTML = debtEditId === "__new__" ? renderDebtFormHtml(true) : "";
+    if (debtEditId === "__new__" || debts.some(function (d) { return d.id === debtEditId; })) wireDebtForm();
+
+    var addBtn2 = document.getElementById("dtAddDebtBtn");
+    if (addBtn2) addBtn2.style.display = debtEditId ? "none" : "";
   }
 
   function personLabel(p) { return p === "partner" ? PARTNER_DISPLAY_NAME : USER_DISPLAY_NAME; }
@@ -3886,6 +4084,7 @@ async function renderSpendTab(root, cfg) {
   function renderDynamic() {
     renderGauge();
     renderSavingsGoalsSection();
+    renderDebtSection();
     renderBeforePayFor("me");
     renderBeforePayFor("partner");
     renderChips();
@@ -3969,7 +4168,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true };
     savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
@@ -4014,8 +4213,99 @@ async function renderSpendTab(root, cfg) {
     URL.revokeObjectURL(url);
   }
 
+  // Parses CSV text (handles quoted fields with embedded commas/quotes/newlines,
+  // the same escaping csvEscape above produces) into an array of row arrays.
+  function parseCsv(text) {
+    var rows = [];
+    var row = [];
+    var field = "";
+    var inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        row.push(field); field = "";
+      } else if (c === "\r") {
+        // skip — a paired \n below ends the row
+      } else if (c === "\n") {
+        row.push(field); rows.push(row); row = []; field = "";
+      } else {
+        field += c;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+  function categoryIdByLabel(label) {
+    var found = cfg.categories.find(function (c) { return c.label.toLowerCase() === String(label || "").trim().toLowerCase(); });
+    return found ? found.id : cfg.categories[cfg.categories.length - 1].id;
+  }
+  function ownerIdByLabel(label) {
+    var l = String(label || "").trim().toLowerCase();
+    if (l === USER_DISPLAY_NAME.toLowerCase()) return "me";
+    if (l === PARTNER_DISPLAY_NAME.toLowerCase()) return "partner";
+    return "";
+  }
+  // Merge-by-name import: a row whose name matches an existing (non-savings)
+  // bill updates it in place; anything unmatched is added as a new bill.
+  // Bills not mentioned in the file are left untouched — the complement to
+  // Export CSV, for round-tripping through an external editor (e.g. asking
+  // Claude to clean up the exported file) without wiping anything the file
+  // doesn't happen to mention.
+  function importBudgetCsv(text) {
+    var clean = String(text || "");
+    if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1); // strip a UTF-8 BOM if present
+    var rows = parseCsv(clean);
+    var startIdx = rows.length && String(rows[0][0] || "").trim().toLowerCase() === "category" ? 1 : 0;
+    var updated = 0, added = 0;
+    for (var i = startIdx; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !r.some(function (v) { return v && v.trim(); })) continue;
+      var name = (r[1] || "").trim();
+      if (!name) continue;
+      var dueDayRaw = (r[2] || "").trim();
+      var amountRaw = (r[3] || "").trim();
+      var fields = {
+        category: categoryIdByLabel(r[0]),
+        name: name,
+        dueDay: dueDayRaw === "" || isNaN(Number(dueDayRaw)) ? "" : Number(dueDayRaw),
+        amount: amountRaw === "" || isNaN(Number(amountRaw)) ? 0 : Number(amountRaw),
+        notes: (r[4] || "").trim(),
+        owner: ownerIdByLabel(r[5]),
+        paidOn: (r[6] || "").trim()
+      };
+      var existing = data.items.find(function (it) { return it.category !== "savings" && it.name.trim().toLowerCase() === name.toLowerCase(); });
+      if (existing) {
+        Object.assign(existing, fields, { goalId: existing.goalId || "" });
+        updated++;
+      } else {
+        data.items.push(Object.assign({ id: uid(), goalId: "" }, fields));
+        added++;
+      }
+    }
+    save();
+    renderDynamic();
+    var statusEl = document.getElementById("stImportStatus");
+    if (statusEl) statusEl.textContent = (updated || added) ? ("Imported: " + updated + " updated, " + added + " added.") : "No valid bill rows found in that file.";
+  }
+
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
   document.getElementById("stExportCsvBtn").addEventListener("click", downloadBudgetCsv);
+  document.getElementById("stImportCsvBtn").addEventListener("click", function () { document.getElementById("stImportCsvInput").click(); });
+  document.getElementById("stImportCsvInput").addEventListener("change", function (e) {
+    var file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (ev) { importBudgetCsv(String(ev.target.result || "")); };
+    reader.readAsText(file);
+  });
   document.getElementById("stAddBtn").addEventListener("click", handleAdd);
   ["stName", "stDueDay", "stAmount", "stNotes"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
@@ -4085,6 +4375,7 @@ async function renderSpendTab(root, cfg) {
       reconcileCollapse("beforePay-partner", data.beforePayCollapsed.partner);
       reconcileCollapse("payScheduleColl", data.payScheduleCollapsed);
       reconcileCollapse("plannedColl", data.plannedCollapsed);
+      reconcileCollapse("debtColl", data.debtCollapsed);
     }
   }
   wireCollapseToggle("addExpenseColl", function () { return data.addExpenseCollapsed; }, function (v) { data.addExpenseCollapsed = v; });
@@ -4140,11 +4431,13 @@ async function renderSpendTab(root, cfg) {
     renderGoalPills();
     renderPersonFilterRow();
     document.getElementById("svAddGoalBtn").addEventListener("click", handleStartNewSavingsGoal);
+    document.getElementById("dtAddDebtBtn").addEventListener("click", handleStartNewDebt);
 
     wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
     wireCollapseToggle("beforePay-partner", function () { return data.beforePayCollapsed.partner; }, function (v) { data.beforePayCollapsed.partner = v; });
     wireCollapseToggle("payScheduleColl", function () { return data.payScheduleCollapsed; }, function (v) { data.payScheduleCollapsed = v; });
     wireCollapseToggle("plannedColl", function () { return data.plannedCollapsed; }, function (v) { data.plannedCollapsed = v; });
+    wireCollapseToggle("debtColl", function () { return data.debtCollapsed; }, function (v) { data.debtCollapsed = v; });
   }
 
   syncCollapseUI();
