@@ -3982,34 +3982,23 @@ async function renderSpendTab(root, cfg) {
     syncCollapseUI();
   }
 
-  // Exports every entry (bills + savings + planned purchases) as CSV — easy to
-  // paste/attach into a chat for analysis, or open in a spreadsheet. Kept as
-  // plain CSV rather than Markdown (like Story's export) since the ask here is
-  // analysis/upload, not a human-readable document.
+  // Exports just the actual bill entries as CSV (no savings, no planned
+  // purchases) — easy to paste/attach into a chat for analysis, or open in a
+  // spreadsheet. Kept as plain CSV rather than Markdown (like Story's export)
+  // since the ask here is analysis/upload, not a human-readable document.
   function csvEscape(v) {
     var s = v == null ? "" : String(v);
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   function buildBudgetCsv() {
-    var header = ["Category", "Name", "Due Day", "Amount", "Notes", "Owner", "Goal", "Paid On", "Status"];
-    var rows = data.items.map(function (it) {
+    var header = ["Category", "Name", "Due Day", "Amount", "Notes", "Owner", "Paid On", "Status"];
+    var rows = data.items.filter(function (it) { return it.category !== "savings"; }).map(function (it) {
       var cat = categoryById(cfg.categories, it.category);
       var ownerName = it.owner === "me" ? USER_DISPLAY_NAME : it.owner === "partner" ? PARTNER_DISPLAY_NAME : "";
-      var goalName = "";
-      if (it.category === "savings" && it.goalId) {
-        var g = (data.savingsGoals || []).find(function (gg) { return gg.id === it.goalId; });
-        goalName = g ? g.name : "";
-      }
-      var status = cfg.showSavingsGoal && it.category !== "savings" ? (isCurrentlyPaid(it) ? "Paid" : "Unpaid") : "";
-      return [cat.label, it.name, it.dueDay === "" || it.dueDay == null ? "" : it.dueDay, it.amount, it.notes || "", ownerName, goalName, it.paidOn || "", status];
+      var status = cfg.showSavingsGoal ? (isCurrentlyPaid(it) ? "Paid" : "Unpaid") : "";
+      return [cat.label, it.name, it.dueDay === "" || it.dueDay == null ? "" : it.dueDay, it.amount, it.notes || "", ownerName, it.paidOn || "", status];
     });
-    var plannedRows = [];
-    (data.plannedGroups || []).forEach(function (g) {
-      (g.items || []).forEach(function (it) {
-        plannedRows.push(["Planned: " + g.name, it.name, "", it.amount, "", "", "", "", "Planned"]);
-      });
-    });
-    var lines = [header].concat(rows).concat(plannedRows).map(function (row) { return row.map(csvEscape).join(","); });
+    var lines = [header].concat(rows).map(function (row) { return row.map(csvEscape).join(","); });
     return lines.join("\r\n");
   }
   function downloadBudgetCsv() {
