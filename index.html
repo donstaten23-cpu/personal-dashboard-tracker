@@ -3138,8 +3138,9 @@ async function renderSpendTab(root, cfg) {
 
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
-    '<header style="margin-bottom:20px;">' +
-      '<input id="stTitle" class="name-input serif" aria-label="Title" />' +
+    '<header style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+      '<input id="stTitle" class="name-input serif" aria-label="Title" style="flex:1;min-width:180px;margin-bottom:0;" />' +
+      '<button class="small-btn" id="stExportCsvBtn" style="background:' + cfg.accent + ';flex-shrink:0;">⬇ Export CSV</button>' +
     "</header>" +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
@@ -3981,7 +3982,51 @@ async function renderSpendTab(root, cfg) {
     syncCollapseUI();
   }
 
+  // Exports every entry (bills + savings + planned purchases) as CSV — easy to
+  // paste/attach into a chat for analysis, or open in a spreadsheet. Kept as
+  // plain CSV rather than Markdown (like Story's export) since the ask here is
+  // analysis/upload, not a human-readable document.
+  function csvEscape(v) {
+    var s = v == null ? "" : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function buildBudgetCsv() {
+    var header = ["Category", "Name", "Due Day", "Amount", "Notes", "Owner", "Goal", "Paid On", "Status"];
+    var rows = data.items.map(function (it) {
+      var cat = categoryById(cfg.categories, it.category);
+      var ownerName = it.owner === "me" ? USER_DISPLAY_NAME : it.owner === "partner" ? PARTNER_DISPLAY_NAME : "";
+      var goalName = "";
+      if (it.category === "savings" && it.goalId) {
+        var g = (data.savingsGoals || []).find(function (gg) { return gg.id === it.goalId; });
+        goalName = g ? g.name : "";
+      }
+      var status = cfg.showSavingsGoal && it.category !== "savings" ? (isCurrentlyPaid(it) ? "Paid" : "Unpaid") : "";
+      return [cat.label, it.name, it.dueDay === "" || it.dueDay == null ? "" : it.dueDay, it.amount, it.notes || "", ownerName, goalName, it.paidOn || "", status];
+    });
+    var plannedRows = [];
+    (data.plannedGroups || []).forEach(function (g) {
+      (g.items || []).forEach(function (it) {
+        plannedRows.push(["Planned: " + g.name, it.name, "", it.amount, "", "", "", "", "Planned"]);
+      });
+    });
+    var lines = [header].concat(rows).concat(plannedRows).map(function (row) { return row.map(csvEscape).join(","); });
+    return lines.join("\r\n");
+  }
+  function downloadBudgetCsv() {
+    var blob = new Blob([buildBudgetCsv()], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    var slug = (data.title || cfg.defaultTitle || "budget").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    a.download = (slug || "budget") + "-" + todayISO() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
+  document.getElementById("stExportCsvBtn").addEventListener("click", downloadBudgetCsv);
   document.getElementById("stAddBtn").addEventListener("click", handleAdd);
   ["stName", "stDueDay", "stAmount", "stNotes"].forEach(function (id) {
     document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAdd(); });
