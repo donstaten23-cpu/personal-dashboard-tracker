@@ -4181,23 +4181,32 @@ async function renderSpendTab(root, cfg) {
     syncCollapseUI();
   }
 
-  // Exports just the actual bill entries as CSV (no savings, no planned
+  // Exports bill entries and debts as one CSV (no savings, no planned
   // purchases) — easy to paste/attach into a chat for analysis, or open in a
   // spreadsheet. Kept as plain CSV rather than Markdown (like Story's export)
   // since the ask here is analysis/upload, not a human-readable document.
+  // Bills and debts share one table via a leading Type column rather than
+  // two separate files, since a single round-trip (export → edit → import)
+  // is the whole point and most spreadsheet/chat workflows handle one file
+  // more easily than two. Columns not relevant to a row's Type are left
+  // blank (e.g. a debt row has no Due Day; a bill row has no Min Payment).
   function csvEscape(v) {
     var s = v == null ? "" : String(v);
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   function buildBudgetCsv() {
-    var header = ["Category", "Name", "Due Day", "Amount", "Notes", "Owner", "Paid On", "Status"];
-    var rows = data.items.filter(function (it) { return it.category !== "savings"; }).map(function (it) {
+    var header = ["Type", "Category", "Name", "Due Day", "Amount", "Notes", "Owner", "Paid On", "Status", "Original Balance", "Min Payment", "Interest Rate", "Target Payoff Date"];
+    var billRows = data.items.filter(function (it) { return it.category !== "savings"; }).map(function (it) {
       var cat = categoryById(cfg.categories, it.category);
       var ownerName = it.owner === "me" ? USER_DISPLAY_NAME : it.owner === "partner" ? PARTNER_DISPLAY_NAME : "";
       var status = cfg.showSavingsGoal ? (isCurrentlyPaid(it) ? "Paid" : "Unpaid") : "";
-      return [cat.label, it.name, it.dueDay === "" || it.dueDay == null ? "" : it.dueDay, it.amount, it.notes || "", ownerName, it.paidOn || "", status];
+      return ["Bill", cat.label, it.name, it.dueDay === "" || it.dueDay == null ? "" : it.dueDay, it.amount, it.notes || "", ownerName, it.paidOn || "", status, "", "", "", ""];
     });
-    var lines = [header].concat(rows).map(function (row) { return row.map(csvEscape).join(","); });
+    var debtRows = cfg.showSavingsGoal ? (data.debts || []).map(function (d) {
+      var ownerName = d.owner === "me" ? USER_DISPLAY_NAME : d.owner === "partner" ? PARTNER_DISPLAY_NAME : "";
+      return ["Debt", "", d.name, "", d.balance, "", ownerName, "", "", d.originalBalance === "" || d.originalBalance == null ? "" : d.originalBalance, d.minPayment === "" || d.minPayment == null ? "" : d.minPayment, d.interestRate === "" || d.interestRate == null ? "" : d.interestRate, d.targetPayoffDate || ""];
+    }) : [];
+    var lines = [header].concat(billRows, debtRows).map(function (row) { return row.map(csvEscape).join(","); });
     return lines.join("\r\n");
   }
   function downloadBudgetCsv() {
@@ -4253,46 +4262,82 @@ async function renderSpendTab(root, cfg) {
     return "";
   }
   // Merge-by-name import: a row whose name matches an existing (non-savings)
-  // bill updates it in place; anything unmatched is added as a new bill.
-  // Bills not mentioned in the file are left untouched — the complement to
+  // bill or debt updates it in place; anything unmatched is added as new.
+  // Anything not mentioned in the file is left untouched — the complement to
   // Export CSV, for round-tripping through an external editor (e.g. asking
   // Claude to clean up the exported file) without wiping anything the file
-  // doesn't happen to mention.
+  // doesn't happen to mention. The leading Type column decides which set
+  // (data.items vs data.debts) a row belongs to; blank/unrecognized Type
+  // defaults to Bill.
   function importBudgetCsv(text) {
     var clean = String(text || "");
     if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1); // strip a UTF-8 BOM if present
     var rows = parseCsv(clean);
-    var startIdx = rows.length && String(rows[0][0] || "").trim().toLowerCase() === "category" ? 1 : 0;
-    var updated = 0, added = 0;
+    var firstCell = rows.length ? String(rows[0][0] || "").trim().toLowerCase() : "";
+    var startIdx = (firstCell === "type" || firstCell === "category") ? 1 : 0;
+    var updatedBills = 0, addedBills = 0, updatedDebts = 0, addedDebts = 0;
     for (var i = startIdx; i < rows.length; i++) {
       var r = rows[i];
       if (!r || !r.some(function (v) { return v && v.trim(); })) continue;
-      var name = (r[1] || "").trim();
+      var isDebt = String(r[0] || "").trim().toLowerCase() === "debt";
+
+      if (isDebt) {
+        var dName = (r[2] || "").trim();
+        if (!dName) continue;
+        var balanceRaw = (r[4] || "").trim();
+        var origRaw = (r[9] || "").trim();
+        var minPayRaw = (r[10] || "").trim();
+        var rateRaw = (r[11] || "").trim();
+        var dFields = {
+          name: dName,
+          balance: balanceRaw === "" || isNaN(Number(balanceRaw)) ? 0 : Number(balanceRaw),
+          originalBalance: origRaw === "" || isNaN(Number(origRaw)) ? "" : Number(origRaw),
+          minPayment: minPayRaw === "" || isNaN(Number(minPayRaw)) ? "" : Number(minPayRaw),
+          interestRate: rateRaw === "" || isNaN(Number(rateRaw)) ? "" : Number(rateRaw),
+          targetPayoffDate: (r[12] || "").trim(),
+          owner: ownerIdByLabel(r[6])
+        };
+        if (!data.debts) data.debts = [];
+        var existingDebt = data.debts.find(function (d) { return d.name.trim().toLowerCase() === dName.toLowerCase(); });
+        if (existingDebt) {
+          Object.assign(existingDebt, dFields);
+          updatedDebts++;
+        } else {
+          data.debts.push(Object.assign({ id: uid() }, dFields));
+          addedDebts++;
+        }
+        continue;
+      }
+
+      var name = (r[2] || "").trim();
       if (!name) continue;
-      var dueDayRaw = (r[2] || "").trim();
-      var amountRaw = (r[3] || "").trim();
+      var dueDayRaw = (r[3] || "").trim();
+      var amountRaw = (r[4] || "").trim();
       var fields = {
-        category: categoryIdByLabel(r[0]),
+        category: categoryIdByLabel(r[1]),
         name: name,
         dueDay: dueDayRaw === "" || isNaN(Number(dueDayRaw)) ? "" : Number(dueDayRaw),
         amount: amountRaw === "" || isNaN(Number(amountRaw)) ? 0 : Number(amountRaw),
-        notes: (r[4] || "").trim(),
-        owner: ownerIdByLabel(r[5]),
-        paidOn: (r[6] || "").trim()
+        notes: (r[5] || "").trim(),
+        owner: ownerIdByLabel(r[6]),
+        paidOn: (r[7] || "").trim()
       };
       var existing = data.items.find(function (it) { return it.category !== "savings" && it.name.trim().toLowerCase() === name.toLowerCase(); });
       if (existing) {
         Object.assign(existing, fields, { goalId: existing.goalId || "" });
-        updated++;
+        updatedBills++;
       } else {
         data.items.push(Object.assign({ id: uid(), goalId: "" }, fields));
-        added++;
+        addedBills++;
       }
     }
     save();
     renderDynamic();
     var statusEl = document.getElementById("stImportStatus");
-    if (statusEl) statusEl.textContent = (updated || added) ? ("Imported: " + updated + " updated, " + added + " added.") : "No valid bill rows found in that file.";
+    var parts = [];
+    if (updatedBills || addedBills) parts.push(updatedBills + " bill" + (updatedBills === 1 ? "" : "s") + " updated, " + addedBills + " added");
+    if (updatedDebts || addedDebts) parts.push(updatedDebts + " debt" + (updatedDebts === 1 ? "" : "s") + " updated, " + addedDebts + " added");
+    if (statusEl) statusEl.textContent = parts.length ? ("Imported: " + parts.join("; ") + ".") : "No valid rows found in that file.";
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
