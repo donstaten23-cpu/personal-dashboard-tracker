@@ -4224,11 +4224,12 @@ async function renderSpendTab(root, cfg) {
 
   // Parses CSV text (handles quoted fields with embedded commas/quotes/newlines,
   // the same escaping csvEscape above produces) into an array of row arrays.
-  function parseCsv(text) {
+  function parseCsv(text, delimiter) {
     var rows = [];
     var row = [];
     var field = "";
     var inQuotes = false;
+    var delim = delimiter || ",";
     for (var i = 0; i < text.length; i++) {
       var c = text[i];
       if (inQuotes) {
@@ -4238,7 +4239,7 @@ async function renderSpendTab(root, cfg) {
         } else field += c;
       } else if (c === '"') {
         inQuotes = true;
-      } else if (c === ",") {
+      } else if (c === delim) {
         row.push(field); field = "";
       } else if (c === "\r") {
         // skip — a paired \n below ends the row
@@ -4250,6 +4251,16 @@ async function renderSpendTab(root, cfg) {
     }
     if (field.length || row.length) { row.push(field); rows.push(row); }
     return rows;
+  }
+  // Detects whether the pasted/uploaded text is tab- or comma-delimited by
+  // checking the header line — spreadsheet copy/paste (e.g. from Google
+  // Sheets/Excel) produces tab-separated text even when saved with a .csv
+  // extension, and the app should accept that without the user reformatting.
+  function detectCsvDelimiter(text) {
+    var firstLine = String(text || "").split(/\r\n|\n/, 1)[0] || "";
+    var tabCount = (firstLine.match(/\t/g) || []).length;
+    var commaCount = (firstLine.match(/,/g) || []).length;
+    return tabCount > commaCount ? "\t" : ",";
   }
   function categoryIdByLabel(label) {
     var found = cfg.categories.find(function (c) { return c.label.toLowerCase() === String(label || "").trim().toLowerCase(); });
@@ -4272,7 +4283,7 @@ async function renderSpendTab(root, cfg) {
   function importBudgetCsv(text) {
     var clean = String(text || "");
     if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1); // strip a UTF-8 BOM if present
-    var rows = parseCsv(clean);
+    var rows = parseCsv(clean, detectCsvDelimiter(clean));
     var firstCell = rows.length ? String(rows[0][0] || "").trim().toLowerCase() : "";
     var startIdx = (firstCell === "type" || firstCell === "category") ? 1 : 0;
     var updatedBills = 0, addedBills = 0, updatedDebts = 0, addedDebts = 0;
