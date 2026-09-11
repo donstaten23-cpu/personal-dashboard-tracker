@@ -3157,8 +3157,8 @@ async function renderSpendTab(root, cfg) {
         '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" id="psAmount"></span></div>' +
         '<div id="psGaugeBody"></div>' +
         '<div class="row-gap" style="margin-top:12px;">' +
-          '<input class="small-input" type="number" min="0" step="0.01" id="psSpentInput" placeholder="Spent so far" />' +
-          '<input class="small-input" type="number" min="0" step="0.01" id="psTargetInput" placeholder="Target for period" />' +
+          '<input class="small-input" type="text" inputmode="decimal" id="psSpentInput" placeholder="Spent so far (e.g. 45+12.50)" />' +
+          '<input class="small-input" type="text" inputmode="decimal" id="psTargetInput" placeholder="Target for period" />' +
         "</div>" +
         '<button class="link-btn" id="psResetBtn" style="color:var(--text-2);margin-top:8px;">Start new period (reset spent to $0)</button>'
       )
@@ -4125,6 +4125,31 @@ async function renderSpendTab(root, cfg) {
     if (el) el.value = "";
     renderPeriodSpend();
   }
+  // Lightweight calculator mode for the two pay-period fields: typing an
+  // actual expression (e.g. "45+12.50+8.99") and tabbing away or hitting
+  // Enter replaces it with the computed total. Plain numbers are left
+  // untouched — only strings that look like a real a-op-b expression trigger
+  // evaluation, so normal typing never gets reformatted mid-entry.
+  function looksLikeMathExpression(str) {
+    return /[0-9]\s*[+\-*/]\s*[0-9]/.test(str || "");
+  }
+  function evalMathExpression(str) {
+    var cleaned = String(str || "").trim();
+    if (!cleaned || !/^[0-9+\-*/().\s]+$/.test(cleaned)) return null;
+    try {
+      var result = Function('"use strict"; return (' + cleaned + ')')();
+      return (typeof result === "number" && isFinite(result)) ? Math.round(result * 100) / 100 : null;
+    } catch (e) { return null; }
+  }
+  function commitPeriodSpendField(inputEl, field) {
+    if (!looksLikeMathExpression(inputEl.value)) return;
+    var result = evalMathExpression(inputEl.value);
+    if (result === null) return;
+    inputEl.value = result;
+    data.periodSpend[field] = result;
+    save();
+    renderPeriodSpend();
+  }
 
   function renderDynamic() {
     renderGauge();
@@ -4572,6 +4597,11 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("psTargetInput").value = data.periodSpend.target;
     document.getElementById("psSpentInput").addEventListener("input", function (e) { data.periodSpend.spent = e.target.value; save(); renderPeriodSpend(); });
     document.getElementById("psTargetInput").addEventListener("input", function (e) { data.periodSpend.target = e.target.value; save(); renderPeriodSpend(); });
+    document.getElementById("psSpentInput").addEventListener("blur", function (e) { commitPeriodSpendField(e.target, "spent"); });
+    document.getElementById("psTargetInput").addEventListener("blur", function (e) { commitPeriodSpendField(e.target, "target"); });
+    [document.getElementById("psSpentInput"), document.getElementById("psTargetInput")].forEach(function (el) {
+      el.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+    });
     document.getElementById("psResetBtn").addEventListener("click", handleResetPeriodSpend);
 
     wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
