@@ -3045,16 +3045,18 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [] });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { spent: "", target: "" } });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
   if (!data.debts) data.debts = [];
+  if (!data.periodSpend) data.periodSpend = { spent: "", target: "" };
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
   if (data.addExpenseCollapsed === undefined) data.addExpenseCollapsed = true;
   if (data.debtCollapsed === undefined) data.debtCollapsed = true;
+  if (data.periodSpendCollapsed === undefined) data.periodSpendCollapsed = false;
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
@@ -3149,6 +3151,18 @@ async function renderSpendTab(root, cfg) {
       '<input type="file" id="stImportCsvInput" accept=".csv,text/csv" style="display:none;" />' +
     "</header>" +
     '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;margin-bottom:16px;min-height:14px;"></div>' +
+    (cfg.showSavingsGoal ?
+      collapseCard("SPENDING THIS PAY PERIOD", "periodSpendColl", !data.periodSpendCollapsed,
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">A quick manual tracker for one 2-week stretch — just two numbers, no itemized transactions. Update “Spent” as you go, then reset when the next period starts.</div>' +
+        '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" id="psAmount"></span></div>' +
+        '<div id="psGaugeBody"></div>' +
+        '<div class="row-gap" style="margin-top:12px;">' +
+          '<input class="small-input" type="number" min="0" step="0.01" id="psSpentInput" placeholder="Spent so far" />' +
+          '<input class="small-input" type="number" min="0" step="0.01" id="psTargetInput" placeholder="Target for period" />' +
+        "</div>" +
+        '<button class="link-btn" id="psResetBtn" style="color:var(--text-2);margin-top:8px;">Start new period (reset spent to $0)</button>'
+      )
+    : "") +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
         collapseCard("BEFORE " + USER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-me", true, '<div id="beforePayContent-me"></div>') +
@@ -4081,8 +4095,40 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("stFooterTotal").textContent = formatCurrency(totalSpent);
   }
 
+  // Manual pay-period spending tracker — two raw numbers the user types in
+  // themselves (not derived from the item list below), for a quick "am I on
+  // track this stretch" read without itemizing every purchase.
+  function renderPeriodSpend() {
+    if (!cfg.showSavingsGoal) return;
+    var amountEl = document.getElementById("psAmount");
+    var bodyEl = document.getElementById("psGaugeBody");
+    if (!amountEl || !bodyEl) return;
+    var spent = Number(data.periodSpend.spent) || 0;
+    var target = Number(data.periodSpend.target) || 0;
+    if (target > 0) {
+      var pct = Math.min(100, (spent / target) * 100);
+      var over = spent > target;
+      amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
+      amountEl.textContent = formatCurrency(spent) + " of " + formatCurrency(target) + (over ? " · " + formatCurrency(spent - target) + " over" : "");
+      var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
+      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div>';
+    } else {
+      amountEl.style.color = cfg.accent;
+      amountEl.textContent = formatCurrency(spent);
+      bodyEl.innerHTML = "";
+    }
+  }
+  function handleResetPeriodSpend() {
+    data.periodSpend.spent = "";
+    save();
+    var el = document.getElementById("psSpentInput");
+    if (el) el.value = "";
+    renderPeriodSpend();
+  }
+
   function renderDynamic() {
     renderGauge();
+    renderPeriodSpend();
     renderSavingsGoalsSection();
     renderDebtSection();
     renderBeforePayFor("me");
@@ -4168,13 +4214,17 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { spent: "", target: "" }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: false };
     savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
     editRowId = null;
     confirmReset = false;
     document.getElementById("stTitle").value = data.title;
+    if (cfg.showSavingsGoal) {
+      document.getElementById("psSpentInput").value = "";
+      document.getElementById("psTargetInput").value = "";
+    }
     resetForm();
     renderPayPeriodsList();
     renderDynamic();
@@ -4460,6 +4510,7 @@ async function renderSpendTab(root, cfg) {
       reconcileCollapse("payScheduleColl", data.payScheduleCollapsed);
       reconcileCollapse("plannedColl", data.plannedCollapsed);
       reconcileCollapse("debtColl", data.debtCollapsed);
+      reconcileCollapse("periodSpendColl", data.periodSpendCollapsed);
     }
   }
   wireCollapseToggle("addExpenseColl", function () { return data.addExpenseCollapsed; }, function (v) { data.addExpenseCollapsed = v; });
@@ -4517,11 +4568,18 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("svAddGoalBtn").addEventListener("click", handleStartNewSavingsGoal);
     document.getElementById("dtAddDebtBtn").addEventListener("click", handleStartNewDebt);
 
+    document.getElementById("psSpentInput").value = data.periodSpend.spent;
+    document.getElementById("psTargetInput").value = data.periodSpend.target;
+    document.getElementById("psSpentInput").addEventListener("input", function (e) { data.periodSpend.spent = e.target.value; save(); renderPeriodSpend(); });
+    document.getElementById("psTargetInput").addEventListener("input", function (e) { data.periodSpend.target = e.target.value; save(); renderPeriodSpend(); });
+    document.getElementById("psResetBtn").addEventListener("click", handleResetPeriodSpend);
+
     wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
     wireCollapseToggle("beforePay-partner", function () { return data.beforePayCollapsed.partner; }, function (v) { data.beforePayCollapsed.partner = v; });
     wireCollapseToggle("payScheduleColl", function () { return data.payScheduleCollapsed; }, function (v) { data.payScheduleCollapsed = v; });
     wireCollapseToggle("plannedColl", function () { return data.plannedCollapsed; }, function (v) { data.plannedCollapsed = v; });
     wireCollapseToggle("debtColl", function () { return data.debtCollapsed; }, function (v) { data.debtCollapsed = v; });
+    wireCollapseToggle("periodSpendColl", function () { return data.periodSpendCollapsed; }, function (v) { data.periodSpendCollapsed = v; });
   }
 
   syncCollapseUI();
