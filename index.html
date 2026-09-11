@@ -4348,7 +4348,35 @@ async function renderSpendTab(root, cfg) {
     var parts = [];
     if (updatedBills || addedBills) parts.push(updatedBills + " bill" + (updatedBills === 1 ? "" : "s") + " updated, " + addedBills + " added");
     if (updatedDebts || addedDebts) parts.push(updatedDebts + " debt" + (updatedDebts === 1 ? "" : "s") + " updated, " + addedDebts + " added");
-    if (statusEl) statusEl.textContent = parts.length ? ("Imported: " + parts.join("; ") + ".") : "No valid rows found in that file.";
+    if (!parts.length) {
+      if (statusEl) statusEl.textContent = "No valid rows found in that file.";
+      return;
+    }
+    var summary = "Imported: " + parts.join("; ") + ".";
+    if (statusEl) { statusEl.textContent = summary + " Saving…"; statusEl.style.color = "var(--text-2)"; }
+    // Force the write to Supabase right now and confirm it landed, instead of
+    // relying on the 500ms debounced background save (whose only failure signal
+    // is a console line) — an import is a big, deliberate change and worth
+    // blocking a second on to be sure it synced across devices.
+    if (_saveDebounceTimers[cfg.storageKey]) { clearTimeout(_saveDebounceTimers[cfg.storageKey]); delete _saveDebounceTimers[cfg.storageKey]; }
+    delete _pendingSaves[cfg.storageKey];
+    supabaseClient.from("dashboard_data").upsert({ user_id: currentUserId, tab_key: cfg.storageKey, data: data, updated_at: new Date().toISOString() })
+      .then(function (result) {
+        if (!statusEl) return;
+        if (result && result.error) {
+          statusEl.style.color = "#FF8A5C";
+          statusEl.textContent = summary + " — SYNC FAILED: " + (result.error.message || "unknown error") + ". Your changes are saved on this device; try the import again or reload.";
+          console.error("Budget CSV import save failed", result.error);
+        } else {
+          _markSynced();
+          statusEl.style.color = "#5BAE7A";
+          statusEl.textContent = summary + " ✓ Synced to all devices — reopen Budget on your phone/tablet to see it.";
+        }
+      })
+      .catch(function (e) {
+        if (statusEl) { statusEl.style.color = "#FF8A5C"; statusEl.textContent = summary + " — SYNC ERROR: " + e + ". Saved on this device only."; }
+        console.error("Budget CSV import save exception", e);
+      });
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
