@@ -1567,6 +1567,78 @@ function escapeHtml(s) {
   });
 }
 
+/* ---------------- shared on-screen numeric keypad ----------------
+   A small popup calculator for plain-text amount/expression fields (used by
+   Budget's "Spending This Pay Period" inputs — see periodSpendBodyHtml).
+   Those fields are given inputmode="none" so mobile browsers suppress their
+   own virtual keyboard instead of stacking it under this one; a physical
+   keyboard is untouched, since the field is never made readonly and typing
+   into it directly still works exactly as before. One shared popup element
+   is created lazily and reused across every field that opens it, so this
+   never leaks a new DOM node or listener per page render. */
+var _numKeypadEl = null;
+var _numKeypadTarget = null;
+
+function _buildNumKeypad() {
+  var el = document.createElement("div");
+  el.id = "numKeypadPopup";
+  el.style.cssText = "position:fixed;z-index:1000;display:none;background:var(--bg-card);border:1px solid var(--border-2);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:8px;width:216px;";
+  var rows = [["7", "8", "9", "÷"], ["4", "5", "6", "×"], ["1", "2", "3", "−"], ["C", "0", ".", "+"]];
+  el.innerHTML = rows.map(function (row) {
+    return '<div style="display:flex;gap:6px;margin-bottom:6px;">' +
+      row.map(function (k) {
+        return '<button type="button" class="numkey" data-key="' + k + '" style="flex:1;padding:11px 0;font-size:16px;border-radius:8px;border:1px solid var(--border-2);background:var(--bg);color:var(--text-1);">' + k + "</button>";
+      }).join("") +
+    "</div>";
+  }).join("") +
+    '<div style="display:flex;gap:6px;">' +
+      '<button type="button" class="numkey" data-key="⌫" style="flex:1;padding:11px 0;font-size:16px;border-radius:8px;border:1px solid var(--border-2);background:var(--bg);color:var(--text-1);">⌫</button>' +
+      '<button type="button" class="numkey" data-key="=" style="flex:2;padding:11px 0;font-size:16px;border-radius:8px;border:none;background:var(--accent);color:#12151A;font-weight:700;">=</button>' +
+    "</div>";
+  document.body.appendChild(el);
+  // mousedown (not click) fires before the target field's blur, so tapping a
+  // key never knocks focus off the field mid-entry.
+  el.addEventListener("mousedown", function (e) { e.preventDefault(); });
+  el.addEventListener("click", function (e) {
+    var btn = e.target.closest(".numkey");
+    if (btn) _handleNumKey(btn.getAttribute("data-key"));
+  });
+  return el;
+}
+function _handleNumKey(key) {
+  var inputEl = _numKeypadTarget;
+  if (!inputEl) return;
+  if (key === "=") { inputEl.blur(); closeNumKeypad(); return; } // blur runs the field's own commit/evaluate logic
+  if (key === "C") inputEl.value = "";
+  else if (key === "⌫") inputEl.value = inputEl.value.slice(0, -1);
+  else inputEl.value += ({ "÷": "/", "×": "*", "−": "-" }[key] || key);
+  inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function openNumKeypad(inputEl) {
+  if (!_numKeypadEl) _numKeypadEl = _buildNumKeypad();
+  _numKeypadTarget = inputEl;
+  var rect = inputEl.getBoundingClientRect();
+  var popupWidth = 216, approxHeight = 260;
+  var left = Math.min(Math.max(8, rect.left), window.innerWidth - popupWidth - 8);
+  var top = rect.bottom + 6;
+  if (top + approxHeight > window.innerHeight) top = Math.max(8, rect.top - approxHeight - 6); // flip above if no room below
+  _numKeypadEl.style.left = left + "px";
+  _numKeypadEl.style.top = top + "px";
+  _numKeypadEl.style.display = "block";
+}
+function closeNumKeypad() {
+  if (_numKeypadEl) _numKeypadEl.style.display = "none";
+  _numKeypadTarget = null;
+}
+document.addEventListener("mousedown", function (e) {
+  if (!_numKeypadEl || _numKeypadEl.style.display === "none") return;
+  if (_numKeypadEl.contains(e.target) || e.target === _numKeypadTarget) return;
+  closeNumKeypad();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && _numKeypadTarget) closeNumKeypad();
+});
+
 /* ---------------- chapter rich-text helpers ----------------
    Chapter content is stored as sanitized HTML (allowlist: p/b/i/br only) so
    the writing editor can support real bold/italic + automatic first-line
@@ -3045,18 +3117,30 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { spent: "", target: "" } });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "" }, partner: { spent: "", target: "" } } });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
   if (!data.debts) data.debts = [];
-  if (!data.periodSpend) data.periodSpend = { spent: "", target: "" };
+  // migrate the old single shared periodSpend {spent,target} into a per-person shape.
+  if (data.periodSpend && data.periodSpend.spent !== undefined && !data.periodSpend.me) {
+    data.periodSpend = { me: { spent: data.periodSpend.spent, target: data.periodSpend.target }, partner: { spent: "", target: "" } };
+  }
+  if (!data.periodSpend) data.periodSpend = {};
+  if (!data.periodSpend.me) data.periodSpend.me = { spent: "", target: "" };
+  if (!data.periodSpend.partner) data.periodSpend.partner = { spent: "", target: "" };
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
   if (data.addExpenseCollapsed === undefined) data.addExpenseCollapsed = true;
   if (data.debtCollapsed === undefined) data.debtCollapsed = true;
-  if (data.periodSpendCollapsed === undefined) data.periodSpendCollapsed = false;
+  // migrate the old single shared collapse flag into a per-person shape.
+  if (typeof data.periodSpendCollapsed === "boolean") {
+    data.periodSpendCollapsed = { me: data.periodSpendCollapsed, partner: data.periodSpendCollapsed };
+  }
+  if (!data.periodSpendCollapsed || typeof data.periodSpendCollapsed !== "object") {
+    data.periodSpendCollapsed = { me: false, partner: false };
+  }
 
   // migrate any old-shape items (a literal calendar `date`) into the new
   // recurring `dueDay` (day-of-month) shape this tab now uses.
@@ -3128,6 +3212,31 @@ async function renderSpendTab(root, cfg) {
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
 
+  // inputmode="none" tries to suppress the mobile virtual keyboard on these
+  // two fields so openNumKeypad's popup calculator can take over instead —
+  // but "none" isn't honored by every phone/keyboard, and when it isn't, the
+  // fallback numeric keypad a phone shows never has +/- on it at all. The
+  // quick +/- buttons next to each field are the reliable fix: they work
+  // regardless of which keyboard (native or popup) actually shows up. A
+  // physical keyboard on desktop is unaffected either way.
+  function periodSpendBodyHtml(person) {
+    function fieldRow(inputId, placeholder) {
+      return '<div style="display:flex;gap:4px;flex:1;min-width:150px;">' +
+        '<input class="small-input" type="text" inputmode="none" id="' + inputId + '" placeholder="' + escapeHtml(placeholder) + '" style="flex:1;" />' +
+        '<button type="button" class="small-btn" data-quickop="+" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">+</button>' +
+        '<button type="button" class="small-btn" data-quickop="-" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">−</button>' +
+      "</div>";
+    }
+    return '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">A quick manual tracker for one 2-week stretch — just two numbers, no itemized transactions. Update “Spent” as you go, then reset when the next period starts.</div>' +
+      '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" id="psAmount-' + person + '"></span></div>' +
+      '<div id="psGaugeBody-' + person + '"></div>' +
+      '<div class="row-gap" style="margin-top:12px;">' +
+        fieldRow("psSpentInput-" + person, "Spent so far") +
+        fieldRow("psTargetInput-" + person, "Target for period") +
+      "</div>" +
+      '<button class="link-btn" id="psResetBtn-' + person + '" style="color:var(--text-2);margin-top:8px;">Start new period (reset spent to $0)</button>';
+  }
+
   function collapseCard(headerLabel, toggleKey, startOpen, bodyHtml) {
     return '<div class="card">' +
       '<div class="collapse-header' + (startOpen ? " open" : "") + '" data-collapse-toggle="' + toggleKey + '">' +
@@ -3152,16 +3261,10 @@ async function renderSpendTab(root, cfg) {
     "</header>" +
     '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;margin-bottom:16px;min-height:14px;"></div>' +
     (cfg.showSavingsGoal ?
-      collapseCard("SPENDING THIS PAY PERIOD", "periodSpendColl", !data.periodSpendCollapsed,
-        '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">A quick manual tracker for one 2-week stretch — just two numbers, no itemized transactions. Update “Spent” as you go, then reset when the next period starts.</div>' +
-        '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" id="psAmount"></span></div>' +
-        '<div id="psGaugeBody"></div>' +
-        '<div class="row-gap" style="margin-top:12px;">' +
-          '<input class="small-input" type="text" inputmode="decimal" id="psSpentInput" placeholder="Spent so far (e.g. 45+12.50)" />' +
-          '<input class="small-input" type="text" inputmode="decimal" id="psTargetInput" placeholder="Target for period" />' +
-        "</div>" +
-        '<button class="link-btn" id="psResetBtn" style="color:var(--text-2);margin-top:8px;">Start new period (reset spent to $0)</button>'
-      )
+      '<div class="until-payday-grid">' +
+        collapseCard(USER_DISPLAY_NAME.toUpperCase() + "’S SPENDING THIS PERIOD", "periodSpendColl-me", !data.periodSpendCollapsed.me, periodSpendBodyHtml("me")) +
+        collapseCard(PARTNER_DISPLAY_NAME.toUpperCase() + "’S SPENDING THIS PERIOD", "periodSpendColl-partner", !data.periodSpendCollapsed.partner, periodSpendBodyHtml("partner")) +
+      "</div>"
     : "") +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
@@ -4097,14 +4200,16 @@ async function renderSpendTab(root, cfg) {
 
   // Manual pay-period spending tracker — two raw numbers the user types in
   // themselves (not derived from the item list below), for a quick "am I on
-  // track this stretch" read without itemizing every purchase.
-  function renderPeriodSpend() {
+  // track this stretch" read without itemizing every purchase. Tracked
+  // separately per person so each of you has your own spent/target pair.
+  function renderPeriodSpend(person) {
     if (!cfg.showSavingsGoal) return;
-    var amountEl = document.getElementById("psAmount");
-    var bodyEl = document.getElementById("psGaugeBody");
+    var amountEl = document.getElementById("psAmount-" + person);
+    var bodyEl = document.getElementById("psGaugeBody-" + person);
     if (!amountEl || !bodyEl) return;
-    var spent = Number(data.periodSpend.spent) || 0;
-    var target = Number(data.periodSpend.target) || 0;
+    var pd = data.periodSpend[person];
+    var spent = Number(pd.spent) || 0;
+    var target = Number(pd.target) || 0;
     if (target > 0) {
       var pct = Math.min(100, (spent / target) * 100);
       var over = spent > target;
@@ -4118,14 +4223,14 @@ async function renderSpendTab(root, cfg) {
       bodyEl.innerHTML = "";
     }
   }
-  function handleResetPeriodSpend() {
-    data.periodSpend.spent = "";
+  function handleResetPeriodSpend(person) {
+    data.periodSpend[person].spent = "";
     save();
-    var el = document.getElementById("psSpentInput");
+    var el = document.getElementById("psSpentInput-" + person);
     if (el) el.value = "";
-    renderPeriodSpend();
+    renderPeriodSpend(person);
   }
-  // Lightweight calculator mode for the two pay-period fields: typing an
+  // Lightweight calculator mode for the pay-period fields: typing an
   // actual expression (e.g. "45+12.50+8.99") and tabbing away or hitting
   // Enter replaces it with the computed total. Plain numbers are left
   // untouched — only strings that look like a real a-op-b expression trigger
@@ -4141,19 +4246,20 @@ async function renderSpendTab(root, cfg) {
       return (typeof result === "number" && isFinite(result)) ? Math.round(result * 100) / 100 : null;
     } catch (e) { return null; }
   }
-  function commitPeriodSpendField(inputEl, field) {
+  function commitPeriodSpendField(inputEl, person, field) {
     if (!looksLikeMathExpression(inputEl.value)) return;
     var result = evalMathExpression(inputEl.value);
     if (result === null) return;
     inputEl.value = result;
-    data.periodSpend[field] = result;
+    data.periodSpend[person][field] = result;
     save();
-    renderPeriodSpend();
+    renderPeriodSpend(person);
   }
 
   function renderDynamic() {
     renderGauge();
-    renderPeriodSpend();
+    renderPeriodSpend("me");
+    renderPeriodSpend("partner");
     renderSavingsGoalsSection();
     renderDebtSection();
     renderBeforePayFor("me");
@@ -4239,7 +4345,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { spent: "", target: "" }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: false };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "" }, partner: { spent: "", target: "" } }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: { me: false, partner: false } };
     savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
@@ -4247,8 +4353,10 @@ async function renderSpendTab(root, cfg) {
     confirmReset = false;
     document.getElementById("stTitle").value = data.title;
     if (cfg.showSavingsGoal) {
-      document.getElementById("psSpentInput").value = "";
-      document.getElementById("psTargetInput").value = "";
+      ["me", "partner"].forEach(function (person) {
+        document.getElementById("psSpentInput-" + person).value = "";
+        document.getElementById("psTargetInput-" + person).value = "";
+      });
     }
     resetForm();
     renderPayPeriodsList();
@@ -4535,7 +4643,8 @@ async function renderSpendTab(root, cfg) {
       reconcileCollapse("payScheduleColl", data.payScheduleCollapsed);
       reconcileCollapse("plannedColl", data.plannedCollapsed);
       reconcileCollapse("debtColl", data.debtCollapsed);
-      reconcileCollapse("periodSpendColl", data.periodSpendCollapsed);
+      reconcileCollapse("periodSpendColl-me", data.periodSpendCollapsed.me);
+      reconcileCollapse("periodSpendColl-partner", data.periodSpendCollapsed.partner);
     }
   }
   wireCollapseToggle("addExpenseColl", function () { return data.addExpenseCollapsed; }, function (v) { data.addExpenseCollapsed = v; });
@@ -4593,23 +4702,45 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("svAddGoalBtn").addEventListener("click", handleStartNewSavingsGoal);
     document.getElementById("dtAddDebtBtn").addEventListener("click", handleStartNewDebt);
 
-    document.getElementById("psSpentInput").value = data.periodSpend.spent;
-    document.getElementById("psTargetInput").value = data.periodSpend.target;
-    document.getElementById("psSpentInput").addEventListener("input", function (e) { data.periodSpend.spent = e.target.value; save(); renderPeriodSpend(); });
-    document.getElementById("psTargetInput").addEventListener("input", function (e) { data.periodSpend.target = e.target.value; save(); renderPeriodSpend(); });
-    document.getElementById("psSpentInput").addEventListener("blur", function (e) { commitPeriodSpendField(e.target, "spent"); });
-    document.getElementById("psTargetInput").addEventListener("blur", function (e) { commitPeriodSpendField(e.target, "target"); });
-    [document.getElementById("psSpentInput"), document.getElementById("psTargetInput")].forEach(function (el) {
-      el.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+    ["me", "partner"].forEach(function (person) {
+      var spentInput = document.getElementById("psSpentInput-" + person);
+      var targetInput = document.getElementById("psTargetInput-" + person);
+      spentInput.value = data.periodSpend[person].spent;
+      targetInput.value = data.periodSpend[person].target;
+      spentInput.addEventListener("input", function (e) { data.periodSpend[person].spent = e.target.value; save(); renderPeriodSpend(person); });
+      targetInput.addEventListener("input", function (e) { data.periodSpend[person].target = e.target.value; save(); renderPeriodSpend(person); });
+      spentInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "spent"); closeNumKeypad(); });
+      targetInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "target"); closeNumKeypad(); });
+      [spentInput, targetInput].forEach(function (el) {
+        el.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+        el.addEventListener("focus", function (e) { openNumKeypad(e.target); });
+      });
+      document.getElementById("psResetBtn-" + person).addEventListener("click", function () { handleResetPeriodSpend(person); });
     });
-    document.getElementById("psResetBtn").addEventListener("click", handleResetPeriodSpend);
+    // Quick +/- insert buttons — the reliable fallback when a phone's own
+    // keyboard (whatever it ends up being) has no operator keys at all.
+    // Replaces a trailing operator instead of stacking one on top of another
+    // if you tap +/- twice in a row or change your mind mid-entry.
+    document.querySelectorAll("[data-quickop]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var el = document.getElementById(btn.getAttribute("data-target"));
+        if (!el) return;
+        var op = btn.getAttribute("data-quickop");
+        var val = el.value || "";
+        el.value = /[+\-*/]\s*$/.test(val.trim()) ? val.replace(/[+\-*/]\s*$/, op) : val + op;
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    });
 
     wireCollapseToggle("beforePay-me", function () { return data.beforePayCollapsed.me; }, function (v) { data.beforePayCollapsed.me = v; });
     wireCollapseToggle("beforePay-partner", function () { return data.beforePayCollapsed.partner; }, function (v) { data.beforePayCollapsed.partner = v; });
     wireCollapseToggle("payScheduleColl", function () { return data.payScheduleCollapsed; }, function (v) { data.payScheduleCollapsed = v; });
     wireCollapseToggle("plannedColl", function () { return data.plannedCollapsed; }, function (v) { data.plannedCollapsed = v; });
     wireCollapseToggle("debtColl", function () { return data.debtCollapsed; }, function (v) { data.debtCollapsed = v; });
-    wireCollapseToggle("periodSpendColl", function () { return data.periodSpendCollapsed; }, function (v) { data.periodSpendCollapsed = v; });
+    wireCollapseToggle("periodSpendColl-me", function () { return data.periodSpendCollapsed.me; }, function (v) { data.periodSpendCollapsed.me = v; });
+    wireCollapseToggle("periodSpendColl-partner", function () { return data.periodSpendCollapsed.partner; }, function (v) { data.periodSpendCollapsed.partner = v; });
   }
 
   syncCollapseUI();
