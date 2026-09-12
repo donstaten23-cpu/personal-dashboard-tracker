@@ -1539,6 +1539,18 @@ function formatDateShort(iso) {
   if (isNaN(d.getTime())) return "no date yet";
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
+// Same as formatDateShort but also includes the time — used for the
+// Spending-This-Period entry log, where remembering *when* an amount was
+// added (not just which day) is the whole point.
+function formatDateTimeShort(iso) {
+  if (!iso) return "";
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  var isToday = d.toISOString().slice(0, 10) === todayISO();
+  var datePart = isToday ? "Today" : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  var timePart = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return datePart + " · " + timePart;
+}
 function ordinalDay(n) {
   n = Number(n);
   if (!n || n < 1) return "";
@@ -3117,7 +3129,7 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [] }, partner: { spent: "", target: "", history: [] } } });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } } });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
@@ -3133,6 +3145,18 @@ async function renderSpendTab(root, cfg) {
   // (both fresh trackers and ones created before this existed).
   if (!Array.isArray(data.periodSpend.me.history)) data.periodSpend.me.history = [];
   if (!Array.isArray(data.periodSpend.partner.history)) data.periodSpend.partner.history = [];
+  // migrate: add the itemized entry log to anyone who doesn't have one yet, and
+  // (for existing trackers) fold whatever running total they'd already typed
+  // into "Spent" into a single dated entry so switching to the log doesn't
+  // discard progress already tracked this period.
+  if (!Array.isArray(data.periodSpend.me.entries)) data.periodSpend.me.entries = [];
+  if (!Array.isArray(data.periodSpend.partner.entries)) data.periodSpend.partner.entries = [];
+  ["me", "partner"].forEach(function (p) {
+    var pd = data.periodSpend[p];
+    if (pd.entries.length === 0 && pd.spent !== "" && Number(pd.spent) !== 0) {
+      pd.entries.push({ id: uid(), amount: Number(pd.spent) || 0, addedAt: new Date().toISOString() });
+    }
+  });
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
@@ -3242,11 +3266,15 @@ async function renderSpendTab(root, cfg) {
         '<button type="button" class="small-btn" data-quickop="-" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">−</button>' +
       "</div>";
     }
-    return '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">A quick manual tracker for one 2-week stretch — just two numbers, no itemized transactions. Update “Spent” as you go, then reset when the next period starts.</div>' +
+    return '<div style="color:var(--text-2);font-size:11px;margin-bottom:10px;">A running log for one 2-week stretch — add each purchase as you make it and we\'ll total them up, so you can always see exactly what you added and when. Reset when the next period starts.</div>' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" id="psAmount-' + person + '"></span></div>' +
       '<div id="psGaugeBody-' + person + '"></div>' +
       '<div class="row-gap" style="margin-top:12px;">' +
-        fieldRow("psSpentInput-" + person, "Spent so far") +
+        fieldRow("psEntryAmountInput-" + person, "Amount spent") +
+        '<button type="button" class="small-btn" id="psAddEntryBtn-' + person + '" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
+      "</div>" +
+      '<div id="psEntries-' + person + '" style="margin-top:6px;"></div>' +
+      '<div class="row-gap" style="margin-top:14px;border-top:1px solid var(--border-2);padding-top:12px;">' +
         fieldRow("psTargetInput-" + person, "Target for period") +
       "</div>" +
       '<button class="link-btn" id="psResetBtn-' + person + '" style="color:var(--text-2);margin-top:8px;">Start new period (reset spent to $0)</button>' +
@@ -4214,17 +4242,20 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("stFooterTotal").textContent = formatCurrency(totalSpent);
   }
 
-  // Manual pay-period spending tracker — two raw numbers the user types in
-  // themselves (not derived from the item list below), for a quick "am I on
-  // track this stretch" read without itemizing every purchase. Tracked
-  // separately per person so each of you has your own spent/target pair.
+  // Manual pay-period spending tracker — spent is the sum of every dated
+  // entry logged below (not derived from the item list further down the
+  // page), target is a single number the user sets. Tracked separately per
+  // person so each of you has your own log/target pair.
+  function periodSpentTotal(person) {
+    return (data.periodSpend[person].entries || []).reduce(function (s, e) { return s + (Number(e.amount) || 0); }, 0);
+  }
   function renderPeriodSpend(person) {
     if (!cfg.showSavingsGoal) return;
     var amountEl = document.getElementById("psAmount-" + person);
     var bodyEl = document.getElementById("psGaugeBody-" + person);
     if (!amountEl || !bodyEl) return;
     var pd = data.periodSpend[person];
-    var spent = Number(pd.spent) || 0;
+    var spent = periodSpentTotal(person);
     var target = Number(pd.target) || 0;
     if (target > 0) {
       var pct = Math.min(100, (spent / target) * 100);
@@ -4275,6 +4306,45 @@ async function renderSpendTab(root, cfg) {
     save();
     renderPeriodSpendHistory(person);
   }
+  // The current period's itemized log — every amount added, each stamped
+  // with the date/time it was entered, newest first. This is what "Spent"
+  // above actually sums, so scrolling back through it is how you remember
+  // what you put in instead of just staring at one running total.
+  function renderPeriodEntries(person) {
+    if (!cfg.showSavingsGoal) return;
+    var el = document.getElementById("psEntries-" + person);
+    if (!el) return;
+    var entries = (data.periodSpend[person].entries || []).slice().sort(function (a, b) { return (b.addedAt || "").localeCompare(a.addedAt || ""); });
+    if (!entries.length) { el.innerHTML = ""; return; }
+    el.innerHTML = entries.map(function (e) {
+      return '<div class="weight-log-row"><span style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</span>' +
+        '<span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(e.amount) + '</span>' +
+        '<button class="icon-btn" data-action="delete-period-entry" data-id="' + e.id + '" title="Delete this entry">✕</button></div>';
+    }).join("");
+  }
+  function handleAddPeriodEntry(person) {
+    var inputEl = document.getElementById("psEntryAmountInput-" + person);
+    if (!inputEl) return;
+    var raw = inputEl.value.trim();
+    if (!raw) { inputEl.focus(); return; }
+    var amount = looksLikeMathExpression(raw) ? evalMathExpression(raw) : Number(raw);
+    if (amount === null || amount === undefined || isNaN(amount)) { inputEl.focus(); return; }
+    var pd = data.periodSpend[person];
+    if (!pd.entries) pd.entries = [];
+    pd.entries.push({ id: uid(), amount: amount, addedAt: new Date().toISOString() });
+    save();
+    inputEl.value = "";
+    renderPeriodSpend(person);
+    renderPeriodEntries(person);
+    closeNumKeypad();
+    inputEl.focus();
+  }
+  function handleDeletePeriodEntry(person, id) {
+    data.periodSpend[person].entries = (data.periodSpend[person].entries || []).filter(function (e) { return e.id !== id; });
+    save();
+    renderPeriodSpend(person);
+    renderPeriodEntries(person);
+  }
   // Typing into the Spent/Target fields updates the in-memory model and
   // re-renders the gauge immediately (for responsive feedback), but writing
   // that change to localStorage + Supabase is debounced separately — save()
@@ -4290,17 +4360,20 @@ async function renderSpendTab(root, cfg) {
   }
   function handleResetPeriodSpend(person) {
     var pd = data.periodSpend[person];
+    var totalSpent = periodSpentTotal(person);
     // Only worth logging if something was actually tracked this period —
     // an empty/zero period reset (e.g. clicked by accident) leaves no record.
-    if (pd.spent !== "" && Number(pd.spent) !== 0) {
+    if (totalSpent !== 0) {
       if (!pd.history) pd.history = [];
-      pd.history.push({ id: uid(), date: todayISO(), spent: Number(pd.spent) || 0, target: Number(pd.target) || 0 });
+      pd.history.push({ id: uid(), date: todayISO(), spent: totalSpent, target: Number(pd.target) || 0 });
     }
-    pd.spent = "";
+    pd.entries = [];
+    pd.spent = ""; // legacy field, superseded by entries — kept only so old data shapes still parse
     save();
-    var el = document.getElementById("psSpentInput-" + person);
+    var el = document.getElementById("psEntryAmountInput-" + person);
     if (el) el.value = "";
     renderPeriodSpend(person);
+    renderPeriodEntries(person);
     renderPeriodSpendHistory(person);
   }
   // Lightweight calculator mode for the pay-period fields: typing an
@@ -4333,6 +4406,8 @@ async function renderSpendTab(root, cfg) {
     renderGauge();
     renderPeriodSpend("me");
     renderPeriodSpend("partner");
+    renderPeriodEntries("me");
+    renderPeriodEntries("partner");
     renderPeriodSpendHistory("me");
     renderPeriodSpendHistory("partner");
     renderSavingsGoalsSection();
@@ -4420,7 +4495,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [] }, partner: { spent: "", target: "", history: [] } }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: { me: false, partner: false } };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: { me: false, partner: false } };
     savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
@@ -4429,7 +4504,7 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("stTitle").value = data.title;
     if (cfg.showSavingsGoal) {
       ["me", "partner"].forEach(function (person) {
-        document.getElementById("psSpentInput-" + person).value = "";
+        document.getElementById("psEntryAmountInput-" + person).value = "";
         document.getElementById("psTargetInput-" + person).value = "";
       });
     }
@@ -4778,22 +4853,39 @@ async function renderSpendTab(root, cfg) {
     document.getElementById("dtAddDebtBtn").addEventListener("click", handleStartNewDebt);
 
     ["me", "partner"].forEach(function (person) {
-      var spentInput = document.getElementById("psSpentInput-" + person);
+      var entryInput = document.getElementById("psEntryAmountInput-" + person);
       var targetInput = document.getElementById("psTargetInput-" + person);
-      spentInput.value = data.periodSpend[person].spent;
       targetInput.value = data.periodSpend[person].target;
-      spentInput.addEventListener("input", function (e) { data.periodSpend[person].spent = e.target.value; schedulePeriodSpendSave(); renderPeriodSpend(person); });
+
+      document.getElementById("psAddEntryBtn-" + person).addEventListener("click", function () { handleAddPeriodEntry(person); });
+      entryInput.addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPeriodEntry(person); });
+      // Blur only evaluates a typed expression (e.g. "12+3.50") into a plain
+      // number for the user to double-check — it never adds an entry on its
+      // own, so tapping away mid-thought can't silently log something unintended.
+      entryInput.addEventListener("blur", function (e) {
+        if (looksLikeMathExpression(e.target.value)) {
+          var result = evalMathExpression(e.target.value);
+          if (result !== null) e.target.value = result;
+        }
+        closeNumKeypad();
+      });
+
       targetInput.addEventListener("input", function (e) { data.periodSpend[person].target = e.target.value; schedulePeriodSpendSave(); renderPeriodSpend(person); });
-      spentInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "spent"); closeNumKeypad(); });
       targetInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "target"); closeNumKeypad(); });
-      [spentInput, targetInput].forEach(function (el) {
-        el.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+      targetInput.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+
+      [entryInput, targetInput].forEach(function (el) {
         el.addEventListener("focus", function (e) { openNumKeypad(e.target); });
       });
+
       document.getElementById("psResetBtn-" + person).addEventListener("click", function () { handleResetPeriodSpend(person); });
-      // Delegated on the history container itself (stable across re-renders —
-      // only its innerHTML gets replaced each time) so a fresh listener isn't
-      // needed after every reset/delete.
+      // Delegated on the entries/history containers themselves (stable across
+      // re-renders — only their innerHTML gets replaced each time) so a fresh
+      // listener isn't needed after every add/reset/delete.
+      document.getElementById("psEntries-" + person).addEventListener("click", function (e) {
+        var btn = e.target.closest('[data-action="delete-period-entry"]');
+        if (btn) handleDeletePeriodEntry(person, btn.getAttribute("data-id"));
+      });
       document.getElementById("psHistory-" + person).addEventListener("click", function (e) {
         var btn = e.target.closest('[data-action="delete-period-history"]');
         if (btn) handleDeletePeriodHistory(person, btn.getAttribute("data-id"));
