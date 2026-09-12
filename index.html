@@ -3212,6 +3212,17 @@ async function renderSpendTab(root, cfg) {
   function save() { saveTabData(cfg.storageKey, data); }
   if (migratedAny) save();
 
+  // Shared "$X left to spend before you go over budget" / "$X over budget"
+  // suffix — used by both the overall SPENT SO FAR gauge and each person's
+  // period-spend tracker below, so every amount-vs-target display in Budget
+  // reads the same way.
+  function remainingBudgetSuffix(spent, target) {
+    var remaining = target - spent;
+    return remaining >= 0
+      ? " · " + formatCurrency(remaining) + " left to spend before you go over budget"
+      : " · " + formatCurrency(-remaining) + " over budget";
+  }
+
   // inputmode="none" tries to suppress the mobile virtual keyboard on these
   // two fields so openNumKeypad's popup calculator can take over instead —
   // but "none" isn't honored by every phone/keyboard, and when it isn't, the
@@ -3367,7 +3378,7 @@ async function renderSpendTab(root, cfg) {
       var pct = Math.min(100, (totalSpent / budgetNum) * 100);
       var over = totalSpent > budgetNum;
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
-      amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + (over ? " \u00B7 " + formatCurrency(totalSpent - budgetNum) + " over" : "");
+      amountEl.textContent = formatCurrency(totalSpent) + " of " + formatCurrency(budgetNum) + remainingBudgetSuffix(totalSpent, budgetNum);
       var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
       bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div><button class="link-btn" id="stEditBudget" style="color:var(--text-2);margin-top:6px;">Edit ' + escapeHtml(cfg.goalLabel.toLowerCase()) + '</button>';
       document.getElementById("stEditBudget").addEventListener("click", function () { budgetDraft = String(budgetNum); showBudgetInput = true; renderGauge(); });
@@ -4214,7 +4225,7 @@ async function renderSpendTab(root, cfg) {
       var pct = Math.min(100, (spent / target) * 100);
       var over = spent > target;
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
-      amountEl.textContent = formatCurrency(spent) + " of " + formatCurrency(target) + (over ? " · " + formatCurrency(spent - target) + " over" : "");
+      amountEl.textContent = formatCurrency(spent) + " of " + formatCurrency(target) + remainingBudgetSuffix(spent, target);
       var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
       bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div>';
     } else {
