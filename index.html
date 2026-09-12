@@ -1590,77 +1590,6 @@ function escapeHtml(s) {
   });
 }
 
-/* ---------------- shared on-screen numeric keypad ----------------
-   A small popup calculator for plain-text amount/expression fields (used by
-   Budget's "Spending This Pay Period" inputs — see periodSpendBodyHtml).
-   Those fields are given inputmode="none" so mobile browsers suppress their
-   own virtual keyboard instead of stacking it under this one; a physical
-   keyboard is untouched, since the field is never made readonly and typing
-   into it directly still works exactly as before. One shared popup element
-   is created lazily and reused across every field that opens it, so this
-   never leaks a new DOM node or listener per page render. */
-var _numKeypadEl = null;
-var _numKeypadTarget = null;
-
-function _buildNumKeypad() {
-  var el = document.createElement("div");
-  el.id = "numKeypadPopup";
-  el.style.cssText = "position:fixed;z-index:1000;display:none;background:var(--bg-card);border:1px solid var(--border-2);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:8px;width:216px;";
-  var rows = [["7", "8", "9", "÷"], ["4", "5", "6", "×"], ["1", "2", "3", "−"], ["C", "0", ".", "+"]];
-  el.innerHTML = rows.map(function (row) {
-    return '<div style="display:flex;gap:6px;margin-bottom:6px;">' +
-      row.map(function (k) {
-        return '<button type="button" class="numkey" data-key="' + k + '" style="flex:1;padding:11px 0;font-size:16px;border-radius:8px;border:1px solid var(--border-2);background:var(--bg);color:var(--text-1);">' + k + "</button>";
-      }).join("") +
-    "</div>";
-  }).join("") +
-    '<div style="display:flex;gap:6px;">' +
-      '<button type="button" class="numkey" data-key="⌫" style="flex:1;padding:11px 0;font-size:16px;border-radius:8px;border:1px solid var(--border-2);background:var(--bg);color:var(--text-1);">⌫</button>' +
-      '<button type="button" class="numkey" data-key="=" style="flex:2;padding:11px 0;font-size:16px;border-radius:8px;border:none;background:var(--accent);color:#12151A;font-weight:700;">=</button>' +
-    "</div>";
-  document.body.appendChild(el);
-  // mousedown (not click) fires before the target field's blur, so tapping a
-  // key never knocks focus off the field mid-entry.
-  el.addEventListener("mousedown", function (e) { e.preventDefault(); });
-  el.addEventListener("click", function (e) {
-    var btn = e.target.closest(".numkey");
-    if (btn) _handleNumKey(btn.getAttribute("data-key"));
-  });
-  return el;
-}
-function _handleNumKey(key) {
-  var inputEl = _numKeypadTarget;
-  if (!inputEl) return;
-  if (key === "=") { inputEl.blur(); closeNumKeypad(); return; } // blur runs the field's own commit/evaluate logic
-  if (key === "C") inputEl.value = "";
-  else if (key === "⌫") inputEl.value = inputEl.value.slice(0, -1);
-  else inputEl.value += ({ "÷": "/", "×": "*", "−": "-" }[key] || key);
-  inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-}
-function openNumKeypad(inputEl) {
-  if (!_numKeypadEl) _numKeypadEl = _buildNumKeypad();
-  _numKeypadTarget = inputEl;
-  var rect = inputEl.getBoundingClientRect();
-  var popupWidth = 216, approxHeight = 260;
-  var left = Math.min(Math.max(8, rect.left), window.innerWidth - popupWidth - 8);
-  var top = rect.bottom + 6;
-  if (top + approxHeight > window.innerHeight) top = Math.max(8, rect.top - approxHeight - 6); // flip above if no room below
-  _numKeypadEl.style.left = left + "px";
-  _numKeypadEl.style.top = top + "px";
-  _numKeypadEl.style.display = "block";
-}
-function closeNumKeypad() {
-  if (_numKeypadEl) _numKeypadEl.style.display = "none";
-  _numKeypadTarget = null;
-}
-document.addEventListener("mousedown", function (e) {
-  if (!_numKeypadEl || _numKeypadEl.style.display === "none") return;
-  if (_numKeypadEl.contains(e.target) || e.target === _numKeypadTarget) return;
-  closeNumKeypad();
-});
-document.addEventListener("keydown", function (e) {
-  if (e.key === "Escape" && _numKeypadTarget) closeNumKeypad();
-});
 
 /* ---------------- chapter rich-text helpers ----------------
    Chapter content is stored as sanitized HTML (allowlist: p/b/i/br only) so
@@ -3262,13 +3191,15 @@ async function renderSpendTab(root, cfg) {
       : " · " + formatCurrency(-remaining) + " over budget";
   }
 
-  // inputmode="none" tries to suppress the mobile virtual keyboard on these
-  // two fields so openNumKeypad's popup calculator can take over instead —
-  // but "none" isn't honored by every phone/keyboard, and when it isn't, the
-  // fallback numeric keypad a phone shows never has +/- on it at all. The
-  // quick +/- buttons next to each field are the reliable fix: they work
-  // regardless of which keyboard (native or popup) actually shows up. A
-  // physical keyboard on desktop is unaffected either way.
+  // These fields used to force inputmode="none" plus a custom on-screen
+  // popup keypad, to work around "none" not being honored on every phone —
+  // that indirection (extra DOM node, its own focus/positioning logic) was
+  // itself a plausible source of mobile lag, and each entry becoming its own
+  // line the moment it's added means there's less need for a persistent
+  // calculator UI anyway. inputmode="decimal" just asks for the phone's own
+  // numeric keypad (digits + decimal point) — simpler, and every phone
+  // honors it. The quick +/- buttons cover the one thing a plain decimal
+  // keypad can't do: building a "12+3.50" expression to total up in one go.
   function periodSpendBodyHtml(person) {
     function fieldRow(inputId, placeholder) {
       // autocomplete/autocorrect/autocapitalize/spellcheck all off: on iOS
@@ -3279,7 +3210,7 @@ async function renderSpendTab(root, cfg) {
       // a fixed ~0.2-0.3s per-keystroke lag that's invisible on desktop
       // (no such engine there) no matter how cheap our own JS is.
       return '<div style="display:flex;gap:4px;flex:1;min-width:150px;">' +
-        '<input class="small-input" type="text" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="' + inputId + '" placeholder="' + escapeHtml(placeholder) + '" style="flex:1;" />' +
+        '<input class="small-input" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="' + inputId + '" placeholder="' + escapeHtml(placeholder) + '" style="flex:1;" />' +
         '<button type="button" class="small-btn" data-quickop="+" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">+</button>' +
         '<button type="button" class="small-btn" data-quickop="-" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">−</button>' +
       "</div>";
@@ -4354,7 +4285,6 @@ async function renderSpendTab(root, cfg) {
     inputEl.value = "";
     renderPeriodSpend(person);
     renderPeriodEntries(person);
-    closeNumKeypad();
     inputEl.focus();
   }
   function handleDeletePeriodEntry(person, id) {
@@ -4885,16 +4815,11 @@ async function renderSpendTab(root, cfg) {
           var result = evalMathExpression(e.target.value);
           if (result !== null) e.target.value = result;
         }
-        closeNumKeypad();
       });
 
       targetInput.addEventListener("input", function (e) { data.periodSpend[person].target = e.target.value; schedulePeriodSpendSave(); renderPeriodSpend(person); });
-      targetInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "target"); closeNumKeypad(); });
+      targetInput.addEventListener("blur", function (e) { commitPeriodSpendField(e.target, person, "target"); });
       targetInput.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
-
-      [entryInput, targetInput].forEach(function (el) {
-        el.addEventListener("focus", function (e) { openNumKeypad(e.target); });
-      });
 
       document.getElementById("psResetBtn-" + person).addEventListener("click", function () { handleResetPeriodSpend(person); });
       // Delegated on the entries/history containers themselves (stable across
