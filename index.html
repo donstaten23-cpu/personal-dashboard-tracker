@@ -522,7 +522,18 @@
   .sidebar-item { color: var(--text-1); opacity: .6; }
   .sidebar-item:hover, .sidebar-item.active { background: var(--bg-card); color: var(--text-1); opacity: 1; }
   .sidebar-item.active { border-left-color: var(--page-accent); }
-  .main-content { zoom: var(--content-zoom); }
+  /* Only actually apply CSS zoom when it's been changed from the 1:1 default
+     (see applySettings, which toggles this class) — zoom is a non-standard,
+     notoriously expensive property on mobile Safari/Chrome: with it present
+     on a large subtree, routine things the OS does when a text field gets
+     focus (scrolling the field into view above the keyboard, caret
+     positioning) force the browser to re-layout the *entire* zoomed
+     subtree, which is exactly what made typing into any Budget input feel
+     laggy on mobile even after the field itself did zero work per keystroke.
+     Almost everyone is at the 1 default, so this removes that cost for
+     virtually every visit; it only costs anything for users who've actually
+     turned the zoom slider away from 100%. */
+  .main-content.zoomed { zoom: var(--content-zoom); }
   .card, .list-card, .port-card { background: var(--bg-card); border-color: var(--border-2); }
   .art-cell { background: var(--bg-card); border-color: var(--border-2); }
   .chip { background: var(--bg-card); border-color: var(--border-2); }
@@ -9145,6 +9156,10 @@ function applySettings() {
   r.style.setProperty('--border',       _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
   r.style.setProperty('--border-2',     _settings.borderColor  || SETTINGS_DEFAULTS.borderColor);
   r.style.setProperty('--content-zoom', _settings.contentZoom  || 1);
+  // Only put the (expensive-on-mobile) zoom property on .main-content when it's
+  // actually needed — see the .main-content.zoomed comment in <style> for why.
+  var mainContentEl = document.querySelector('.main-content');
+  if (mainContentEl) mainContentEl.classList.toggle('zoomed', (_settings.contentZoom || 1) !== 1);
   // Card style body class
   document.body.classList.remove('card-flat', 'card-glass');
   if (_settings.cardStyle === 'flat')  document.body.classList.add('card-flat');
