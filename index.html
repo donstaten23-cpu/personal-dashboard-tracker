@@ -3271,8 +3271,15 @@ async function renderSpendTab(root, cfg) {
   // physical keyboard on desktop is unaffected either way.
   function periodSpendBodyHtml(person) {
     function fieldRow(inputId, placeholder) {
+      // autocomplete/autocorrect/autocapitalize/spellcheck all off: on iOS
+      // specifically, a plain text input left to its defaults runs every
+      // keystroke through the system's predictive-text/autocorrect engine
+      // before it draws — for numeric-looking input that's never a real
+      // word, that lookup is pure overhead, and it's a well-known source of
+      // a fixed ~0.2-0.3s per-keystroke lag that's invisible on desktop
+      // (no such engine there) no matter how cheap our own JS is.
       return '<div style="display:flex;gap:4px;flex:1;min-width:150px;">' +
-        '<input class="small-input" type="text" inputmode="none" id="' + inputId + '" placeholder="' + escapeHtml(placeholder) + '" style="flex:1;" />' +
+        '<input class="small-input" type="text" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="' + inputId + '" placeholder="' + escapeHtml(placeholder) + '" style="flex:1;" />' +
         '<button type="button" class="small-btn" data-quickop="+" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">+</button>' +
         '<button type="button" class="small-btn" data-quickop="-" data-target="' + inputId + '" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);width:34px;flex-shrink:0;padding:0;font-size:16px;font-weight:700;">−</button>' +
       "</div>";
