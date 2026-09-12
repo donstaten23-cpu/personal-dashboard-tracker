@@ -4232,7 +4232,19 @@ async function renderSpendTab(root, cfg) {
       amountEl.style.color = over ? "#FF8A5C" : cfg.accent;
       amountEl.textContent = formatCurrency(spent) + " of " + formatCurrency(target) + remainingBudgetSuffix(spent, target);
       var grad = over ? "linear-gradient(90deg,#8a2e18," + cfg.accent + ")" : "linear-gradient(90deg," + cfg.accent + ",color-mix(in srgb, " + cfg.accent + " 80%, transparent))";
-      bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + "%;background:" + grad + ';box-shadow:0 0 14px color-mix(in srgb, ' + cfg.accent + ' 33%, transparent);"></div></div>';
+      // Update the existing gauge-track/fill nodes in place instead of tearing
+      // them down and rebuilding via innerHTML on every keystroke — on mobile,
+      // with the on-screen keyboard open constantly resizing the visual
+      // viewport, that rebuild was the actual source of the typing lag (fine
+      // on desktop, where there's no keyboard-driven layout churn to compete with).
+      var fillEl = bodyEl.querySelector(".gauge-fill");
+      if (!fillEl) {
+        bodyEl.innerHTML = '<div class="gauge-track"><div class="gauge-fill"></div></div>';
+        fillEl = bodyEl.querySelector(".gauge-fill");
+      }
+      fillEl.style.width = pct + "%";
+      fillEl.style.background = grad;
+      fillEl.style.boxShadow = "0 0 14px color-mix(in srgb, " + cfg.accent + " 33%, transparent)";
     } else {
       amountEl.style.color = cfg.accent;
       amountEl.textContent = formatCurrency(spent);
