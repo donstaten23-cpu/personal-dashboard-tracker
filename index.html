@@ -9187,9 +9187,19 @@ function urlBase64ToUint8Array(base64String) {
   return out;
 }
 
-// null = unsupported, false = supported but not subscribed on this device, true = subscribed
+// Returns a diagnostic object rather than a flat true/false/null — the old
+// collapsed shape made "unsupported" and "service worker never activated"
+// look identical in the UI, which is a real problem on a phone: there's no
+// devtools console to check, so the on-screen text has to carry enough
+// detail to tell the two apart (see refreshNotifUI below, which surfaces
+// `reason`/`detail` directly).
+//   { ok: false, reason: 'no-serviceworker' | 'no-pushmanager' | 'not-configured' }
+//   { ok: false, reason: 'sw-error', detail: string }
+//   { ok: true, subscribed: boolean }
 async function getBillReminderSubStatus() {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !VAPID_PUBLIC_KEY) return null;
+  if (!VAPID_PUBLIC_KEY) return { ok: false, reason: "not-configured" };
+  if (!("serviceWorker" in navigator)) return { ok: false, reason: "no-serviceworker" };
+  if (!("PushManager" in window)) return { ok: false, reason: "no-pushmanager" };
   try {
     // navigator.serviceWorker.ready never resolves if the SW registration
     // never activates (e.g. registration failed silently earlier in this
@@ -9197,11 +9207,13 @@ async function getBillReminderSubStatus() {
     // "Checking this device…" forever instead of showing a real status.
     var reg = await Promise.race([
       navigator.serviceWorker.ready,
-      new Promise(function (_, reject) { setTimeout(function () { reject(new Error("sw-timeout")); }, 5000); })
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error("Timed out waiting for the service worker to activate.")); }, 5000); })
     ]);
     var sub = await reg.pushManager.getSubscription();
-    return !!sub;
-  } catch (e) { return null; }
+    return { ok: true, subscribed: !!sub };
+  } catch (e) {
+    return { ok: false, reason: "sw-error", detail: String((e && e.message) || e) };
+  }
 }
 
 async function subscribeToBillReminders(owner) {
@@ -9759,12 +9771,20 @@ async function renderSettingsPage() {
       notifBtn = document.getElementById('settingsNotifToggleBtn');
       notifStatusEl = document.getElementById('settingsNotifStatus');
       if (!notifBtn || !notifStatusEl) return;
-      if (status === null) {
-        notifStatusEl.textContent = VAPID_PUBLIC_KEY
-          ? "This browser doesn't support push notifications."
-          : "Not configured yet — see supabase/functions/send-bill-reminders for setup.";
+      if (!status.ok) {
+        if (status.reason === 'not-configured') {
+          notifStatusEl.textContent = 'Not configured yet — see supabase/functions/send-bill-reminders for setup.';
+        } else if (status.reason === 'no-serviceworker') {
+          notifStatusEl.textContent = "This browser doesn't support service workers, so push notifications aren't possible here.";
+        } else if (status.reason === 'no-pushmanager') {
+          notifStatusEl.textContent = "This browser doesn't support push notifications. On iPhone, make sure you're opening this from the Home Screen icon, not a Safari tab.";
+        } else {
+          // sw-error — surfaced verbatim since there's no devtools console on a phone
+          // to check otherwise. A blank/failed sw.js registration is the usual cause.
+          notifStatusEl.textContent = 'Service worker problem: ' + (status.detail || 'unknown error') + ' — try closing the app fully and reopening it from the Home Screen icon.';
+        }
         notifBtn.style.display = 'none';
-      } else if (status === true) {
+      } else if (status.subscribed) {
         notifStatusEl.textContent = 'Enabled on this device.';
         notifBtn.textContent = 'Disable on this device';
         notifBtn.disabled = false;
@@ -9783,8 +9803,8 @@ async function renderSettingsPage() {
     notifBtn.addEventListener('click', function() {
       notifBtn.disabled = true;
       notifBtn.textContent = 'Working…';
-      getBillReminderSubStatus().then(function(currentlySubscribed) {
-        var action = currentlySubscribed ? unsubscribeFromBillReminders() : subscribeToBillReminders(null);
+      getBillReminderSubStatus().then(function(status) {
+        var action = (status.ok && status.subscribed) ? unsubscribeFromBillReminders() : subscribeToBillReminders(null);
         action.then(function(result) {
           if (!result.ok) alert(result.error || 'Something went wrong.');
           refreshNotifUI();
