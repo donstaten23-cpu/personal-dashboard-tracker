@@ -2244,6 +2244,17 @@ function showDashboardScreen() {
     rtRoot._loaded = true;
     renderRoutinesTab(rtRoot);
   }
+  // Landed here from a bill-reminder notification tap (see the
+  // "bill-reminder-click" listener near the bottom of this file) — jump to
+  // Budget instead of leaving the user wherever they'd normally land.
+  // _defaultPageApplied is forced true so applySettings() (which runs async
+  // once loadSettings() above resolves) doesn't override this by switching
+  // to the user's configured default landing page a moment later.
+  if (_pendingNotifOpenBudget) {
+    _pendingNotifOpenBudget = false;
+    _defaultPageApplied = true;
+    switchPage("budget");
+  }
 }
 
 /* ---------------- Firebase dual sign-in (Story data lives on Firebase; auth
@@ -12068,6 +12079,32 @@ async function addGcalTask() {
 }
 
 /* ---------------- boot ---------------- */
+
+// Bill-reminder notification tap handling (see sw.js's notificationclick):
+// if a tab was already open, the service worker postMessages here directly;
+// if it had to launch a fresh window, it does so with ?open=budget instead,
+// since there's no existing page to message yet. Either way this resolves to
+// "go to Budget" once signed in — see the _pendingNotifOpenBudget check in
+// showDashboardScreen() above.
+var _pendingNotifOpenBudget = new URLSearchParams(window.location.search).get("open") === "budget";
+if (_pendingNotifOpenBudget) {
+  // Strip the query param so reloading/sharing this URL later doesn't keep
+  // re-triggering the jump-to-Budget behavior.
+  history.replaceState(null, "", window.location.pathname);
+}
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "bill-reminder-click") return;
+    if (currentUserId) {
+      _defaultPageApplied = true;
+      switchPage("budget");
+    } else {
+      // Dashboard hasn't finished signing in / rendering yet — defer to the
+      // same check showDashboardScreen() runs once it has.
+      _pendingNotifOpenBudget = true;
+    }
+  });
+}
 
 bootAuth();
 
