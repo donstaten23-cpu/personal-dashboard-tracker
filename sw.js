@@ -116,9 +116,20 @@ self.addEventListener("notificationclick", function (event) {
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
-        if ("focus" in clientList[i]) return clientList[i].focus();
+        var client = clientList[i];
+        if ("focus" in client) {
+          // Focusing an already-open tab alone leaves it on whatever page it
+          // happened to be showing — postMessage tells index.html to jump to
+          // Budget (see the "bill-reminder-click" listener there) so tapping
+          // the notification actually shows the bills it's about.
+          client.focus();
+          if ("postMessage" in client) client.postMessage({ type: "bill-reminder-click" });
+          return client;
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("./index.html");
+      // Nothing open at all — launch fresh with a query param index.html
+      // checks on boot and forwards to Budget once signed in.
+      if (self.clients.openWindow) return self.clients.openWindow("./index.html?open=budget");
     })
   );
 });
