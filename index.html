@@ -9191,7 +9191,14 @@ function urlBase64ToUint8Array(base64String) {
 async function getBillReminderSubStatus() {
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !VAPID_PUBLIC_KEY) return null;
   try {
-    var reg = await navigator.serviceWorker.ready;
+    // navigator.serviceWorker.ready never resolves if the SW registration
+    // never activates (e.g. registration failed silently earlier in this
+    // session) — without a timeout that left the Settings UI stuck on
+    // "Checking this device…" forever instead of showing a real status.
+    var reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error("sw-timeout")); }, 5000); })
+    ]);
     var sub = await reg.pushManager.getSubscription();
     return !!sub;
   } catch (e) { return null; }
