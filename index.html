@@ -3069,7 +3069,7 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
-  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } } });
+  var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], paycheckNotes: "", periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } } });
   if (!data.payPeriods) data.payPeriods = [];
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
@@ -3277,6 +3277,13 @@ async function renderSpendTab(root, cfg) {
         '<div id="payPeriodsList"></div>'
       )
     : "") +
+    (cfg.showSavingsGoal ?
+      '<div class="card">' +
+        '<div class="gauge-top"><span class="gauge-label mono">PAYCHECK NOTES</span></div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Jot notes on upcoming paychecks and how you want to allocate them.</div>' +
+        '<textarea class="form-input" id="stPaycheckNotes" style="min-height:110px;resize:vertical;line-height:1.5;" placeholder="e.g. Oct 3 check: $500 rent, $150 savings, rest to CC payoff"></textarea>' +
+      "</div>"
+    : "") +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
@@ -3340,6 +3347,7 @@ async function renderSpendTab(root, cfg) {
     "</div>";
 
   document.getElementById("stTitle").value = data.title;
+  if (cfg.showSavingsGoal) document.getElementById("stPaycheckNotes").value = data.paycheckNotes || "";
 
   function renderGauge() {
     var totalSpent = data.items.filter(function (it) { return it.category !== "savings"; }).reduce(function (s, it) { return s + (Number(it.amount) || 0); }, 0);
@@ -4443,7 +4451,7 @@ async function renderSpendTab(root, cfg) {
       setTimeout(function () { confirmReset = false; if (document.getElementById("stResetBtn")) { btn.textContent = "Clear this tab"; btn.style.color = "#8A919C"; } }, 4000);
       return;
     }
-    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: { me: false, partner: false } };
+    data = { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedGroups: [], debts: [], paycheckNotes: "", periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } }, beforePayCollapsed: { me: false, partner: false }, plannedCollapsed: true, payScheduleCollapsed: true, addExpenseCollapsed: true, debtCollapsed: true, periodSpendCollapsed: { me: false, partner: false } };
     savingsGoalEditId = null;
     showSelectedOnly = false;
     save();
@@ -4451,6 +4459,7 @@ async function renderSpendTab(root, cfg) {
     confirmReset = false;
     document.getElementById("stTitle").value = data.title;
     if (cfg.showSavingsGoal) {
+      document.getElementById("stPaycheckNotes").value = "";
       ["me", "partner"].forEach(function (person) {
         document.getElementById("psEntryAmountInput-" + person).value = "";
         document.getElementById("psTargetInput-" + person).value = "";
@@ -4661,6 +4670,7 @@ async function renderSpendTab(root, cfg) {
   }
 
   document.getElementById("stTitle").addEventListener("input", function (e) { data.title = e.target.value; save(); });
+  if (cfg.showSavingsGoal) document.getElementById("stPaycheckNotes").addEventListener("input", function (e) { data.paycheckNotes = e.target.value; save(); });
   document.getElementById("stExportCsvBtn").addEventListener("click", downloadBudgetCsv);
   document.getElementById("stImportCsvBtn").addEventListener("click", function () { document.getElementById("stImportCsvInput").click(); });
   document.getElementById("stImportCsvInput").addEventListener("change", function (e) {
