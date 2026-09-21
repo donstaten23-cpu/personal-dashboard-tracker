@@ -6822,10 +6822,9 @@ async function renderWorkoutsTab(root) {
     delete planData.days[dateISO];
     save();
     savePlan();
-    activeSection = "log";
-    viewingWorkoutId = newItem.id;
-    renderSectionPills();
-    renderSection();
+    // Stays on This Week rather than jumping to the Log — checking a day off
+    // just flips its row from "planned" to "logged" in place.
+    renderPlanSection();
   }
 
   function renderPlanSection() {
@@ -6859,7 +6858,7 @@ async function renderWorkoutsTab(root) {
         actions = '<button class="icon-btn" data-action="plan-view" data-id="' + loggedForDay[0].id + '" title="View">›</button>';
       } else if (plan) {
         actions =
-          '<button class="icon-btn" data-action="plan-start" data-date="' + dateISO + '" title="Mark done" style="color:' + accent + ';">✓</button>' +
+          '<input type="checkbox" class="plan-check" data-action="plan-start" data-date="' + dateISO + '" title="Check off as completed" style="width:18px;height:18px;accent-color:' + accent + ';cursor:pointer;margin-right:2px;" />' +
           '<button class="icon-btn" data-action="plan-edit" data-date="' + dateISO + '" title="Edit">✎</button>' +
           '<button class="icon-btn" data-action="plan-remove" data-date="' + dateISO + '" title="Remove">✕</button>';
       } else {
@@ -6929,8 +6928,8 @@ async function renderWorkoutsTab(root) {
         renderPlanSection();
       });
     });
-    bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (btn) {
-      btn.addEventListener("click", function (e) { handleStartPlanned(e.currentTarget.getAttribute("data-date")); });
+    bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (checkbox) {
+      checkbox.addEventListener("change", function (e) { handleStartPlanned(e.currentTarget.getAttribute("data-date")); });
     });
     bodyEl.querySelectorAll("[data-action='plan-view']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
