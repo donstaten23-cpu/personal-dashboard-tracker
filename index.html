@@ -2522,7 +2522,7 @@ var currentPage = "dashboard";
 var PAGE_PRELOAD_KEYS = {
   travel: ["dashboard-travel-data", "dashboard-budget-data"],
   budget: ["dashboard-budget-data"],
-  workouts: ["dashboard-workouts-data", "dashboard-workouts-templates", "dashboard-workouts-splits"],
+  workouts: ["dashboard-workouts-data", "dashboard-workouts-templates", "dashboard-workouts-splits", "dashboard-workouts-plan"],
   chess: ["dashboard-chess-data"],
   story: ["dashboard-story-chapters", "dashboard-story-characters", "dashboard-story-comic", "dashboard-story-moodboard", "dashboard-story-lore", "dashboard-story-locations"],
   portfolio: ["portfolio-content"],
@@ -5768,6 +5768,7 @@ async function renderWorkoutsTab(root) {
   var data = await loadTabData("dashboard-workouts-data", defaultData);
   var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
   var splitsData = await loadTabData("dashboard-workouts-splits", { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
+  var planData = await loadTabData("dashboard-workouts-plan", { days: {} });
   var customExercisesData = await loadCustomExercisesData();
 
   // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
@@ -5816,6 +5817,14 @@ async function renderWorkoutsTab(root) {
   if (!data.dismissedDeloadWeeks) data.dismissedDeloadWeeks = [];
   if (!templatesData.templates) templatesData.templates = [];
   if (!splitsData.days) splitsData.days = { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" };
+  if (!planData.days) planData.days = {};
+  // Plans are only ever useful for the current/upcoming week, so drop anything
+  // that's aged out rather than letting this row grow forever.
+  var _planPruneCutoff = addDaysISO(todayISO(), -14);
+  var _planPrunedAny = false;
+  Object.keys(planData.days).forEach(function (d) {
+    if (d < _planPruneCutoff) { delete planData.days[d]; _planPrunedAny = true; }
+  });
 
   var sortBy = "date";
   var activeCat = "strength";
@@ -5845,11 +5854,17 @@ async function renderWorkoutsTab(root) {
   var templateDraft = null;
   var templateEditId = null;
   var confirmResetTemplates = false;
+  var planEditingDay = null;
+  var planDraftName = "";
+  var planDraftCategory = "strength";
+  var planDraftTemplateId = "";
 
   function save() { saveTabData("dashboard-workouts-data", data); }
   function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
   function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
+  function savePlan() { saveTabData("dashboard-workouts-plan", planData); }
   if (migratedAny || migratedLiftsAny) save();
+  if (_planPrunedAny) savePlan();
 
   // Combined suggestion list for the exercise picker — built-in COMMON_EXERCISES plus
   // whatever the user has added from Settings, de-duped case-insensitively (user additions
@@ -5911,9 +5926,16 @@ async function renderWorkoutsTab(root) {
     var sorted = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
     return sorted.length ? Number(sorted[0].weight) || 0 : 0;
   }
+  // Monday of the calendar week containing today — matches the Mon–Sun order
+  // the recurring Weekly Split already uses, so "This Week" lines up with it.
+  function currentWeekMonday() {
+    var day = new Date(todayISO() + "T00:00:00").getDay(); // 0=Sun..6=Sat
+    return addDaysISO(todayISO(), day === 0 ? -6 : 1 - day);
+  }
 
   var SECTIONS = [
     { id: "log", label: "Log" },
+    { id: "plan", label: "This Week" },
     { id: "templates", label: "Templates" },
     { id: "history", label: "History & PRs" },
     { id: "analysis", label: "Analysis" },
@@ -5945,6 +5967,7 @@ async function renderWorkoutsTab(root) {
 
   function renderSection() {
     if (activeSection === "log") renderLogSection();
+    else if (activeSection === "plan") renderPlanSection();
     else if (activeSection === "templates") renderTemplatesSection();
     else if (activeSection === "history") renderHistorySection();
     else if (activeSection === "analysis") renderAnalysisSection();
@@ -6772,6 +6795,177 @@ async function renderWorkoutsTab(root) {
     bodyEl.addEventListener("keydown", _wkItemKeydown);
     initExerciseCombos(bodyEl);
   }
+  }
+
+  /* ---------------- This Week (plan) section ---------------- */
+
+  // Turns a planned day into a real logged workout, dated for whenever it's
+  // actually being done (today) rather than the day it was originally planned
+  // for — same shape as handleStartFromTemplate above.
+  function handleStartPlanned(dateISO) {
+    var plan = planData.days[dateISO];
+    if (!plan) return;
+    var lifts = [];
+    var tpl = plan.templateId ? (templatesData.templates || []).find(function (t) { return t.id === plan.templateId; }) : null;
+    if (tpl) {
+      lifts = (tpl.lifts || []).map(function (pl) {
+        var setsArr = [];
+        var n = Number(pl.targetSets) || 1;
+        for (var i = 0; i < n; i++) {
+          setsArr.push({ id: uid(), weight: pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight, reps: pl.targetReps === "" || pl.targetReps == null ? "" : pl.targetReps, isWarmup: false });
+        }
+        return { id: uid(), name: pl.name, muscleGroup: pl.muscleGroup, trainingStyles: (pl.trainingStyles || []).slice(), tagSource: pl.tagSource || "auto", sets: setsArr };
+      });
+    }
+    var newItem = { id: uid(), category: plan.category || "strength", name: plan.name, date: todayISO(), duration: "", notes: "", lifts: lifts };
+    data.items.push(newItem);
+    delete planData.days[dateISO];
+    save();
+    savePlan();
+    activeSection = "log";
+    viewingWorkoutId = newItem.id;
+    renderSectionPills();
+    renderSection();
+  }
+
+  function renderPlanSection() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    var dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    var dayLabels = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+    var monday = currentWeekMonday();
+    var weekDates = dayKeys.map(function (dk, i) { return addDaysISO(monday, i); });
+
+    function dayRowHtml(dateISO, dk) {
+      var isToday = dateISO === todayISO();
+      var loggedForDay = data.items.filter(function (it) { return it.date === dateISO; });
+      var plan = planData.days[dateISO];
+      var barColor = "var(--border-2)", glyphColor = "var(--text-3)", glyph = "·", subText;
+
+      if (loggedForDay.length) {
+        var lc = categoryById(WORKOUT_CATEGORIES, loggedForDay[0].category);
+        barColor = lc.color; glyphColor = lc.color; glyph = lc.glyph;
+        subText = loggedForDay.map(function (it) { return escapeHtml(it.name); }).join(", ") + " — logged";
+      } else if (plan) {
+        var pc = categoryById(WORKOUT_CATEGORIES, plan.category);
+        barColor = pc.color; glyphColor = pc.color; glyph = pc.glyph;
+        subText = escapeHtml(plan.name) + " — planned";
+      } else {
+        var hint = splitsData.days[dk];
+        subText = hint ? "Usual split: " + escapeHtml(hint) : "Nothing planned";
+      }
+
+      var actions;
+      if (loggedForDay.length) {
+        actions = '<button class="icon-btn" data-action="plan-view" data-id="' + loggedForDay[0].id + '" title="View">›</button>';
+      } else if (plan) {
+        actions =
+          '<button class="icon-btn" data-action="plan-start" data-date="' + dateISO + '" title="Mark done" style="color:' + accent + ';">✓</button>' +
+          '<button class="icon-btn" data-action="plan-edit" data-date="' + dateISO + '" title="Edit">✎</button>' +
+          '<button class="icon-btn" data-action="plan-remove" data-date="' + dateISO + '" title="Remove">✕</button>';
+      } else {
+        actions = '<button class="icon-btn" data-action="plan-add" data-date="' + dateISO + '" title="Plan a workout">+</button>';
+      }
+
+      return '<div class="item-row"><div class="item-display">' +
+        '<span class="item-bar" style="background:' + barColor + ';"></span>' +
+        '<span class="item-glyph" style="color:' + glyphColor + ';">' + glyph + "</span>" +
+        '<div class="item-main"><div class="item-name">' + dayLabels[dk] + (isToday ? " · Today" : " · " + formatDateShort(dateISO)) + "</div>" +
+        '<div class="item-sub">' + subText + "</div></div>" +
+        '<div class="item-actions">' + actions + "</div>" +
+      "</div></div>";
+    }
+
+    var formHtml = "";
+    if (planEditingDay) {
+      var dIdx = weekDates.indexOf(planEditingDay);
+      var label = dIdx !== -1 ? dayLabels[dayKeys[dIdx]] : formatDateShort(planEditingDay);
+      formHtml = '<div class="card">' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">PLAN — ' + escapeHtml(label.toUpperCase()) + '</div>' +
+        '<div class="pills" id="wkPlanCatPills">' + WORKOUT_CATEGORIES.map(function (c) {
+          var active = c.id === planDraftCategory;
+          return '<button class="pill" data-plan-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
+        }).join("") + "</div>" +
+        (templatesData.templates.length ?
+          '<div class="row-gap" style="flex-wrap:wrap;margin:10px 0;">' + templatesData.templates.map(function (t) {
+            var active = t.id === planDraftTemplateId;
+            return '<button class="pill" data-plan-template="' + t.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(t.name) + "</button>";
+          }).join("") + "</div>" : "") +
+        '<div class="form-row"><span class="exercise-combo-wrap" style="position:relative;flex:1;"><input class="form-input" style="width:100%;" id="wkPlanNameInput" placeholder="Workout name, e.g. Push Day" value="' + escapeHtml(planDraftName) + '" data-exercise-combo="1" /></span></div>' +
+        '<div class="form-actions"><span class="error-text" id="wkPlanError"></span>' +
+          '<button class="link-btn" id="wkPlanCancelBtn" style="color:var(--text-2);">Cancel</button>' +
+          '<button class="add-btn" id="wkPlanSaveBtn" style="background:' + accent + ';">Save Plan</button>' +
+        "</div></div>";
+    }
+
+    bodyEl.innerHTML =
+      '<div style="color:var(--text-3);font-size:12px;margin-bottom:12px;">Plan what you’re training this week. Set your usual recurring split in <a href="#" id="wkPlanSplitLink" style="color:' + accent + ';">Calendar &amp; Splits</a>.</div>' +
+      '<div class="list-card" style="margin-bottom:16px;">' + weekDates.map(function (dISO, i) { return dayRowHtml(dISO, dayKeys[i]); }).join("") + "</div>" +
+      formHtml;
+
+    document.getElementById("wkPlanSplitLink").addEventListener("click", function (e) { e.preventDefault(); activeSection = "calendar"; renderSectionPills(); renderSection(); });
+
+    bodyEl.querySelectorAll("[data-action='plan-add']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        planEditingDay = e.currentTarget.getAttribute("data-date");
+        planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = "";
+        renderPlanSection();
+      });
+    });
+    bodyEl.querySelectorAll("[data-action='plan-edit']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        var d = e.currentTarget.getAttribute("data-date");
+        var plan = planData.days[d];
+        if (!plan) return;
+        planEditingDay = d;
+        planDraftName = plan.name; planDraftCategory = plan.category || "strength"; planDraftTemplateId = plan.templateId || "";
+        renderPlanSection();
+      });
+    });
+    bodyEl.querySelectorAll("[data-action='plan-remove']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        delete planData.days[e.currentTarget.getAttribute("data-date")];
+        if (planEditingDay === e.currentTarget.getAttribute("data-date")) planEditingDay = null;
+        savePlan();
+        renderPlanSection();
+      });
+    });
+    bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) { handleStartPlanned(e.currentTarget.getAttribute("data-date")); });
+    });
+    bodyEl.querySelectorAll("[data-action='plan-view']").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        activeSection = "log";
+        viewingWorkoutId = e.currentTarget.getAttribute("data-id");
+        renderSectionPills();
+        renderSection();
+      });
+    });
+
+    if (planEditingDay) {
+      initExerciseCombos(bodyEl);
+      document.getElementById("wkPlanNameInput").addEventListener("input", function (e) { planDraftName = e.target.value; });
+      bodyEl.querySelectorAll("[data-plan-cat]").forEach(function (btn) {
+        btn.addEventListener("click", function (e) { planDraftCategory = e.currentTarget.getAttribute("data-plan-cat"); renderPlanSection(); });
+      });
+      bodyEl.querySelectorAll("[data-plan-template]").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          var t = templatesData.templates.find(function (tpl) { return tpl.id === e.currentTarget.getAttribute("data-plan-template"); });
+          if (!t) return;
+          planDraftTemplateId = t.id;
+          planDraftName = t.name;
+          planDraftCategory = t.category || planDraftCategory;
+          renderPlanSection();
+        });
+      });
+      document.getElementById("wkPlanCancelBtn").addEventListener("click", function () { planEditingDay = null; renderPlanSection(); });
+      document.getElementById("wkPlanSaveBtn").addEventListener("click", function () {
+        if (!planDraftName.trim()) { document.getElementById("wkPlanError").textContent = "Give it a name first."; return; }
+        planData.days[planEditingDay] = { name: planDraftName.trim(), category: planDraftCategory, templateId: planDraftTemplateId || "" };
+        savePlan();
+        planEditingDay = null;
+        renderPlanSection();
+      });
+    }
   }
 
   /* ---------------- Templates section ---------------- */
