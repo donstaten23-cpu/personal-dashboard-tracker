@@ -3239,6 +3239,7 @@ async function renderSpendTab(root, cfg) {
         fieldRow("psEntryAmountInput-" + person, "Amount spent") +
         '<button type="button" class="small-btn" id="psAddEntryBtn-' + person + '" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
       "</div>" +
+      '<input class="small-input" type="text" autocomplete="off" id="psEntryNoteInput-' + person + '" placeholder="What was it for? (optional)" style="width:100%;margin-top:6px;" />' +
       '<div id="psEntries-' + person + '" style="margin-top:6px;"></div>' +
       '<div class="row-gap" style="margin-top:14px;border-top:1px solid var(--border-2);padding-top:12px;">' +
         fieldRow("psTargetInput-" + person, "Target for period") +
@@ -4291,8 +4292,13 @@ async function renderSpendTab(root, cfg) {
     var entries = (data.periodSpend[person].entries || []).slice().sort(function (a, b) { return (b.addedAt || "").localeCompare(a.addedAt || ""); });
     if (!entries.length) { el.innerHTML = ""; return; }
     el.innerHTML = entries.map(function (e) {
-      return '<div class="weight-log-row"><span style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</span>' +
-        '<span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(e.amount) + '</span>' +
+      return '<div class="weight-log-row">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</div>' +
+          (e.note ? '<div style="color:var(--text-1);font-size:12px;overflow-wrap:anywhere;">' + escapeHtml(e.note) + '</div>' : '') +
+        '</div>' +
+        '<span class="mono" style="color:' + cfg.accent + ';flex-shrink:0;">' + formatCurrency(e.amount) + '</span>' +
+        '<button class="icon-btn" data-action="edit-period-entry-note" data-id="' + e.id + '" title="' + (e.note ? "Edit note" : "Add a note") + '">✎</button>' +
         '<button class="icon-btn" data-action="delete-period-entry" data-id="' + e.id + '" title="Delete this entry">✕</button></div>';
     }).join("");
   }
@@ -4305,12 +4311,24 @@ async function renderSpendTab(root, cfg) {
     if (amount === null || amount === undefined || isNaN(amount)) { inputEl.focus(); return; }
     var pd = data.periodSpend[person];
     if (!pd.entries) pd.entries = [];
-    pd.entries.push({ id: uid(), amount: amount, addedAt: new Date().toISOString() });
+    var noteEl = document.getElementById("psEntryNoteInput-" + person);
+    var note = noteEl ? noteEl.value.trim() : "";
+    pd.entries.push({ id: uid(), amount: amount, note: note, addedAt: new Date().toISOString() });
     save();
     inputEl.value = "";
+    if (noteEl) noteEl.value = "";
     renderPeriodSpend(person);
     renderPeriodEntries(person);
     inputEl.focus();
+  }
+  function handleEditPeriodEntryNote(person, id) {
+    var entry = (data.periodSpend[person].entries || []).find(function (e) { return e.id === id; });
+    if (!entry) return;
+    var next = prompt("What was this " + formatCurrency(entry.amount) + " for?", entry.note || "");
+    if (next === null) return;
+    entry.note = next.trim();
+    save();
+    renderPeriodEntries(person);
   }
   function handleDeletePeriodEntry(person, id) {
     data.periodSpend[person].entries = (data.periodSpend[person].entries || []).filter(function (e) { return e.id !== id; });
@@ -4338,7 +4356,7 @@ async function renderSpendTab(root, cfg) {
     // an empty/zero period reset (e.g. clicked by accident) leaves no record.
     if (totalSpent !== 0) {
       if (!pd.history) pd.history = [];
-      pd.history.push({ id: uid(), date: todayISO(), spent: totalSpent, target: Number(pd.target) || 0 });
+      pd.history.push({ id: uid(), date: todayISO(), spent: totalSpent, target: Number(pd.target) || 0, entries: (pd.entries || []).slice() });
     }
     pd.entries = [];
     pd.spent = ""; // legacy field, superseded by entries — kept only so old data shapes still parse
@@ -4834,6 +4852,7 @@ async function renderSpendTab(root, cfg) {
 
       document.getElementById("psAddEntryBtn-" + person).addEventListener("click", function () { handleAddPeriodEntry(person); });
       entryInput.addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPeriodEntry(person); });
+      document.getElementById("psEntryNoteInput-" + person).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPeriodEntry(person); });
       // Blur only evaluates a typed expression (e.g. "12+3.50") into a plain
       // number for the user to double-check — it never adds an entry on its
       // own, so tapping away mid-thought can't silently log something unintended.
@@ -4853,6 +4872,8 @@ async function renderSpendTab(root, cfg) {
       // re-renders — only their innerHTML gets replaced each time) so a fresh
       // listener isn't needed after every add/reset/delete.
       document.getElementById("psEntries-" + person).addEventListener("click", function (e) {
+        var editBtn = e.target.closest('[data-action="edit-period-entry-note"]');
+        if (editBtn) { handleEditPeriodEntryNote(person, editBtn.getAttribute("data-id")); return; }
         var btn = e.target.closest('[data-action="delete-period-entry"]');
         if (btn) handleDeletePeriodEntry(person, btn.getAttribute("data-id"));
       });
