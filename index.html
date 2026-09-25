@@ -4292,13 +4292,22 @@ async function renderSpendTab(root, cfg) {
     var entries = (data.periodSpend[person].entries || []).slice().sort(function (a, b) { return (b.addedAt || "").localeCompare(a.addedAt || ""); });
     if (!entries.length) { el.innerHTML = ""; return; }
     el.innerHTML = entries.map(function (e) {
+      if (editingPeriodEntry[person] === e.id) {
+        return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
+          '<span style="color:var(--text-2);width:100%;">' + formatDateTimeShort(e.addedAt) + '</span>' +
+          '<input class="small-input" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-entry-edit="amount" value="' + escapeHtml(String(e.amount)) + '" placeholder="Amount" style="width:100px;" />' +
+          '<input class="small-input" type="text" autocomplete="off" data-entry-edit="note" value="' + escapeHtml(e.note || "") + '" placeholder="What was it for?" style="flex:1;min-width:140px;" />' +
+          '<button type="button" class="small-btn" data-action="save-period-entry" data-id="' + e.id + '" style="background:' + cfg.accent + ';">Save</button>' +
+          '<button type="button" class="link-btn" data-action="cancel-period-entry" style="color:var(--text-2);">Cancel</button>' +
+        "</div>";
+      }
       return '<div class="weight-log-row">' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</div>' +
           (e.note ? '<div style="color:var(--text-1);font-size:12px;overflow-wrap:anywhere;">' + escapeHtml(e.note) + '</div>' : '') +
         '</div>' +
         '<span class="mono" style="color:' + cfg.accent + ';flex-shrink:0;">' + formatCurrency(e.amount) + '</span>' +
-        '<button class="icon-btn" data-action="edit-period-entry-note" data-id="' + e.id + '" title="' + (e.note ? "Edit note" : "Add a note") + '">✎</button>' +
+        '<button class="icon-btn" data-action="edit-period-entry" data-id="' + e.id + '" title="Edit amount or note">✎</button>' +
         '<button class="icon-btn" data-action="delete-period-entry" data-id="' + e.id + '" title="Delete this entry">✕</button></div>';
     }).join("");
   }
@@ -4321,13 +4330,33 @@ async function renderSpendTab(root, cfg) {
     renderPeriodEntries(person);
     inputEl.focus();
   }
-  function handleEditPeriodEntryNote(person, id) {
+  // Inline edit for a logged entry — the row swaps to amount + note inputs.
+  // The amount accepts the same "12+3.50" math as the add field.
+  var editingPeriodEntry = { me: null, partner: null };
+  function handleStartEditPeriodEntry(person, id) {
+    editingPeriodEntry[person] = id;
+    renderPeriodEntries(person);
+    var amountEl = document.querySelector("#psEntries-" + person + ' [data-entry-edit="amount"]');
+    if (amountEl) { amountEl.focus(); amountEl.select(); }
+  }
+  function handleCancelEditPeriodEntry(person) {
+    editingPeriodEntry[person] = null;
+    renderPeriodEntries(person);
+  }
+  function handleSavePeriodEntry(person, id) {
     var entry = (data.periodSpend[person].entries || []).find(function (e) { return e.id === id; });
-    if (!entry) return;
-    var next = prompt("What was this " + formatCurrency(entry.amount) + " for?", entry.note || "");
-    if (next === null) return;
-    entry.note = next.trim();
+    var container = document.getElementById("psEntries-" + person);
+    if (!entry || !container) return;
+    var amountEl = container.querySelector('[data-entry-edit="amount"]');
+    var noteEl = container.querySelector('[data-entry-edit="note"]');
+    var raw = amountEl.value.trim();
+    var amount = looksLikeMathExpression(raw) ? evalMathExpression(raw) : Number(raw);
+    if (!raw || amount === null || isNaN(amount)) { amountEl.focus(); return; }
+    entry.amount = amount;
+    entry.note = noteEl.value.trim();
+    editingPeriodEntry[person] = null;
     save();
+    renderPeriodSpend(person);
     renderPeriodEntries(person);
   }
   function handleDeletePeriodEntry(person, id) {
@@ -4359,6 +4388,7 @@ async function renderSpendTab(root, cfg) {
       pd.history.push({ id: uid(), date: todayISO(), spent: totalSpent, target: Number(pd.target) || 0, entries: (pd.entries || []).slice() });
     }
     pd.entries = [];
+    editingPeriodEntry[person] = null;
     pd.spent = ""; // legacy field, superseded by entries — kept only so old data shapes still parse
     save();
     var el = document.getElementById("psEntryAmountInput-" + person);
@@ -4872,10 +4902,18 @@ async function renderSpendTab(root, cfg) {
       // re-renders — only their innerHTML gets replaced each time) so a fresh
       // listener isn't needed after every add/reset/delete.
       document.getElementById("psEntries-" + person).addEventListener("click", function (e) {
-        var editBtn = e.target.closest('[data-action="edit-period-entry-note"]');
-        if (editBtn) { handleEditPeriodEntryNote(person, editBtn.getAttribute("data-id")); return; }
+        var editBtn = e.target.closest('[data-action="edit-period-entry"]');
+        if (editBtn) { handleStartEditPeriodEntry(person, editBtn.getAttribute("data-id")); return; }
+        var saveBtn = e.target.closest('[data-action="save-period-entry"]');
+        if (saveBtn) { handleSavePeriodEntry(person, saveBtn.getAttribute("data-id")); return; }
+        if (e.target.closest('[data-action="cancel-period-entry"]')) { handleCancelEditPeriodEntry(person); return; }
         var btn = e.target.closest('[data-action="delete-period-entry"]');
         if (btn) handleDeletePeriodEntry(person, btn.getAttribute("data-id"));
+      });
+      document.getElementById("psEntries-" + person).addEventListener("keydown", function (e) {
+        if (!e.target.hasAttribute("data-entry-edit")) return;
+        if (e.key === "Enter") { e.preventDefault(); handleSavePeriodEntry(person, editingPeriodEntry[person]); }
+        else if (e.key === "Escape") handleCancelEditPeriodEntry(person);
       });
       document.getElementById("psHistory-" + person).addEventListener("click", function (e) {
         var btn = e.target.closest('[data-action="delete-period-history"]');
