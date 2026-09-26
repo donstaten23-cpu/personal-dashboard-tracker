@@ -2254,6 +2254,11 @@ function showDashboardScreen() {
     _pendingNotifOpenBudget = false;
     _defaultPageApplied = true;
     switchPage("budget");
+  } else if (_initialHashRoute) {
+    // Bookmarked link (e.g. #budget or #workouts/plan) — takes priority over
+    // the user's configured default landing page, same reasoning as above.
+    _defaultPageApplied = true;
+    switchPage(_initialHashRoute.page);
   }
 }
 
@@ -2596,8 +2601,27 @@ function closeSidebar() {
   document.getElementById("sidebarOverlay").classList.remove("open");
 }
 
+// ---------------- URL hash deep-linking ----------------
+// Lets a specific page (and, for pages with their own sub-tabs, a section
+// within it) be bookmarked or shared directly instead of always landing on
+// the dashboard overview. Sections requested via a bookmarked hash are
+// consumed once by the matching page's render function on its first load
+// this session (see renderWorkoutsTab / renderStoryPage).
+function updateUrlHash(page, section) {
+  var hash = "#" + page + (section ? "/" + section : "");
+  if (window.location.hash !== hash) history.replaceState(null, "", hash);
+}
+function parseUrlHash() {
+  var raw = window.location.hash.replace(/^#/, "");
+  if (!raw) return null;
+  var parts = raw.split("/");
+  return { page: parts[0], section: parts[1] || null };
+}
+var _pendingSectionByPage = {};
+
 function switchPage(page) {
   currentPage = page;
+  updateUrlHash(page, null);
   applyPageAccent(page);
   // Toggle pages
   var pages = document.querySelectorAll(".page");
@@ -6001,6 +6025,14 @@ async function renderWorkoutsTab(root) {
     { id: "calendar", label: "Calendar & Splits" }
   ];
 
+  // Landed here via a bookmarked #workouts/<section> link — jump straight to
+  // that section instead of always starting on Log.
+  if (_pendingSectionByPage.workouts) {
+    var _pendingWkSection = _pendingSectionByPage.workouts;
+    delete _pendingSectionByPage.workouts;
+    if (SECTIONS.some(function (s) { return s.id === _pendingWkSection; })) activeSection = _pendingWkSection;
+  }
+
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
@@ -6008,6 +6040,7 @@ async function renderWorkoutsTab(root) {
     '<div id="wkSectionBody"></div>';
 
   function renderSectionPills() {
+    updateUrlHash("workouts", activeSection);
     document.getElementById("wkSectionPills").innerHTML = SECTIONS.map(function (s) {
       var active = s.id === activeSection;
       return '<button class="pill" data-section="' + s.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(s.label) + "</button>";
@@ -7458,6 +7491,14 @@ async function renderStoryPage(root) {
     { id: "moodboard", label: "Moodboard" }
   ];
 
+  // Landed here via a bookmarked #story/<section> link — jump straight to
+  // that section instead of always starting on Chapters.
+  if (_pendingSectionByPage.story) {
+    var _pendingStorySection = _pendingSectionByPage.story;
+    delete _pendingSectionByPage.story;
+    if (SECTIONS.some(function (s) { return s.id === _pendingStorySection; })) activeSection = _pendingStorySection;
+  }
+
   root.innerHTML =
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('story', 'STORY')) + '</div>' +
     '<header style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
@@ -7678,6 +7719,7 @@ async function renderStoryPage(root) {
   }
 
   function renderSectionPills() {
+    updateUrlHash("story", activeSection);
     document.getElementById("storySectionPills").innerHTML = SECTIONS.map(function (s) {
       var active = s.id === activeSection;
       return '<button class="pill" data-section="' + s.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(s.label) + "</button>";
@@ -12344,6 +12386,13 @@ if (_pendingNotifOpenBudget) {
   // re-triggering the jump-to-Budget behavior.
   history.replaceState(null, "", window.location.pathname);
 }
+
+// A bookmarked/shared link like #workouts or #story/characters — landed on
+// once, in showDashboardScreen() below, then left alone (switchPage() keeps
+// the hash in sync with wherever the user navigates from here on).
+var _initialHashRoute = parseUrlHash();
+if (_initialHashRoute && !document.getElementById("page-" + _initialHashRoute.page)) _initialHashRoute = null;
+if (_initialHashRoute && _initialHashRoute.section) _pendingSectionByPage[_initialHashRoute.page] = _initialHashRoute.section;
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", function (event) {
     if (!event.data || event.data.type !== "bill-reminder-click") return;
