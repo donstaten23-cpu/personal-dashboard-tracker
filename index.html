@@ -10894,11 +10894,12 @@ var _jobData    = null;
 var _jobAddMode = false;
 var _jobEditId  = null;
 var _jobStageFilter = 'all';
-// Leads the "Daily Jobs Report" routine pushes in via the job-leads-inbox
-// Edge Function (see supabase/functions/job-leads-inbox) — reviewed here
-// before they become real tracked jobs, rather than landing directly in
-// the main list unreviewed.
+// Leads the "Daily Jobs Report" routine writes to a Google Drive file each
+// day — pulled in by syncJobLeadsFromDrive() (using the same Google
+// connection as Calendar) and reviewed here before becoming real tracked
+// jobs, rather than landing directly in the main list unreviewed.
 var _jobLeadsInbox = null;
+var _jobLeadsSyncTried = false;
 
 var JOB_STAGES = [
   { id: 'saved',     label: 'Saved',     color: '#5A6168' },
@@ -10953,8 +10954,9 @@ async function loadJobData() {
   var def = { jobs: [] };
   _jobData = await loadTabData('jobs-data', def);
   if (!Array.isArray(_jobData.jobs)) _jobData.jobs = [];
-  _jobLeadsInbox = await loadTabData('dashboard-jobs-leads-inbox', { leads: [] });
+  _jobLeadsInbox = await loadTabData('dashboard-jobs-leads-inbox', { leads: [], seenKeys: [] });
   if (!Array.isArray(_jobLeadsInbox.leads)) _jobLeadsInbox.leads = [];
+  if (!Array.isArray(_jobLeadsInbox.seenKeys)) _jobLeadsInbox.seenKeys = [];
 }
 
 function saveJobData() {
@@ -10967,6 +10969,71 @@ function saveJobLeadsInbox() {
   saveTabData('dashboard-jobs-leads-inbox', _jobLeadsInbox);
 }
 
+var JOB_LEADS_DRIVE_FILENAME = "dashboard-job-leads-inbox.json";
+
+function _jobLeadKey(lead) {
+  var link = (lead.link || "").trim();
+  if (link) return "link:" + link.toLowerCase();
+  return "id:" + [lead.title, lead.company, lead.runDate].map(function(v) { return String(v || "").trim().toLowerCase(); }).join("|");
+}
+
+// Finds the Daily Jobs Report routine's leads file in Drive — it's written
+// under a separate Google connection than this app's OAuth client, so
+// drive.readonly (not the narrower drive.file) is what makes it visible here.
+async function _fetchJobLeadsFromDrive() {
+  if (!_gcalToken) return null;
+  try {
+    var q = "name = '" + JOB_LEADS_DRIVE_FILENAME + "' and trashed = false";
+    var listResp = await _gcalAuthedFetch("https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(q) + "&fields=files(id,modifiedTime)&orderBy=modifiedTime desc&pageSize=1");
+    if (!listResp.ok) return null;
+    var listJson = await listResp.json();
+    var file = listJson.files && listJson.files[0];
+    if (!file) return null;
+    var contentResp = await _gcalAuthedFetch("https://www.googleapis.com/drive/v3/files/" + file.id + "?alt=media");
+    if (!contentResp.ok) return null;
+    var body = await contentResp.json();
+    return Array.isArray(body.leads) ? body.leads : null;
+  } catch (e) { return null; }
+}
+
+// Pulls in whatever's currently sitting in that Drive file and merges new
+// entries into the local review inbox, deduped against both what's already
+// in the inbox and everything ever seen before — the routine rewrites that
+// file fresh each run without knowing what this dashboard has already done
+// with a past day's leads, so seenKeys is what stops an imported or
+// dismissed lead from reappearing just because the file still lists it.
+async function syncJobLeadsFromDrive() {
+  if (!currentUserId || !_jobLeadsInbox) return false;
+  var driveLeads = await _fetchJobLeadsFromDrive();
+  if (!driveLeads || !driveLeads.length) return false;
+  var seen = new Set(_jobLeadsInbox.seenKeys);
+  var addedAny = false;
+  driveLeads.forEach(function(lead) {
+    if (!lead || typeof lead !== 'object') return;
+    var key = _jobLeadKey(lead);
+    if (seen.has(key)) return;
+    seen.add(key);
+    _jobLeadsInbox.seenKeys.push(key);
+    _jobLeadsInbox.leads.push({
+      id: uid(),
+      title: lead.title || '',
+      company: lead.company || '',
+      location: lead.location || '',
+      pay: lead.pay || '',
+      link: lead.link || '',
+      fit: lead.fit || '',
+      whyFit: lead.whyFit || '',
+      watchOuts: lead.watchOuts || '',
+      runDate: lead.runDate || ''
+    });
+    addedAny = true;
+  });
+  // Bound how far back we remember rather than growing this forever.
+  if (_jobLeadsInbox.seenKeys.length > 500) _jobLeadsInbox.seenKeys = _jobLeadsInbox.seenKeys.slice(-500);
+  if (addedAny) saveJobLeadsInbox();
+  return addedAny;
+}
+
 async function renderJobsPage() {
   var page = document.getElementById('page-jobs');
   if (!page) return;
@@ -10975,6 +11042,13 @@ async function renderJobsPage() {
   if (!_jobData) {
     inner.innerHTML = skeletonCards(2);
     await loadJobData();
+  }
+
+  // Fire-and-forget, once per session — re-renders itself if it actually
+  // finds something new, so this never blocks the page on a Drive round trip.
+  if (!_jobLeadsSyncTried) {
+    _jobLeadsSyncTried = true;
+    syncJobLeadsFromDrive().then(function(changed) { if (changed) renderJobsPage(); });
   }
 
   var data = _jobData;
@@ -11110,9 +11184,9 @@ async function renderJobsPage() {
       '</div>'
     : '';
 
-  // Leads pushed in by the Daily Jobs Report routine (via the job-leads-inbox
-  // Edge Function), waiting for a human decision before they become real
-  // tracked jobs — see _jobLeadsInbox above.
+  // Leads synced in from the Daily Jobs Report routine's Drive file, waiting
+  // for a human decision before they become real tracked jobs — see
+  // _jobLeadsInbox above.
   var inboxLeads = (_jobLeadsInbox && _jobLeadsInbox.leads) || [];
   var JOB_FIT_COLORS = { A: '#5BAE7A', B: '#D9A441', C: '#5A6168' };
   var leadsInboxHtml = inboxLeads.length === 0 ? '' :
@@ -11564,7 +11638,7 @@ function renderGuidePage() {
         ['dashboard-education-data','Degree program, courses, grades'],
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
-        ['dashboard-jobs-leads-inbox', 'New leads awaiting review, pushed in daily by the job-leads-inbox Edge Function (see below) — cleared as each one is imported or dismissed'],
+        ['dashboard-jobs-leads-inbox', 'New leads awaiting review, synced in daily from a Google Drive file the Daily Jobs Report routine writes (see syncJobLeadsFromDrive) — cleared as each one is imported or dismissed'],
         ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['dashboard-gcal-settings', 'Which calendar IDs are toggled off in the two-week Calendar view'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
@@ -11630,17 +11704,26 @@ function renderGuidePage() {
       '<div style="color:var(--text-2);font-size:13px;margin:12px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Where things live</div>' +
       tbl([
         ['supabase/functions/google-oauth', 'Edge Function: exchanges/refreshes tokens with Google, using the GOOGLE_CLIENT_SECRET function secret. Verifies the caller via their Supabase session JWT before touching any tokens.'],
-        ['supabase/functions/job-leads-inbox', 'Edge Function: lets the Daily Jobs Report routine push new leads into dashboard-jobs-leads-inbox. The caller has no Supabase session, so it authenticates with a shared JOB_LEADS_API_KEY secret (checked against an x-api-key header) instead of a JWT.'],
         ['google_oauth_tokens table',       'Stores each user\'s refresh token. RLS is enabled with zero policies, so only the Edge Function\'s service-role key can read/write it — the browser never sees the refresh token.'],
         ['sessionStorage["gcal-token"]',    'Caches the current short-lived access token client-side so most page loads don\'t need a round trip to the Edge Function.'],
       ]) +
       '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:12px;">On sign-in, <code>initGoogleCalendar()</code> tries the cached token first, then calls the Edge Function\'s <code>refresh</code> action to silently mint a new access token from the stored refresh token — this is what keeps the user connected across reloads without re-authenticating. Every Calendar/Tasks API call goes through <code>_gcalAuthedFetch()</code>, which retries once via a silent refresh on a 401 before giving up and showing the Connect button again.</div>' +
-      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management), <code>tasks</code> (read/write, for the Tasks sync list), and <code>calendar.calendarlist.readonly</code> (lists every calendar on the account for the multi-calendar toggle below) — requested together in one consent screen.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Scopes requested: <code>calendar.events</code> (read/write, for two-way event management), <code>tasks</code> (read/write, for the Tasks sync list), <code>calendar.calendarlist.readonly</code> (lists every calendar on the account for the multi-calendar toggle below), and <code>drive.readonly</code> (reads the Daily Jobs Report routine\'s leads file for the Jobs tab, below) — requested together in one consent screen.</div>' +
       '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Key functions: <code>connectGoogleCalendar()</code> · <code>disconnectGoogleCalendar()</code> · <code>fetchAndRenderCalendarEvents()</code> · <code>fetchAndRenderTasks()</code> · <code>openGcalEventForm()</code> / <code>saveGcalEvent()</code> / <code>deleteGcalEvent()</code> · <code>_callGoogleOAuthFn()</code></div>' +
       '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Events are fetched once for a 14-day window (this week + next, Monday-start) and split into two labeled sections in the UI — no separate call per week.</div>' +
       '<div style="color:var(--text-2);font-size:13px;margin-top:12px;font-weight:700;">Multi-calendar support</div>' +
       '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:4px;">On each fetch, <code>_fetchGcalCalendarList()</code> calls <code>users/me/calendarList</code> to get every calendar on the account, then <code>fetchAndRenderCalendarEvents()</code> fetches events from all of them in parallel and tags each with its calendar\'s id/color. Toggling a calendar chip filters the cached events client-side via <code>_renderGcalEventsFromCache()</code> — no re-fetch needed. Which calendars are hidden is stored in <code>dashboard-gcal-settings</code>.</div>' +
-      '<div style="color:var(--text-2);font-size:13px;margin-top:8px;">Accounts that connected before this feature shipped won\'t have the <code>calendar.calendarlist.readonly</code> scope yet — they silently fall back to primary-only until they Disconnect and Connect again to re-consent.</div>'
+      '<div style="color:var(--text-2);font-size:13px;margin-top:8px;">Accounts that connected before a new scope shipped won\'t have it yet — <code>calendar.calendarlist.readonly</code> falls back to primary-only, <code>drive.readonly</code> means the Jobs tab sync below silently finds nothing — until Disconnect then Connect again to re-consent.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:8px;">See the Job Leads Sync section below for how <code>drive.readonly</code> is used — it\'s a separate feature from Calendar, just riding on the same Google connection.</div>'
+    ) +
+
+    sec('Job Leads Sync (Drive)') +
+    card(
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-bottom:12px;">A scheduled routine ("Daily Jobs Report") searches for new job leads each morning and writes them to a file named <code>' + JOB_LEADS_DRIVE_FILENAME + '</code> in the user\'s Drive, using its own separate Google connection (not this app\'s OAuth client). Because a different app created that file, the narrower <code>drive.file</code> scope wouldn\'t see it — it only covers files a client created itself or the user explicitly opened through it. <code>drive.readonly</code> is broader than ideal, but it\'s the only scope that works across apps like this.</div>' +
+      pre('Routine (its own Google conn.)         Drive                    Browser (this app\'s Google conn.)\n  |--- writes ' + JOB_LEADS_DRIVE_FILENAME + ' ------------->|                                |\n  |                                     |<-- files.list + alt=media ----|\n  |                                     |--- file contents ------------>|') +
+      '<div style="color:var(--text-2);font-size:14px;line-height:1.7;margin-top:12px;"><code>syncJobLeadsFromDrive()</code> runs once per session, the first time the Jobs page is opened (fire-and-forget — it re-renders the page if it finds anything new, but never blocks the initial render on the round trip). It finds the file via <code>_fetchJobLeadsFromDrive()</code>, then merges any leads not already in <code>dashboard-jobs-leads-inbox.seenKeys</code> into <code>.leads</code> for review. <code>seenKeys</code> is what stops a lead from reappearing after it\'s been imported or dismissed — the routine\'s file is rewritten fresh each run with no memory of what this dashboard already did with a past day\'s leads, so the dashboard has to be the one remembering.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">The Jobs tab shows unreviewed leads in a banner above the tracker. <strong style="color:var(--text-1);">Import</strong> turns one into a real tracked job (carrying over fit grade, location, pay, and watch-outs); <strong style="color:var(--text-1);">Dismiss</strong> just removes it from the inbox. Both remove the lead from <code>.leads</code> but leave its key in <code>.seenKeys</code>.</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:12px;">Key functions: <code>syncJobLeadsFromDrive()</code> · <code>_fetchJobLeadsFromDrive()</code> · <code>_jobLeadKey(lead)</code> (dedupe key: the posting link, or title+company+runDate when there\'s no link)</div>'
     ) +
 
     sec('Chess.com Integration') +
@@ -11746,7 +11829,10 @@ var _gcalTokenExpiry = 0;
 var _gcalClient      = null;
 // calendar.calendarlist.readonly lets us list every calendar on the account (for
 // multi-calendar toggling below) — calendar.events alone only covers event CRUD.
-var _gcalScopes      = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.calendarlist.readonly";
+// drive.readonly (broader than drive.file on purpose) lets us read the job-leads
+// file the Daily Jobs Report routine writes with its own separate Google
+// connection — drive.file only sees files *this* OAuth client created itself.
+var _gcalScopes      = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/drive.readonly";
 var _gcalEventsById  = {};
 var _gcalTasksById   = {};
 var _gcalCalendars         = [];   // [{ id, summary, color, primary, accessRole }]
