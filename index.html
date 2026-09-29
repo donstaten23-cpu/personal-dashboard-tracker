@@ -2534,7 +2534,7 @@ var PAGE_PRELOAD_KEYS = {
   art: ["art-content"],
   education: ["education-data"],
   certs: ["certs-data"],
-  jobs: ["jobs-data"],
+  jobs: ["jobs-data", "dashboard-jobs-leads-inbox"],
   guide: ["dashboard-guide-content"]
 };
 var _prefetchedPages = {};
@@ -10894,6 +10894,11 @@ var _jobData    = null;
 var _jobAddMode = false;
 var _jobEditId  = null;
 var _jobStageFilter = 'all';
+// Leads the "Daily Jobs Report" routine pushes in via the job-leads-inbox
+// Edge Function (see supabase/functions/job-leads-inbox) — reviewed here
+// before they become real tracked jobs, rather than landing directly in
+// the main list unreviewed.
+var _jobLeadsInbox = null;
 
 var JOB_STAGES = [
   { id: 'saved',     label: 'Saved',     color: '#5A6168' },
@@ -10948,11 +10953,18 @@ async function loadJobData() {
   var def = { jobs: [] };
   _jobData = await loadTabData('jobs-data', def);
   if (!Array.isArray(_jobData.jobs)) _jobData.jobs = [];
+  _jobLeadsInbox = await loadTabData('dashboard-jobs-leads-inbox', { leads: [] });
+  if (!Array.isArray(_jobLeadsInbox.leads)) _jobLeadsInbox.leads = [];
 }
 
 function saveJobData() {
   if (!currentUserId || !_jobData) return;
   saveTabData('jobs-data', _jobData);
+}
+
+function saveJobLeadsInbox() {
+  if (!currentUserId || !_jobLeadsInbox) return;
+  saveTabData('dashboard-jobs-leads-inbox', _jobLeadsInbox);
 }
 
 async function renderJobsPage() {
@@ -11054,13 +11066,15 @@ async function renderJobsPage() {
         var meta = [];
         if (job.dateApplied) meta.push('Applied ' + formatDateShort(job.dateApplied));
         if (job.salary) meta.push(escapeHtml(job.salary));
+        if (job.location) meta.push(escapeHtml(job.location));
         return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
           '<span class="item-bar" style="background:' + st.color + ';"></span>' +
           '<div class="item-main">' +
-            '<div class="item-name">' + escapeHtml(job.company || 'Unknown Company') + '</div>' +
+            '<div class="item-name">' + escapeHtml(job.company || 'Unknown Company') + (job.fit ? ' <span style="color:var(--text-3);font-size:11px;font-weight:400;">(' + escapeHtml(job.fit) + '-fit)</span>' : '') + '</div>' +
             '<div style="color:var(--text-2);font-size:13px;margin-bottom:2px;">' + escapeHtml(job.role || '') + '</div>' +
             (meta.length ? '<div class="item-sub">' + meta.join(' · ') + '</div>' : '') +
             (job.notes ? '<div style="color:var(--text-3);font-size:12px;margin-top:2px;font-style:italic;">' + escapeHtml(job.notes) + '</div>' : '') +
+            (job.watchOuts ? '<div style="color:#D9A441;font-size:12px;margin-top:2px;">⚠ ' + escapeHtml(job.watchOuts) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">' +
             '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
@@ -11096,6 +11110,38 @@ async function renderJobsPage() {
       '</div>'
     : '';
 
+  // Leads pushed in by the Daily Jobs Report routine (via the job-leads-inbox
+  // Edge Function), waiting for a human decision before they become real
+  // tracked jobs — see _jobLeadsInbox above.
+  var inboxLeads = (_jobLeadsInbox && _jobLeadsInbox.leads) || [];
+  var JOB_FIT_COLORS = { A: '#5BAE7A', B: '#D9A441', C: '#5A6168' };
+  var leadsInboxHtml = inboxLeads.length === 0 ? '' :
+    '<div class="card" style="margin-bottom:16px;border-color:var(--accent);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+        '<div class="gauge-label mono">' + inboxLeads.length + ' NEW LEAD' + (inboxLeads.length === 1 ? '' : 'S') + ' FROM TODAY’S REPORT</div>' +
+        '<button class="port-edit-btn" data-action="job-dismiss-all-leads" style="font-size:11px;">Dismiss all</button>' +
+      '</div>' +
+      inboxLeads.map(function(lead) {
+        var fitColor = JOB_FIT_COLORS[lead.fit] || '#5A6168';
+        var meta = [lead.location, lead.pay].filter(Boolean).map(escapeHtml).join(' · ');
+        return '<div class="item-row"><div class="item-display" style="flex-wrap:wrap;gap:6px;">' +
+          '<span class="item-bar" style="background:' + fitColor + ';"></span>' +
+          (lead.fit ? '<span class="item-glyph" style="color:' + fitColor + ';font-weight:800;">' + escapeHtml(lead.fit) + '</span>' : '') +
+          '<div class="item-main">' +
+            '<div class="item-name">' + escapeHtml(lead.title || 'Untitled role') + '</div>' +
+            '<div style="color:var(--text-2);font-size:13px;">' + escapeHtml(lead.company || 'Unknown company') + (meta ? ' · ' + meta : '') + '</div>' +
+            (lead.whyFit ? '<div style="color:var(--text-3);font-size:12px;margin-top:2px;">' + escapeHtml(lead.whyFit) + '</div>' : '') +
+            (lead.watchOuts ? '<div style="color:#D9A441;font-size:12px;margin-top:2px;font-style:italic;">⚠ ' + escapeHtml(lead.watchOuts) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+            (lead.link ? '<a href="' + escapeHtml(lead.link) + '" target="_blank" rel="noopener" class="icon-btn" title="Open posting" style="color:#5B8FA8;text-decoration:none;">&#128279;</a>' : '') +
+            '<button class="icon-btn" data-action="job-import-lead" data-lead="' + lead.id + '" title="Add to tracker" style="color:#5BAE7A;">✓</button>' +
+            '<button class="icon-btn" data-action="job-dismiss-lead" data-lead="' + lead.id + '" title="Dismiss">✕</button>' +
+          '</div>' +
+        '</div></div>';
+      }).join('') +
+    '</div>';
+
   inner.innerHTML =
     '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
       '<div class="port-eyebrow">Career</div>' +
@@ -11103,6 +11149,7 @@ async function renderJobsPage() {
       '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
     '</div>' +
 
+    leadsInboxHtml +
     breakdownHtml +
     paceHtml +
 
@@ -11188,6 +11235,34 @@ async function renderJobsPage() {
         d.jobs = (d.jobs || []).filter(function(j) { return j.id !== jid; });
         if (_jobEditId === jid) _jobEditId = null;
         saveJobData(); renderJobsPage();
+      } else if (action === 'job-import-lead') {
+        var leadId = btn.getAttribute('data-lead');
+        var lead = (_jobLeadsInbox.leads || []).find(function(l) { return l.id === leadId; });
+        if (!lead) return;
+        if (!d.jobs) d.jobs = [];
+        d.jobs.push({
+          id: uid(),
+          company: lead.company || '',
+          role: lead.title || '',
+          stage: 'saved',
+          dateApplied: '',
+          salary: lead.pay || '',
+          link: lead.link || '',
+          location: lead.location || '',
+          fit: lead.fit || '',
+          watchOuts: lead.watchOuts || '',
+          notes: lead.whyFit || '',
+          createdAt: todayISO()
+        });
+        _jobLeadsInbox.leads = (_jobLeadsInbox.leads || []).filter(function(l) { return l.id !== leadId; });
+        saveJobData(); saveJobLeadsInbox(); renderJobsPage();
+      } else if (action === 'job-dismiss-lead') {
+        var dismissId = btn.getAttribute('data-lead');
+        _jobLeadsInbox.leads = (_jobLeadsInbox.leads || []).filter(function(l) { return l.id !== dismissId; });
+        saveJobLeadsInbox(); renderJobsPage();
+      } else if (action === 'job-dismiss-all-leads') {
+        _jobLeadsInbox.leads = [];
+        saveJobLeadsInbox(); renderJobsPage();
       }
     });
   }
@@ -11489,6 +11564,7 @@ function renderGuidePage() {
         ['dashboard-education-data','Degree program, courses, grades'],
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
+        ['dashboard-jobs-leads-inbox', 'New leads awaiting review, pushed in daily by the job-leads-inbox Edge Function (see below) — cleared as each one is imported or dismissed'],
         ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['dashboard-gcal-settings', 'Which calendar IDs are toggled off in the two-week Calendar view'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
@@ -11554,6 +11630,7 @@ function renderGuidePage() {
       '<div style="color:var(--text-2);font-size:13px;margin:12px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Where things live</div>' +
       tbl([
         ['supabase/functions/google-oauth', 'Edge Function: exchanges/refreshes tokens with Google, using the GOOGLE_CLIENT_SECRET function secret. Verifies the caller via their Supabase session JWT before touching any tokens.'],
+        ['supabase/functions/job-leads-inbox', 'Edge Function: lets the Daily Jobs Report routine push new leads into dashboard-jobs-leads-inbox. The caller has no Supabase session, so it authenticates with a shared JOB_LEADS_API_KEY secret (checked against an x-api-key header) instead of a JWT.'],
         ['google_oauth_tokens table',       'Stores each user\'s refresh token. RLS is enabled with zero policies, so only the Edge Function\'s service-role key can read/write it — the browser never sees the refresh token.'],
         ['sessionStorage["gcal-token"]',    'Caches the current short-lived access token client-side so most page loads don\'t need a round trip to the Edge Function.'],
       ]) +
