@@ -10985,7 +10985,8 @@ async function _fetchJobLeadsFromDrive() {
   try {
     var q = "name = '" + JOB_LEADS_DRIVE_FILENAME + "' and trashed = false";
     var listResp = await _gcalAuthedFetch("https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(q) + "&fields=files(id,modifiedTime)&orderBy=modifiedTime desc&pageSize=1");
-    if (!listResp.ok) return null;
+    // 403 here usually means the token predates drive.readonly — Disconnect, then Connect.
+    if (!listResp.ok) { console.warn("Job leads Drive lookup failed:", listResp.status); return null; }
     var listJson = await listResp.json();
     var file = listJson.files && listJson.files[0];
     if (!file) return null;
@@ -11034,6 +11035,15 @@ async function syncJobLeadsFromDrive() {
   return addedAny;
 }
 
+// Called whenever a Google token becomes available (boot refresh or a fresh
+// Connect) — covers the Jobs tab having rendered before the token was ready,
+// and a reconnect that just granted drive.readonly.
+function _retryJobLeadsSync() {
+  if (!_jobLeadsInbox || !_gcalToken) return;
+  _jobLeadsSyncTried = true;
+  syncJobLeadsFromDrive().then(function(changed) { if (changed) renderJobsPage(); });
+}
+
 async function renderJobsPage() {
   var page = document.getElementById('page-jobs');
   if (!page) return;
@@ -11046,7 +11056,9 @@ async function renderJobsPage() {
 
   // Fire-and-forget, once per session — re-renders itself if it actually
   // finds something new, so this never blocks the page on a Drive round trip.
-  if (!_jobLeadsSyncTried) {
+  // Waits for a Google token: initGoogleCalendar() is still resolving on boot,
+  // and _retryJobLeadsSync() picks this up once the token lands.
+  if (!_jobLeadsSyncTried && _gcalToken) {
     _jobLeadsSyncTried = true;
     syncJobLeadsFromDrive().then(function(changed) { if (changed) renderJobsPage(); });
   }
@@ -11888,6 +11900,7 @@ async function initGoogleCalendar() {
   var result = await _callGoogleOAuthFn("refresh");
   if (result._ok && result.access_token) {
     _setGcalToken(result.access_token, result.expires_in);
+    _retryJobLeadsSync();
   }
   renderGcalCard();
 }
@@ -11913,6 +11926,7 @@ function _getGcalClient() {
       }
       _setGcalToken(result.access_token, result.expires_in);
       renderGcalCard();
+      _retryJobLeadsSync();
     }
   });
   return _gcalClient;
