@@ -456,6 +456,39 @@
   .edit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .edit-select { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
   .edit-input { background: #12151A; color:var(--text-1); border: 1px solid #2A313A; border-radius: 6px; padding: 6px 8px; font-size: 13px; min-width: 0; }
+
+  /* Project Tracker — kanban board. Wider than the usual 720px column so four
+     lanes fit side by side; on phones the lanes scroll sideways inside the
+     board (one lane per swipe) instead of squeezing into the screen width. */
+  #page-projects .page-inner { max-width: 1200px; }
+  .proj-board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+  @media (max-width: 760px) {
+    .proj-board { grid-template-columns: repeat(4, 84%); scroll-snap-type: x mandatory; }
+    .proj-col { scroll-snap-align: start; }
+  }
+  .proj-col { background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 12px; padding: 12px; transition: border-color .15s; }
+  .proj-col.drag-over { border-color: var(--accent); }
+  .proj-col-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .proj-col-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .proj-col-title { font-size: 14px; font-weight: 700; color: var(--text-1); }
+  .proj-col-count { font-size: 13px; color: var(--text-2); flex: 1; }
+  .proj-col-body { min-height: 60px; }
+  .proj-col-new { background: none; border: none; color: var(--text-2); font-size: 13px; font-family: inherit; cursor: pointer; padding: 6px 2px; }
+  .proj-col-new:hover { color: var(--text-1); }
+  .proj-card { background: var(--bg); border: 1px solid var(--border-2); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: border-color .15s, opacity .15s; }
+  .proj-card:hover { border-color: var(--text-3); }
+  .proj-card.dragging { opacity: .4; }
+  .proj-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .proj-pill { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .proj-due { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+  .proj-card-title { font-size: 14px; font-weight: 700; color: var(--text-1); margin-bottom: 4px; overflow-wrap: anywhere; }
+  .proj-card-desc { font-size: 12px; color: var(--text-2); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .proj-card-blocker { font-size: 12px; color: #D9667A; margin-top: 6px; line-height: 1.4; }
+  .proj-card-progress { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--text-2); }
+  .proj-bar { flex: 1; height: 4px; border-radius: 999px; background: var(--border-2); overflow: hidden; }
+  .proj-bar > div { height: 100%; background: #5BAE7A; }
+  .proj-field-label { color: var(--text-2); font-size: 10px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .05em; }
+  .proj-task-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .edit-input.grow { flex: 1; }
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
@@ -651,6 +684,9 @@
             </button>
             <button class="sidebar-item" data-page="jobs">
               <span class="s-icon">&#128188;</span> Job Tracker
+            </button>
+            <button class="sidebar-item" data-page="projects">
+              <span class="s-icon">&#128203;</span> Project Tracker
             </button>
           </div>
         </div>
@@ -1008,6 +1044,11 @@
 
     <!-- Page: Job Tracker -->
     <div class="page" id="page-jobs">
+      <div class="page-inner"></div>
+    </div>
+
+    <!-- Page: Project Tracker -->
+    <div class="page" id="page-projects">
       <div class="page-inner"></div>
     </div>
 
@@ -2535,6 +2576,7 @@ var PAGE_PRELOAD_KEYS = {
   education: ["education-data"],
   certs: ["certs-data"],
   jobs: ["jobs-data", "dashboard-jobs-leads-inbox"],
+  projects: ["projects-data"],
   guide: ["dashboard-guide-content"]
 };
 var _prefetchedPages = {};
@@ -2683,6 +2725,9 @@ function switchPage(page) {
   }
   if (page === "jobs") {
     renderJobsPage();
+  }
+  if (page === "projects") {
+    renderProjectsPage();
   }
   if (page === "chess") {
     renderChessPage();
@@ -9595,7 +9640,8 @@ async function renderSettingsPage() {
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
     { id: 'certs',     label: 'Certifications' },
-    { id: 'jobs',      label: 'Job Tracker' }
+    { id: 'jobs',      label: 'Job Tracker' },
+    { id: 'projects',  label: 'Project Tracker' }
   ];
   var hiddenPagesToggles = sidebarPages.map(function(pg) {
     var isHidden = (s.hiddenPages || []).indexOf(pg.id) >= 0;
@@ -9625,7 +9671,8 @@ async function renderSettingsPage() {
     { id: 'art',       label: 'Art Portfolio' },
     { id: 'education', label: 'Degree Tracker' },
     { id: 'certs',     label: 'Certifications' },
-    { id: 'jobs',      label: 'Job Tracker' }
+    { id: 'jobs',      label: 'Job Tracker' },
+    { id: 'projects',  label: 'Project Tracker' }
   ];
 
   // Card style buttons
@@ -11357,6 +11404,398 @@ async function renderJobsPage() {
   animatePageHeading(document.getElementById("page-jobs"));
 }
 
+/* ---------------- project tracker ---------------- */
+
+// Personal projects on a kanban board. Cards move between lanes by drag and
+// drop (desktop) or the Status field in the editor (works everywhere,
+// including touch, where HTML5 drag and drop doesn't fire).
+var _projData     = null;
+var _projEdit     = null;  // working copy of the project open in the editor; null = editor closed
+var _projSearch   = '';
+var _projDragId   = null;
+var _projScrollToEditor = false;
+
+var PROJECT_STATUSES = [
+  { id: 'backlog',    label: 'Backlog',     color: '#5A6168' },
+  { id: 'inprogress', label: 'In Progress', color: '#5B8FA8' },
+  { id: 'blocked',    label: 'Blocked',     color: '#D9667A' },
+  { id: 'completed',  label: 'Completed',   color: '#5BAE7A' }
+];
+var PROJECT_PRIORITIES = [
+  { id: 'high',   label: 'High',   color: '#D9667A', rank: 0 },
+  { id: 'medium', label: 'Medium', color: '#D9A441', rank: 1 },
+  { id: 'low',    label: 'Low',    color: '#5BAE7A', rank: 2 }
+];
+
+function _projPriority(id) {
+  return PROJECT_PRIORITIES.find(function(p) { return p.id === id; }) || null;
+}
+
+function _projFind(id) {
+  return ((_projData && _projData.projects) || []).find(function(p) { return p.id === id; }) || null;
+}
+
+async function loadProjectData() {
+  if (!currentUserId) return;
+  _projData = await loadTabData('projects-data', { projects: [] });
+  if (!Array.isArray(_projData.projects)) _projData.projects = [];
+}
+
+function saveProjectData() {
+  if (!currentUserId || !_projData) return;
+  saveTabData('projects-data', _projData);
+}
+
+function _projDaysUntil(iso) {
+  return Math.round((new Date(iso + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / 86400000);
+}
+
+// completedAt is stamped on the way into Completed and cleared on the way out,
+// so a project reopened from Completed doesn't keep a stale finish date.
+function _projSetStatus(p, status) {
+  if (p.status !== 'completed' && status === 'completed') p.completedAt = todayISO();
+  if (status !== 'completed') p.completedAt = '';
+  p.status = status;
+}
+
+function _projDueHtml(p) {
+  if (p.status === 'completed') {
+    return '<span style="color:#5BAE7A;">&#10003; Done' + (p.completedAt ? ' ' + formatDateShort(p.completedAt) : '') + '</span>';
+  }
+  if (!p.dueDate) return '';
+  var n = _projDaysUntil(p.dueDate);
+  var txt = n === 0 ? 'Due today' : n > 0 ? n + (n === 1 ? ' day' : ' days') : Math.abs(n) + 'd overdue';
+  var color = n < 0 ? '#D9667A' : n <= 2 ? '#D9A441' : 'var(--text-2)';
+  return '<span style="color:' + color + ';" title="Due ' + formatDateShort(p.dueDate) + '">&#9201; ' + txt + '</span>';
+}
+
+// Open lanes: highest priority first, then soonest due date. Completed: most
+// recently finished first.
+function _projSort(status) {
+  if (status === 'completed') {
+    return function(a, b) { return (b.completedAt || '').localeCompare(a.completedAt || ''); };
+  }
+  return function(a, b) {
+    var ra = (_projPriority(a.priority) || { rank: 3 }).rank;
+    var rb = (_projPriority(b.priority) || { rank: 3 }).rank;
+    if (ra !== rb) return ra - rb;
+    return (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
+  };
+}
+
+function _projSearchText(p) {
+  return ((p.title || '') + ' ' + (p.description || '')).toLowerCase();
+}
+
+function _projCardHtml(p) {
+  var pr = _projPriority(p.priority);
+  var tasks = p.tasks || [];
+  var done = tasks.filter(function(t) { return t.done; }).length;
+  var search = _projSearchText(p);
+  var hidden = _projSearch && search.indexOf(_projSearch) < 0;
+  return '<div class="proj-card" draggable="true" data-action="proj-edit" data-proj="' + p.id + '" data-search="' + escapeHtml(search) + '"' + (hidden ? ' style="display:none;"' : '') + '>' +
+    '<div class="proj-card-top">' +
+      (pr
+        ? '<span class="proj-pill" style="background:' + pr.color + '22;color:' + pr.color + ';">' + pr.label + '</span>'
+        : '<span class="proj-pill" style="background:var(--border-2);color:var(--text-2);">No priority</span>') +
+      '<span class="proj-due">' + _projDueHtml(p) + '</span>' +
+    '</div>' +
+    '<div class="proj-card-title">' + escapeHtml(p.title || 'Untitled project') + '</div>' +
+    (p.description ? '<div class="proj-card-desc">' + escapeHtml(p.description) + '</div>' : '') +
+    (p.status === 'blocked' && p.blocker ? '<div class="proj-card-blocker">&#9940; ' + escapeHtml(p.blocker) + '</div>' : '') +
+    (tasks.length
+      ? '<div class="proj-card-progress"><div class="proj-bar"><div style="width:' + Math.round(done / tasks.length * 100) + '%;"></div></div>' +
+        '<span class="mono">&#9745; ' + done + '/' + tasks.length + '</span></div>'
+      : '') +
+  '</div>';
+}
+
+function _projEditorHtml() {
+  var p = _projEdit;
+  var isNew = !_projFind(p.id);
+  var statusOpts = PROJECT_STATUSES.map(function(s) {
+    return '<option value="' + s.id + '"' + (s.id === p.status ? ' selected' : '') + '>' + s.label + '</option>';
+  }).join('');
+  var priorityOpts = '<option value="">None</option>' + PROJECT_PRIORITIES.map(function(s) {
+    return '<option value="' + s.id + '"' + (s.id === p.priority ? ' selected' : '') + '>' + s.label + '</option>';
+  }).join('');
+  var tasksHtml = (p.tasks || []).map(function(t) {
+    return '<div class="proj-task-row">' +
+      '<input type="checkbox" class="proj-task-check" data-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" />' +
+      '<input class="edit-input proj-task-text" data-task="' + t.id + '" value="' + escapeHtml(t.text) + '" style="flex:1;" />' +
+      '<button class="icon-btn" data-action="proj-task-remove" data-task="' + t.id + '" title="Remove">&#10005;</button>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="card" id="projEditor" style="border-color:var(--accent);">' +
+    '<div class="gauge-label mono" style="margin-bottom:12px;">' + (isNew ? 'NEW PROJECT' : 'EDIT PROJECT') + '</div>' +
+    '<input class="form-input" id="projTitle" placeholder="Project name *" value="' + escapeHtml(p.title) + '" style="margin-bottom:8px;" />' +
+    '<textarea class="form-input" id="projDesc" rows="3" placeholder="Goal and scope: what does done look like?" style="margin-bottom:10px;resize:vertical;font-family:inherit;">' + escapeHtml(p.description) + '</textarea>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '<div style="flex:1;min-width:130px;"><div class="proj-field-label">Status</div><select class="form-input" id="projStatus">' + statusOpts + '</select></div>' +
+      '<div style="flex:1;min-width:110px;"><div class="proj-field-label">Priority</div><select class="form-input" id="projPriority">' + priorityOpts + '</select></div>' +
+      '<div style="flex:1;min-width:130px;"><div class="proj-field-label">Due date</div><input class="form-input" type="date" id="projDue" value="' + escapeHtml(p.dueDate) + '" /></div>' +
+    '</div>' +
+    '<div id="projBlockerWrap" style="margin-bottom:10px;' + (p.status === 'blocked' ? '' : 'display:none;') + '">' +
+      '<div class="proj-field-label">What\'s blocking it?</div>' +
+      '<textarea class="form-input" id="projBlocker" rows="2" placeholder="Waiting on…, need to decide…, missing…" style="resize:vertical;font-family:inherit;">' + escapeHtml(p.blocker) + '</textarea>' +
+    '</div>' +
+    '<div class="proj-field-label" style="margin-bottom:6px;">Milestones / tasks</div>' +
+    tasksHtml +
+    '<div class="proj-task-row">' +
+      '<input class="edit-input" id="projNewTask" placeholder="Add a milestone, then Enter" style="flex:1;" />' +
+      '<button class="port-edit-btn" data-action="proj-task-add" style="font-size:12px;">Add</button>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;">' +
+      '<span class="error-text" id="projFormError" style="flex:1;"></span>' +
+      (isNew ? '' : '<button class="add-btn" data-action="proj-delete" style="background:none;border:1px solid #FF8A5C;color:#FF8A5C;">Delete</button>') +
+      '<button class="add-btn" data-action="proj-cancel" style="background:none;border:1px solid var(--border-2);color:var(--text-2);">Cancel</button>' +
+      '<button class="add-btn" data-action="proj-save" style="background:var(--accent);">Save</button>' +
+    '</div>' +
+  '</div>';
+}
+
+// Pulls whatever's typed in the editor back into _projEdit, so re-rendering
+// (adding/removing a milestone) doesn't wipe unsaved field edits.
+function _projReadForm() {
+  if (!_projEdit || !document.getElementById('projEditor')) return;
+  function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  _projEdit.title       = val('projTitle');
+  _projEdit.description = val('projDesc');
+  _projEdit.status      = val('projStatus') || 'backlog';
+  _projEdit.priority    = val('projPriority');
+  _projEdit.dueDate     = val('projDue');
+  _projEdit.blocker     = val('projBlocker');
+  var byId = {};
+  (_projEdit.tasks || []).forEach(function(t) { byId[t.id] = t; });
+  document.querySelectorAll('#projEditor .proj-task-text').forEach(function(el) {
+    var t = byId[el.getAttribute('data-task')]; if (t) t.text = el.value;
+  });
+  document.querySelectorAll('#projEditor .proj-task-check').forEach(function(el) {
+    var t = byId[el.getAttribute('data-task')]; if (t) t.done = el.checked;
+  });
+}
+
+function _projAddPendingTask() {
+  var el = document.getElementById('projNewTask');
+  var text = el ? el.value.trim() : '';
+  if (!text) return false;
+  _projEdit.tasks.push({ id: uid(), text: text, done: false });
+  return true;
+}
+
+function _projOpenEditor(p) {
+  _projEdit = p;
+  _projScrollToEditor = true;
+  renderProjectsPage();
+}
+
+function _projSave() {
+  _projReadForm();
+  _projAddPendingTask(); // typed a milestone but didn't press Add — keep it
+  var title = (_projEdit.title || '').trim();
+  if (!title) {
+    var errEl = document.getElementById('projFormError');
+    if (errEl) errEl.textContent = 'Give the project a name.';
+    var tEl = document.getElementById('projTitle'); if (tEl) tEl.focus();
+    return;
+  }
+  var existing = _projFind(_projEdit.id);
+  var rec = {
+    id:          _projEdit.id,
+    title:       title,
+    description: (_projEdit.description || '').trim(),
+    priority:    _projEdit.priority || '',
+    dueDate:     _projEdit.dueDate || '',
+    blocker:     (_projEdit.blocker || '').trim(),
+    tasks:       (_projEdit.tasks || []).filter(function(t) { return (t.text || '').trim(); })
+                   .map(function(t) { return { id: t.id, text: t.text.trim(), done: !!t.done }; }),
+    createdAt:   existing ? existing.createdAt : todayISO(),
+    status:      existing ? existing.status : 'backlog',
+    completedAt: existing ? (existing.completedAt || '') : ''
+  };
+  _projSetStatus(rec, _projEdit.status || 'backlog');
+  if (existing) {
+    _projData.projects = _projData.projects.map(function(p) { return p.id === rec.id ? rec : p; });
+  } else {
+    _projData.projects.push(rec);
+  }
+  _projEdit = null;
+  saveProjectData();
+  renderProjectsPage();
+}
+
+async function renderProjectsPage() {
+  var page = document.getElementById('page-projects');
+  if (!page) return;
+  var inner = page.querySelector('.page-inner');
+
+  if (!_projData) {
+    inner.innerHTML = skeletonCards(2);
+    await loadProjectData();
+    if (!_projData) return;
+  }
+
+  var all = _projData.projects;
+  var countBy = {};
+  PROJECT_STATUSES.forEach(function(s) { countBy[s.id] = 0; });
+  all.forEach(function(p) { countBy[p.status || 'backlog'] = (countBy[p.status || 'backlog'] || 0) + 1; });
+  var overdue = all.filter(function(p) { return p.status !== 'completed' && p.dueDate && _projDaysUntil(p.dueDate) < 0; }).length;
+  var pctDone = all.length ? Math.round(countBy.completed / all.length * 100) : 0;
+
+  function stat(value, label, color) {
+    return '<div class="card" style="flex:1;min-width:110px;text-align:center;padding:14px 10px;margin-bottom:0;">' +
+      '<div style="font-size:24px;font-weight:800;color:' + color + ';">' + value + '</div>' +
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-2);margin-top:4px;">' + label + '</div>' +
+    '</div>';
+  }
+  var statsHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">' +
+    stat(countBy.inprogress, 'In progress', '#5B8FA8') +
+    stat(countBy.blocked, 'Blocked', countBy.blocked ? '#D9667A' : 'var(--text-3)') +
+    stat(overdue, 'Overdue', overdue ? '#D9667A' : 'var(--text-3)') +
+    stat(pctDone + '%', 'Completed', '#5BAE7A') +
+  '</div>';
+
+  var boardHtml = '<div class="proj-board">' + PROJECT_STATUSES.map(function(s) {
+    var items = all.filter(function(p) { return (p.status || 'backlog') === s.id; }).sort(_projSort(s.id));
+    return '<div class="proj-col" data-status="' + s.id + '">' +
+      '<div class="proj-col-head">' +
+        '<span class="proj-col-dot" style="background:' + s.color + ';"></span>' +
+        '<span class="proj-col-title">' + s.label + '</span>' +
+        '<span class="proj-col-count">' + items.length + '</span>' +
+        '<button class="icon-btn" data-action="proj-new" data-status="' + s.id + '" title="Add to ' + s.label + '">+</button>' +
+      '</div>' +
+      '<div class="proj-col-body">' + items.map(_projCardHtml).join('') + '</div>' +
+      '<button class="proj-col-new" data-action="proj-new" data-status="' + s.id + '">+ New</button>' +
+    '</div>';
+  }).join('') + '</div>';
+
+  inner.innerHTML =
+    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
+      '<div class="port-eyebrow">Career</div>' +
+      '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Project Tracker</div>' +
+      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Personal projects from backlog to done</div>' +
+    '</div>' +
+    statsHtml +
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">' +
+      '<input class="form-input" id="projSearch" type="search" placeholder="Search projects" value="' + escapeHtml(_projSearch) + '" style="flex:1;min-width:160px;max-width:320px;" />' +
+      '<button class="port-edit-btn" data-action="proj-new" data-status="backlog" style="margin-left:auto;">+ New project</button>' +
+    '</div>' +
+    (_projEdit ? _projEditorHtml() : '') +
+    boardHtml +
+    '<div style="padding-bottom:40px;"></div>';
+
+  if (_projEdit) {
+    var editorEl = document.getElementById('projEditor');
+    if (_projScrollToEditor && editorEl) editorEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!_projFind(_projEdit.id)) { var tEl = document.getElementById('projTitle'); if (tEl && !tEl.value) tEl.focus(); }
+  }
+  _projScrollToEditor = false;
+
+  if (!inner._projHandlersAttached) {
+    inner._projHandlersAttached = true;
+
+    inner.addEventListener('click', function(e) {
+      if (!_projData) return;
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      if (action === 'proj-new') {
+        _projOpenEditor({ id: uid(), title: '', description: '', status: btn.getAttribute('data-status') || 'backlog', priority: '', dueDate: '', blocker: '', tasks: [] });
+      } else if (action === 'proj-edit') {
+        var p = _projFind(btn.getAttribute('data-proj'));
+        if (p) _projOpenEditor(JSON.parse(JSON.stringify(Object.assign({ description: '', priority: '', dueDate: '', blocker: '', tasks: [] }, p))));
+      } else if (action === 'proj-cancel') {
+        _projEdit = null; renderProjectsPage();
+      } else if (action === 'proj-save') {
+        _projSave();
+      } else if (action === 'proj-delete') {
+        if (!_projEdit || !confirm('Delete "' + (_projEdit.title || 'this project') + '"?')) return;
+        var delId = _projEdit.id;
+        _projData.projects = _projData.projects.filter(function(x) { return x.id !== delId; });
+        _projEdit = null; saveProjectData(); renderProjectsPage();
+      } else if (action === 'proj-task-add') {
+        _projReadForm();
+        if (_projAddPendingTask()) renderProjectsPage();
+        var nt = document.getElementById('projNewTask'); if (nt) nt.focus();
+      } else if (action === 'proj-task-remove') {
+        _projReadForm();
+        var tid = btn.getAttribute('data-task');
+        _projEdit.tasks = _projEdit.tasks.filter(function(t) { return t.id !== tid; });
+        renderProjectsPage();
+      }
+    });
+
+    inner.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && _projEdit) { _projEdit = null; renderProjectsPage(); return; }
+      if (e.key === 'Enter' && e.target.id === 'projNewTask') {
+        e.preventDefault();
+        _projReadForm();
+        if (_projAddPendingTask()) renderProjectsPage();
+        var nt = document.getElementById('projNewTask'); if (nt) nt.focus();
+      }
+    });
+
+    // Search filters cards in place rather than re-rendering, so the box keeps focus.
+    inner.addEventListener('input', function(e) {
+      if (e.target.id !== 'projSearch') return;
+      _projSearch = e.target.value.trim().toLowerCase();
+      inner.querySelectorAll('.proj-card').forEach(function(card) {
+        card.style.display = !_projSearch || card.getAttribute('data-search').indexOf(_projSearch) >= 0 ? '' : 'none';
+      });
+    });
+
+    inner.addEventListener('change', function(e) {
+      if (e.target.id !== 'projStatus') return;
+      var wrap = document.getElementById('projBlockerWrap');
+      if (wrap) wrap.style.display = e.target.value === 'blocked' ? '' : 'none';
+    });
+
+    inner.addEventListener('dragstart', function(e) {
+      var card = e.target.closest && e.target.closest('.proj-card');
+      if (!card) return;
+      _projDragId = card.getAttribute('data-proj');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', _projDragId); } catch (err) {}
+      card.classList.add('dragging');
+    });
+    inner.addEventListener('dragend', function() {
+      _projDragId = null;
+      inner.querySelectorAll('.proj-card.dragging').forEach(function(el) { el.classList.remove('dragging'); });
+      inner.querySelectorAll('.proj-col.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+    });
+    inner.addEventListener('dragover', function(e) {
+      var col = e.target.closest && e.target.closest('.proj-col');
+      if (!col || !_projDragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      inner.querySelectorAll('.proj-col.drag-over').forEach(function(el) { if (el !== col) el.classList.remove('drag-over'); });
+      col.classList.add('drag-over');
+    });
+    inner.addEventListener('dragleave', function(e) {
+      var col = e.target.closest && e.target.closest('.proj-col');
+      if (col && !col.contains(e.relatedTarget)) col.classList.remove('drag-over');
+    });
+    inner.addEventListener('drop', function(e) {
+      var col = e.target.closest && e.target.closest('.proj-col');
+      if (!col || !_projDragId) return;
+      e.preventDefault();
+      var p = _projFind(_projDragId);
+      var status = col.getAttribute('data-status');
+      _projDragId = null;
+      if (!p || p.status === status) { col.classList.remove('drag-over'); return; }
+      _projSetStatus(p, status);
+      // Keep an open editor for this same project in sync, or saving it would undo the move.
+      if (_projEdit && _projEdit.id === p.id) { _projReadForm(); _projEdit.status = status; }
+      saveProjectData();
+      renderProjectsPage();
+    });
+  }
+
+  initScrollAnims();
+  animatePageHeading(page);
+}
+
 /* ============================================================
    CHESS PROGRESS PAGE
    ============================================================ */
@@ -11651,6 +12090,7 @@ function renderGuidePage() {
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
         ['dashboard-jobs-leads-inbox', 'New leads awaiting review, synced in daily from a Google Drive file the Daily Jobs Report routine writes (see syncJobLeadsFromDrive) — cleared as each one is imported or dismissed'],
+        ['projects-data',           'Personal projects on the Project Tracker kanban board: status column, priority, due date, blocker note, and a milestone checklist'],
         ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['dashboard-gcal-settings', 'Which calendar IDs are toggled off in the two-week Calendar view'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
