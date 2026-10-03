@@ -11415,6 +11415,7 @@ var _projSearch   = '';
 var _projDragId   = null;
 var _projScrollToEditor = false;
 var _projOpenTasks = {};   // milestone ids whose plan/instructions panel is expanded in the editor
+var _projNotesEditing = {}; // milestone ids whose notes are in the textarea rather than the read view
 
 var PROJECT_STATUSES = [
   { id: 'backlog',    label: 'Backlog',     color: '#5A6168' },
@@ -11511,6 +11512,29 @@ function _projCardHtml(p) {
   '</div>';
 }
 
+// Milestone notes as read-only HTML: escaped text with line breaks kept and
+// web addresses turned into links. Only http(s) URLs are linked (a bare
+// www. gets https:// prepended), so a note can never produce a javascript: link.
+function _projLinkify(text) {
+  var out = '', last = 0, m;
+  var re = /\bhttps?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/gi;
+  while ((m = re.exec(text))) {
+    var url = m[0].replace(/[.,;:!?)\]}]+$/, ''); // leave sentence punctuation outside the link
+    out += escapeHtml(text.slice(last, m.index));
+    var href = /^www\./i.test(url) ? 'https://' + url : url;
+    out += '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener" style="color:var(--accent);overflow-wrap:anywhere;">' + escapeHtml(url) + '</a>';
+    last = m.index + url.length;
+    re.lastIndex = last;
+  }
+  return out + escapeHtml(text.slice(last));
+}
+
+function _projNotesViewHtml(notes) {
+  var text = (notes || '').trim();
+  if (!text) return '<span style="color:var(--text-3);font-style:italic;">No plan yet.</span>';
+  return '<div style="white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--text-1);background:var(--bg);border:1px solid var(--border-2);border-radius:6px;padding:8px 12px;">' + _projLinkify(text) + '</div>';
+}
+
 function _projEditorHtml() {
   var p = _projEdit;
   var isNew = !_projFind(p.id);
@@ -11524,6 +11548,7 @@ function _projEditorHtml() {
   var tasksHtml = (p.tasks || []).map(function(t, i) {
     var open = !!_projOpenTasks[t.id];
     var hasNotes = !!(t.notes || '').trim();
+    var editingNotes = !hasNotes || !!_projNotesEditing[t.id];
     return '<div class="proj-task-row">' +
       '<button class="icon-btn" data-action="proj-task-toggle" data-task="' + t.id + '" title="' + (open ? 'Hide' : 'Show') + ' plan / instructions" aria-expanded="' + open + '" style="padding:4px;' + (hasNotes ? 'color:var(--accent);' : '') + '">' + (open ? '&#9662;' : '&#9656;') + '</button>' +
       '<input type="checkbox" class="proj-task-check" data-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" />' +
@@ -11534,9 +11559,14 @@ function _projEditorHtml() {
     '</div>' +
     // Kept in the DOM while collapsed (just hidden) so _projReadForm always
     // sees every milestone's notes, open or not.
+    // Notes with content open in a read view (links clickable); empty ones
+    // open straight into the textarea.
     '<div class="proj-task-notes-wrap" style="margin:0 0 10px 34px;' + (open ? '' : 'display:none;') + '">' +
-      '<div class="proj-field-label">Plan / instructions</div>' +
-      '<textarea class="form-input proj-task-notes" data-task="' + t.id + '" rows="4" placeholder="Steps, how-to, links, acceptance criteria…" style="resize:vertical;font-family:inherit;font-size:13px;">' + escapeHtml(t.notes || '') + '</textarea>' +
+      '<div class="proj-field-label" style="display:flex;align-items:center;justify-content:space-between;">Plan / instructions' +
+        '<button class="proj-col-new" data-action="proj-notes-mode" data-task="' + t.id + '" style="font-size:11px;padding:2px 4px;text-transform:none;letter-spacing:0;">' + (editingNotes ? 'Done' : '&#9998; Edit') + '</button>' +
+      '</div>' +
+      '<div class="proj-task-notes-view"' + (editingNotes ? ' style="display:none;"' : '') + '>' + _projNotesViewHtml(t.notes) + '</div>' +
+      '<textarea class="form-input proj-task-notes" data-task="' + t.id + '" rows="4" placeholder="Steps, how-to, acceptance criteria… paste links as https://…" style="resize:vertical;font-family:inherit;font-size:13px;' + (editingNotes ? '' : 'display:none;') + '">' + escapeHtml(t.notes || '') + '</textarea>' +
     '</div>';
   }).join('');
 
@@ -11603,6 +11633,7 @@ function _projAddPendingTask() {
 function _projOpenEditor(p) {
   _projEdit = p;
   _projOpenTasks = {};
+  _projNotesEditing = {};
   _projScrollToEditor = true;
   renderProjectsPage();
 }
@@ -11750,6 +11781,20 @@ async function renderProjectsPage() {
         btn.setAttribute('aria-expanded', String(open));
         btn.title = (open ? 'Hide' : 'Show') + ' plan / instructions';
         if (open && wrap) { var ta = wrap.querySelector('textarea'); if (ta && !ta.value) ta.focus(); }
+      } else if (action === 'proj-notes-mode') {
+        // Swap read view <-> textarea in place (no re-render, so focus and
+        // other unsaved fields are untouched).
+        var nid = btn.getAttribute('data-task');
+        var nwrap = btn.closest('.proj-task-notes-wrap');
+        var nta = nwrap.querySelector('textarea');
+        var nview = nwrap.querySelector('.proj-task-notes-view');
+        var toEdit = nta.style.display === 'none';
+        if (toEdit) _projNotesEditing[nid] = true; else delete _projNotesEditing[nid];
+        if (!toEdit) nview.innerHTML = _projNotesViewHtml(nta.value);
+        nta.style.display = toEdit ? '' : 'none';
+        nview.style.display = toEdit ? 'none' : '';
+        btn.innerHTML = toEdit ? 'Done' : '&#9998; Edit';
+        if (toEdit) nta.focus();
       } else if (action === 'proj-task-move') {
         _projReadForm();
         var mid = btn.getAttribute('data-task');
