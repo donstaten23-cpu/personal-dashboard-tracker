@@ -11414,6 +11414,7 @@ var _projEdit     = null;  // working copy of the project open in the editor; nu
 var _projSearch   = '';
 var _projDragId   = null;
 var _projScrollToEditor = false;
+var _projOpenTasks = {};   // milestone ids whose plan/instructions panel is expanded in the editor
 
 var PROJECT_STATUSES = [
   { id: 'backlog',    label: 'Backlog',     color: '#5A6168' },
@@ -11521,12 +11522,21 @@ function _projEditorHtml() {
   }).join('');
   var taskCount = (p.tasks || []).length;
   var tasksHtml = (p.tasks || []).map(function(t, i) {
+    var open = !!_projOpenTasks[t.id];
+    var hasNotes = !!(t.notes || '').trim();
     return '<div class="proj-task-row">' +
+      '<button class="icon-btn" data-action="proj-task-toggle" data-task="' + t.id + '" title="' + (open ? 'Hide' : 'Show') + ' plan / instructions" aria-expanded="' + open + '" style="padding:4px;' + (hasNotes ? 'color:var(--accent);' : '') + '">' + (open ? '&#9662;' : '&#9656;') + '</button>' +
       '<input type="checkbox" class="proj-task-check" data-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" />' +
       '<input class="edit-input proj-task-text" data-task="' + t.id + '" value="' + escapeHtml(t.text) + '" style="flex:1;" />' +
       '<button class="icon-btn" data-action="proj-task-move" data-dir="-1" data-task="' + t.id + '" title="Move up"' + (i === 0 ? ' disabled style="opacity:.25;"' : '') + '>&#8679;</button>' +
       '<button class="icon-btn" data-action="proj-task-move" data-dir="1" data-task="' + t.id + '" title="Move down"' + (i === taskCount - 1 ? ' disabled style="opacity:.25;"' : '') + '>&#8681;</button>' +
       '<button class="icon-btn" data-action="proj-task-remove" data-task="' + t.id + '" title="Remove">&#10005;</button>' +
+    '</div>' +
+    // Kept in the DOM while collapsed (just hidden) so _projReadForm always
+    // sees every milestone's notes, open or not.
+    '<div class="proj-task-notes-wrap" style="margin:0 0 10px 34px;' + (open ? '' : 'display:none;') + '">' +
+      '<div class="proj-field-label">Plan / instructions</div>' +
+      '<textarea class="form-input proj-task-notes" data-task="' + t.id + '" rows="4" placeholder="Steps, how-to, links, acceptance criteria…" style="resize:vertical;font-family:inherit;font-size:13px;">' + escapeHtml(t.notes || '') + '</textarea>' +
     '</div>';
   }).join('');
 
@@ -11577,6 +11587,9 @@ function _projReadForm() {
   document.querySelectorAll('#projEditor .proj-task-check').forEach(function(el) {
     var t = byId[el.getAttribute('data-task')]; if (t) t.done = el.checked;
   });
+  document.querySelectorAll('#projEditor .proj-task-notes').forEach(function(el) {
+    var t = byId[el.getAttribute('data-task')]; if (t) t.notes = el.value;
+  });
 }
 
 function _projAddPendingTask() {
@@ -11589,6 +11602,7 @@ function _projAddPendingTask() {
 
 function _projOpenEditor(p) {
   _projEdit = p;
+  _projOpenTasks = {};
   _projScrollToEditor = true;
   renderProjectsPage();
 }
@@ -11611,8 +11625,8 @@ function _projSave() {
     priority:    _projEdit.priority || '',
     dueDate:     _projEdit.dueDate || '',
     blocker:     (_projEdit.blocker || '').trim(),
-    tasks:       (_projEdit.tasks || []).filter(function(t) { return (t.text || '').trim(); })
-                   .map(function(t) { return { id: t.id, text: t.text.trim(), done: !!t.done }; }),
+    tasks:       (_projEdit.tasks || []).filter(function(t) { return (t.text || '').trim() || (t.notes || '').trim(); })
+                   .map(function(t) { return { id: t.id, text: (t.text || '').trim() || 'Untitled milestone', done: !!t.done, notes: (t.notes || '').trim() }; }),
     createdAt:   existing ? existing.createdAt : todayISO(),
     status:      existing ? existing.status : 'backlog',
     completedAt: existing ? (existing.completedAt || '') : ''
@@ -11726,6 +11740,16 @@ async function renderProjectsPage() {
         var tid = btn.getAttribute('data-task');
         _projEdit.tasks = _projEdit.tasks.filter(function(t) { return t.id !== tid; });
         renderProjectsPage();
+      } else if (action === 'proj-task-toggle') {
+        var ttid = btn.getAttribute('data-task');
+        var open = !_projOpenTasks[ttid];
+        if (open) _projOpenTasks[ttid] = true; else delete _projOpenTasks[ttid];
+        var wrap = btn.closest('.proj-task-row').nextElementSibling;
+        if (wrap) wrap.style.display = open ? '' : 'none';
+        btn.innerHTML = open ? '&#9662;' : '&#9656;';
+        btn.setAttribute('aria-expanded', String(open));
+        btn.title = (open ? 'Hide' : 'Show') + ' plan / instructions';
+        if (open && wrap) { var ta = wrap.querySelector('textarea'); if (ta && !ta.value) ta.focus(); }
       } else if (action === 'proj-task-move') {
         _projReadForm();
         var mid = btn.getAttribute('data-task');
@@ -11753,6 +11777,12 @@ async function renderProjectsPage() {
 
     // Search filters cards in place rather than re-rendering, so the box keeps focus.
     inner.addEventListener('input', function(e) {
+      // Light up a milestone's expand arrow as soon as it has notes.
+      if (e.target.classList.contains('proj-task-notes')) {
+        var tg = inner.querySelector('[data-action="proj-task-toggle"][data-task="' + e.target.getAttribute('data-task') + '"]');
+        if (tg) tg.style.color = e.target.value.trim() ? 'var(--accent)' : '';
+        return;
+      }
       if (e.target.id !== 'projSearch') return;
       _projSearch = e.target.value.trim().toLowerCase();
       inner.querySelectorAll('.proj-card').forEach(function(card) {
@@ -12105,7 +12135,7 @@ function renderGuidePage() {
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
         ['dashboard-jobs-leads-inbox', 'New leads awaiting review, synced in daily from a Google Drive file the Daily Jobs Report routine writes (see syncJobLeadsFromDrive) — cleared as each one is imported or dismissed'],
-        ['projects-data',           'Personal projects on the Project Tracker kanban board: status column, priority, due date, blocker note, and a milestone checklist'],
+        ['projects-data',           'Personal projects on the Project Tracker kanban board: status column, priority, due date, blocker note, and an ordered milestone checklist where each milestone can carry its own plan / instructions notes'],
         ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['dashboard-gcal-settings', 'Which calendar IDs are toggled off in the two-week Calendar view'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
