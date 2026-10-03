@@ -11519,10 +11519,13 @@ function _projEditorHtml() {
   var priorityOpts = '<option value="">None</option>' + PROJECT_PRIORITIES.map(function(s) {
     return '<option value="' + s.id + '"' + (s.id === p.priority ? ' selected' : '') + '>' + s.label + '</option>';
   }).join('');
-  var tasksHtml = (p.tasks || []).map(function(t) {
+  var taskCount = (p.tasks || []).length;
+  var tasksHtml = (p.tasks || []).map(function(t, i) {
     return '<div class="proj-task-row">' +
       '<input type="checkbox" class="proj-task-check" data-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:pointer;" />' +
       '<input class="edit-input proj-task-text" data-task="' + t.id + '" value="' + escapeHtml(t.text) + '" style="flex:1;" />' +
+      '<button class="icon-btn" data-action="proj-task-move" data-dir="-1" data-task="' + t.id + '" title="Move up"' + (i === 0 ? ' disabled style="opacity:.25;"' : '') + '>&#8679;</button>' +
+      '<button class="icon-btn" data-action="proj-task-move" data-dir="1" data-task="' + t.id + '" title="Move down"' + (i === taskCount - 1 ? ' disabled style="opacity:.25;"' : '') + '>&#8681;</button>' +
       '<button class="icon-btn" data-action="proj-task-remove" data-task="' + t.id + '" title="Remove">&#10005;</button>' +
     '</div>';
   }).join('');
@@ -11723,6 +11726,18 @@ async function renderProjectsPage() {
         var tid = btn.getAttribute('data-task');
         _projEdit.tasks = _projEdit.tasks.filter(function(t) { return t.id !== tid; });
         renderProjectsPage();
+      } else if (action === 'proj-task-move') {
+        _projReadForm();
+        var mid = btn.getAttribute('data-task');
+        var from = _projEdit.tasks.findIndex(function(t) { return t.id === mid; });
+        var to = from + Number(btn.getAttribute('data-dir'));
+        if (from < 0 || to < 0 || to >= _projEdit.tasks.length) return;
+        var moved = _projEdit.tasks.splice(from, 1)[0];
+        _projEdit.tasks.splice(to, 0, moved);
+        renderProjectsPage();
+        // Keep focus on the same arrow so repeated taps/Enter keep moving the item.
+        var again = inner.querySelector('[data-action="proj-task-move"][data-task="' + mid + '"][data-dir="' + btn.getAttribute('data-dir') + '"]');
+        if (again && !again.disabled) again.focus();
       }
     });
 
