@@ -558,6 +558,13 @@
   .proj-bar > div { height: 100%; background: #5BAE7A; }
   .proj-field-label { color: var(--text-2); font-size: 10px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .05em; }
   .proj-task-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .proj-link-row { flex-wrap: wrap; }
+  .proj-link-row .proj-link-label { flex: 1 1 120px; min-width: 0; }
+  .proj-link-row .proj-link-url { flex: 2 1 200px; min-width: 0; }
+  .proj-card-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .proj-link-chip { font-size: 11px; border: 1px solid var(--border-2); border-radius: 6px; padding: 2px 8px; color: var(--accent); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+  .proj-link-chip:hover { border-color: var(--accent); }
+  .proj-link-more { font-size: 11px; color: var(--text-3); padding: 2px 4px; }
   .edit-input.grow { flex: 1; }
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
@@ -11668,13 +11675,15 @@ function _projSort(status) {
 }
 
 function _projSearchText(p) {
-  return ((p.title || '') + ' ' + (p.description || '')).toLowerCase();
+  var linkText = (p.links || []).map(function(l) { return (l.label || '') + ' ' + (l.url || ''); }).join(' ');
+  return ((p.title || '') + ' ' + (p.description || '') + ' ' + linkText).toLowerCase();
 }
 
 function _projCardHtml(p) {
   var pr = _projPriority(p.priority);
   var tasks = p.tasks || [];
   var done = tasks.filter(function(t) { return t.done; }).length;
+  var links = p.links || [];
   var search = _projSearchText(p);
   var hidden = _projSearch && search.indexOf(_projSearch) < 0;
   return '<div class="proj-card" draggable="true" data-action="proj-edit" data-proj="' + p.id + '" data-search="' + escapeHtml(search) + '"' + (hidden ? ' style="display:none;"' : '') + '>' +
@@ -11691,7 +11700,34 @@ function _projCardHtml(p) {
       ? '<div class="proj-card-progress"><div class="proj-bar"><div style="width:' + Math.round(done / tasks.length * 100) + '%;"></div></div>' +
         '<span class="mono">&#9745; ' + done + '/' + tasks.length + '</span></div>'
       : '') +
+    (links.length
+      ? '<div class="proj-card-links">' +
+          links.slice(0, 3).map(function(l) {
+            return '<a class="proj-link-chip" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener" draggable="false" title="' + escapeHtml(l.url) + '">&#128279; ' + escapeHtml(_projLinkLabel(l)) + '</a>';
+          }).join('') +
+          (links.length > 3 ? '<span class="proj-link-more">+' + (links.length - 3) + ' more</span>' : '') +
+        '</div>'
+      : '') +
   '</div>';
+}
+
+// Project links only accept web addresses. "github.com/me/repo" gets https://
+// added; anything with another scheme (javascript:, data:, …) is rejected so a
+// saved link can't run code when clicked. Returns '' for invalid input.
+function _projNormalizeUrl(raw) {
+  var s = (raw || '').trim();
+  if (!s) return '';
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+  if (!/^https?:\/\//i.test(s)) return '';
+  try {
+    var u = new URL(s);
+    return /\./.test(u.hostname) || u.hostname === 'localhost' ? u.href : '';
+  } catch (e) { return ''; }
+}
+
+function _projLinkLabel(l) {
+  if ((l.label || '').trim()) return l.label.trim();
+  try { return new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) { return l.url; }
 }
 
 // Milestone notes as read-only HTML: escaped text with line breaks kept and
@@ -11752,6 +11788,15 @@ function _projEditorHtml() {
     '</div>';
   }).join('');
 
+  var linksHtml = (p.links || []).map(function(l) {
+    return '<div class="proj-task-row proj-link-row">' +
+      '<input class="edit-input proj-link-label" data-link="' + l.id + '" value="' + escapeHtml(l.label || '') + '" placeholder="Label" />' +
+      '<input class="edit-input proj-link-url" data-link="' + l.id + '" value="' + escapeHtml(l.url) + '" placeholder="https://…" />' +
+      '<a class="icon-btn" href="' + escapeHtml(l.url) + '" target="_blank" rel="noopener" title="Open link" style="text-decoration:none;color:var(--accent);">&#8599;</a>' +
+      '<button class="icon-btn" data-action="proj-link-remove" data-link="' + l.id + '" title="Remove">&#10005;</button>' +
+    '</div>';
+  }).join('');
+
   return '<div class="card" id="projEditor" style="border-color:var(--accent);">' +
     '<div class="gauge-label mono" style="margin-bottom:12px;">' + (isNew ? 'NEW PROJECT' : 'EDIT PROJECT') + '</div>' +
     '<input class="form-input" id="projTitle" placeholder="Project name *" value="' + escapeHtml(p.title) + '" style="margin-bottom:8px;" />' +
@@ -11770,6 +11815,13 @@ function _projEditorHtml() {
     '<div class="proj-task-row">' +
       '<input class="edit-input" id="projNewTask" placeholder="Add a milestone, then Enter" style="flex:1;" />' +
       '<button class="port-edit-btn" data-action="proj-task-add" style="font-size:12px;">Add</button>' +
+    '</div>' +
+    '<div class="proj-field-label" style="margin:14px 0 6px;">Links</div>' +
+    linksHtml +
+    '<div class="proj-task-row proj-link-row">' +
+      '<input class="edit-input proj-link-label" id="projNewLinkLabel" placeholder="Label (optional)" />' +
+      '<input class="edit-input proj-link-url" id="projNewLinkUrl" placeholder="Paste a URL, then Enter" />' +
+      '<button class="port-edit-btn" data-action="proj-link-add" style="font-size:12px;">Add</button>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px;">' +
       '<span class="error-text" id="projFormError" style="flex:1;"></span>' +
@@ -11802,6 +11854,36 @@ function _projReadForm() {
   document.querySelectorAll('#projEditor .proj-task-notes').forEach(function(el) {
     var t = byId[el.getAttribute('data-task')]; if (t) t.notes = el.value;
   });
+  var linkById = {};
+  (_projEdit.links || []).forEach(function(l) { linkById[l.id] = l; });
+  document.querySelectorAll('#projEditor .proj-link-label[data-link]').forEach(function(el) {
+    var l = linkById[el.getAttribute('data-link')]; if (l) l.label = el.value;
+  });
+  document.querySelectorAll('#projEditor .proj-link-url[data-link]').forEach(function(el) {
+    var l = linkById[el.getAttribute('data-link')]; if (l) l.url = el.value;
+  });
+}
+
+function _projFormError(msg, focusEl) {
+  var errEl = document.getElementById('projFormError');
+  if (errEl) errEl.textContent = msg;
+  if (focusEl) focusEl.focus();
+}
+
+// Adds whatever's in the new-link inputs. Returns true if a link was added,
+// false if both inputs were empty, and 'invalid' (after showing an error)
+// if the URL isn't a web address.
+function _projAddPendingLink() {
+  var urlEl = document.getElementById('projNewLinkUrl');
+  var labelEl = document.getElementById('projNewLinkLabel');
+  var rawUrl = urlEl ? urlEl.value.trim() : '';
+  var label = labelEl ? labelEl.value.trim() : '';
+  if (!rawUrl && !label) return false;
+  var url = _projNormalizeUrl(rawUrl);
+  if (!url) { _projFormError(rawUrl ? 'That link isn\'t a web address (it should look like https://…).' : 'Add a URL for that link.', urlEl); return 'invalid'; }
+  if (!_projEdit.links) _projEdit.links = [];
+  _projEdit.links.push({ id: uid(), label: label, url: url });
+  return true;
 }
 
 function _projAddPendingTask() {
@@ -11825,10 +11907,22 @@ function _projSave() {
   _projAddPendingTask(); // typed a milestone but didn't press Add — keep it
   var title = (_projEdit.title || '').trim();
   if (!title) {
-    var errEl = document.getElementById('projFormError');
-    if (errEl) errEl.textContent = 'Give the project a name.';
-    var tEl = document.getElementById('projTitle'); if (tEl) tEl.focus();
+    _projFormError('Give the project a name.', document.getElementById('projTitle'));
     return;
+  }
+  if (_projAddPendingLink() === 'invalid') return; // typed a link but didn't press Add — keep it
+  // Existing links: a cleared URL removes the link; a garbled one blocks saving.
+  var links = [];
+  for (var li = 0; li < (_projEdit.links || []).length; li++) {
+    var l = _projEdit.links[li];
+    if (!(l.url || '').trim()) continue;
+    var cleanUrl = _projNormalizeUrl(l.url);
+    if (!cleanUrl) {
+      _projFormError('One of the links isn\'t a web address (it should look like https://…).',
+        document.querySelector('#projEditor .proj-link-url[data-link="' + l.id + '"]'));
+      return;
+    }
+    links.push({ id: l.id, label: (l.label || '').trim(), url: cleanUrl });
   }
   var existing = _projFind(_projEdit.id);
   var rec = {
@@ -11840,6 +11934,7 @@ function _projSave() {
     blocker:     (_projEdit.blocker || '').trim(),
     tasks:       (_projEdit.tasks || []).filter(function(t) { return (t.text || '').trim() || (t.notes || '').trim(); })
                    .map(function(t) { return { id: t.id, text: (t.text || '').trim() || 'Untitled milestone', done: !!t.done, notes: (t.notes || '').trim() }; }),
+    links:       links,
     createdAt:   existing ? existing.createdAt : todayISO(),
     status:      existing ? existing.status : 'backlog',
     completedAt: existing ? (existing.completedAt || '') : ''
@@ -11927,14 +12022,24 @@ async function renderProjectsPage() {
 
     inner.addEventListener('click', function(e) {
       if (!_projData) return;
+      if (e.target.closest('a[href]')) return; // a link chip on a card: open the link, not the editor
       var btn = e.target.closest('[data-action]');
       if (!btn) return;
       var action = btn.getAttribute('data-action');
       if (action === 'proj-new') {
-        _projOpenEditor({ id: uid(), title: '', description: '', status: btn.getAttribute('data-status') || 'backlog', priority: '', dueDate: '', blocker: '', tasks: [] });
+        _projOpenEditor({ id: uid(), title: '', description: '', status: btn.getAttribute('data-status') || 'backlog', priority: '', dueDate: '', blocker: '', tasks: [], links: [] });
       } else if (action === 'proj-edit') {
         var p = _projFind(btn.getAttribute('data-proj'));
-        if (p) _projOpenEditor(JSON.parse(JSON.stringify(Object.assign({ description: '', priority: '', dueDate: '', blocker: '', tasks: [] }, p))));
+        if (p) _projOpenEditor(JSON.parse(JSON.stringify(Object.assign({ description: '', priority: '', dueDate: '', blocker: '', tasks: [], links: [] }, p))));
+      } else if (action === 'proj-link-add') {
+        _projReadForm();
+        if (_projAddPendingLink() === true) renderProjectsPage();
+        var nl = document.getElementById('projNewLinkUrl'); if (nl && !document.getElementById('projFormError').textContent) nl.focus();
+      } else if (action === 'proj-link-remove') {
+        _projReadForm();
+        var lid = btn.getAttribute('data-link');
+        _projEdit.links = (_projEdit.links || []).filter(function(l) { return l.id !== lid; });
+        renderProjectsPage();
       } else if (action === 'proj-cancel') {
         _projEdit = null; renderProjectsPage();
       } else if (action === 'proj-save') {
@@ -11999,6 +12104,14 @@ async function renderProjectsPage() {
         _projReadForm();
         if (_projAddPendingTask()) renderProjectsPage();
         var nt = document.getElementById('projNewTask'); if (nt) nt.focus();
+      }
+      if (e.key === 'Enter' && (e.target.id === 'projNewLinkUrl' || e.target.id === 'projNewLinkLabel')) {
+        e.preventDefault();
+        _projReadForm();
+        if (_projAddPendingLink() === true) {
+          renderProjectsPage();
+          var nl = document.getElementById('projNewLinkUrl'); if (nl) nl.focus();
+        }
       }
     });
 
@@ -12362,7 +12475,7 @@ function renderGuidePage() {
         ['dashboard-certs-data',    'Certifications list with dates and status'],
         ['dashboard-jobs-data',     'Job applications with status, company, notes'],
         ['dashboard-jobs-leads-inbox', 'New leads awaiting review, synced in daily from a Google Drive file the Daily Jobs Report routine writes (see syncJobLeadsFromDrive) — cleared as each one is imported or dismissed'],
-        ['projects-data',           'Personal projects on the Project Tracker kanban board: status column, priority, due date, blocker note, and an ordered milestone checklist where each milestone can carry its own plan / instructions notes'],
+        ['projects-data',           'Personal projects on the Project Tracker kanban board: status column, priority, due date, blocker note, and an ordered milestone checklist where each milestone can carry its own plan / instructions notes, plus a list of labeled web links (http/https only)'],
         ['dashboard-chess-data',    'Just the editable rating goal for the Chess Progress page — the rest is fetched live from the Chess.com API'],
         ['dashboard-gcal-settings', 'Which calendar IDs are toggled off in the two-week Calendar view'],
         ['portfolio-content',       'All text fields on the Work Portfolio page'],
