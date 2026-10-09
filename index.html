@@ -900,6 +900,14 @@
   .tabbtn, .trip-pill, .port-edit-btn { background: var(--bg-card); border-color: var(--border-2); color: var(--text-1); }
   .gauge-track { background: var(--border-2); }
   .form-input, .small-input, .edit-input, .edit-select, .chapter-editor { background: var(--bg); border-color: var(--border-2); color: var(--text-1); }
+  /* Selected field: the theme's accent instead of the browser's default blue
+     focus ring (very visible on iPhone). */
+  .form-input, .small-input, .edit-input, .edit-select { transition: border-color .15s, box-shadow .15s; }
+  .form-input:focus, .small-input:focus, .edit-input:focus, .edit-select:focus, .chapter-editor:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  input, textarea, select, button { -webkit-tap-highlight-color: transparent; }
   .item-name, .port-title, .port-card h2 { color: var(--text-1); }
   /* Card style variants */
   body.card-flat .card, body.card-flat .list-card, body.card-flat .port-card { border-radius: 6px; box-shadow: none; }
