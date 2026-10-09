@@ -2668,6 +2668,111 @@ document.addEventListener("visibilitychange", function () {
   showEntryGate();
 });
 
+/* ---------------- app shortcuts, share target, icon badge ----------------
+   manifest.json declares home-screen shortcuts (?action=add-expense etc.)
+   and a share target (Android: share a job posting to the app → ?title=
+   &text=&url=). Read once at load, then stripped from the address bar. */
+var _launchIntent = (function () {
+  try {
+    var q = new URLSearchParams(location.search);
+    var action = q.get("action");
+    var shared = q.get("title") || q.get("text") || q.get("url");
+    if (!action && !shared) return null;
+    history.replaceState(null, "", location.pathname + location.hash);
+    return { action: action || "share-job", title: q.get("title") || "", text: q.get("text") || "", url: q.get("url") || "" };
+  } catch (e) { return null; }
+})();
+
+// Waits for an element a page renders asynchronously, then focuses it.
+function _focusWhenReady(selector, timeoutMs) {
+  var start = Date.now();
+  (function poll() {
+    var el = document.querySelector(selector);
+    if (el && el.offsetParent) { el.scrollIntoView({ block: "center" }); el.focus({ preventScroll: true }); return; }
+    if (Date.now() - start < (timeoutMs || 4000)) setTimeout(poll, 120);
+  })();
+}
+function _whenReady(test, fn, timeoutMs) {
+  var start = Date.now();
+  (function poll() {
+    if (test()) { fn(); return; }
+    if (Date.now() - start < (timeoutMs || 5000)) setTimeout(poll, 120);
+  })();
+}
+
+// Best-effort split of a shared job posting into role / company / link /
+// notes. Share sheets vary: LinkedIn sends "Check out this job at Acme: Product
+// Manager <url>", others "Role - Company | Site" or "Role at Company".
+function _parseSharedJob(it) {
+  var all = [it.title, it.text, it.url].join(" ");
+  var urlMatch = all.match(/https?:\/\/[^\s<>"']+/);
+  var url = it.url || (urlMatch ? urlMatch[0] : "");
+  var text = (it.text || "").replace(url, "").trim();
+  var s = (it.title || text.split("\n")[0] || "").replace(url, "")
+    .replace(/\s*[|·–-]\s*(LinkedIn|Indeed(\.com)?|Glassdoor|ZipRecruiter|Built ?In)\b.*$/i, "").trim();
+  var role = s, company = "", m;
+  if ((m = s.match(/job at (.+?):\s*(.+)$/i))) { company = m[1]; role = m[2]; }
+  else if ((m = s.match(/^(.+?)\s+(?:at|@)\s+(.+)$/i))) { role = m[1]; company = m[2]; }
+  else if ((m = s.split(/\s+[|–-]\s+/)).length > 1) { role = m[0]; company = m[1]; }
+  var notes = text && text !== s && text !== it.title ? text : "";
+  return { role: role.trim(), company: company.trim(), url: url, notes: notes.slice(0, 500) };
+}
+
+function _runLaunchIntent(it) {
+  var a = it.action;
+  if (a === "add-expense") {
+    switchPage("budget");
+    _focusWhenReady("#psEntryAmountInput-me");
+  } else if (a === "log-workout") {
+    switchPage("workouts");
+    _focusWhenReady("#wkName");
+  } else if (a === "new-project") {
+    switchPage("projects");
+    _whenReady(function () { return _projData; }, function () {
+      _projOpenEditor({ id: uid(), title: "", description: "", status: "backlog", priority: "", dueDate: "", blocker: "", tasks: [], links: [] });
+    });
+  } else if (a === "add-job" || a === "share-job") {
+    switchPage("jobs");
+    _whenReady(function () { return _jobData && document.querySelector("#page-jobs .page-inner [data-action]"); }, function () {
+      _jobAddMode = true; _jobEditId = null;
+      renderJobsPage();
+      if (a === "share-job") {
+        var job = _parseSharedJob(it);
+        _whenReady(function () { return document.getElementById("jobNewCompany"); }, function () {
+          document.getElementById("jobNewCompany").value = job.company;
+          document.getElementById("jobNewRole").value = job.role;
+          document.getElementById("jobNewLink").value = job.url;
+          document.getElementById("jobNewNotes").value = job.notes;
+          var st = document.getElementById("jobNewStage"); if (st) st.value = "saved";
+          (job.company ? document.getElementById("jobNewRole") : document.getElementById("jobNewCompany")).focus();
+        });
+      } else {
+        _focusWhenReady("#jobNewCompany");
+      }
+    });
+  }
+}
+
+// App-icon badge: bills past their due day this month and still unpaid, plus
+// overdue projects. Reads only the local cache (no network), so it reflects
+// the last data this device saw. Supported on installed apps in Chrome/Edge
+// desktop and iOS 16.4+ (iOS also needs notification permission).
+function _updateAppBadge() {
+  if (!("setAppBadge" in navigator) || !currentUserId) return;
+  var n = 0, today = new Date().getDate(), todayStr = todayISO();
+  var budget = _readCache("dashboard-budget-data");
+  ((budget && budget.items) || []).forEach(function (it) {
+    if (it.category === "savings" || it.dueDay === "" || it.dueDay == null) return;
+    if (Number(it.dueDay) < today && !isCurrentlyPaid(it)) n++;
+  });
+  var projects = _readCache("projects-data");
+  ((projects && projects.projects) || []).forEach(function (p) {
+    if (p.status !== "completed" && p.dueDate && p.dueDate < todayStr) n++;
+  });
+  try { (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(function () {}); } catch (e) {}
+}
+document.addEventListener("visibilitychange", function () { if (document.hidden) _updateAppBadge(); });
+
 function openAuthPanel() {
   var scene = document.getElementById("authScreen");
   if (scene.classList.contains("auth-gate")) { passEntryGate(); return; }
@@ -2695,6 +2800,7 @@ function renderGreeting() {
   if (name) name.textContent = USER_DISPLAY_NAME;
 }
 function showDashboardScreen() {
+  if (_launchIntent) _entryGatePassed = true; // opened from a shortcut/share: go straight to it
   var gate = _entryGateWanted();
   var scene = document.getElementById("authScreen");
   if (gate) showEntryGate();
@@ -2741,6 +2847,13 @@ function showDashboardScreen() {
   _navAnimReady = false;
   setTimeout(function () { _navAnimReady = true; }, 1500);
   if (!gate) _afterPageShown(currentPage); // behind the gate, passEntryGate() runs this instead
+  if (_launchIntent) {
+    var intent = _launchIntent;
+    _launchIntent = null;
+    _defaultPageApplied = true; // don't let the default landing page override it
+    _runLaunchIntent(intent);
+  }
+  setTimeout(_updateAppBadge, 3000);
 }
 var _navAnimReady = false;
 
@@ -9939,6 +10052,7 @@ function _countUpScan(pageEl) {
 function _afterPageShown(page) {
   var el = document.getElementById(page === 'dashboard' ? 'page-dashboard' : 'page-' + page);
   [60, 450, 1200].forEach(function (ms) { setTimeout(function () { if (currentPage === page) _countUpScan(el); }, ms); });
+  setTimeout(_updateAppBadge, 1500);
 }
 
 /* ---------------- art portfolio edit mode ---------------- */
