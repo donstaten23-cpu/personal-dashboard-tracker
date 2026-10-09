@@ -722,34 +722,57 @@
   .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
 
   /* ---- page transitions (see switchPage) ----
-     Only the content area slides; the sidebar stays put and just
-     cross-fades its active item. Direction comes from html[data-nav-dir]. */
-  .main-content { view-transition-name: page-area; }
-  ::view-transition-group(page-area) { animation: none; }
-  ::view-transition-old(page-area) { animation: vtOutFwd .22s cubic-bezier(.4,0,1,1) both; }
-  ::view-transition-new(page-area) { animation: vtInFwd .38s cubic-bezier(.2,.8,.2,1) both; }
-  html[data-nav-dir="back"]::view-transition-old(page-area) { animation-name: vtOutBack; }
-  html[data-nav-dir="back"]::view-transition-new(page-area) { animation-name: vtInBack; }
-  ::view-transition-old(page-area), ::view-transition-new(page-area) { height: auto; object-fit: none; object-position: top; }
-  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
-  @keyframes vtOutFwd  { to   { opacity: 0; transform: translateX(-40px); } }
-  @keyframes vtInFwd   { from { opacity: 0; transform: translateX(56px); } }
-  @keyframes vtOutBack { to   { opacity: 0; transform: translateX(40px); } }
-  @keyframes vtInBack  { from { opacity: 0; transform: translateX(-56px); } }
-  /* Fallback for browsers without View Transitions: slide the new page in. */
-  .page.page-in { animation: vtInFwd .38s cubic-bezier(.2,.8,.2,1) both; }
-  html[data-nav-dir="back"] .page.page-in { animation-name: vtInBack; }
-
-  /* ---- button micro-interactions: lift/brighten on hover, press-in on tap ---- */
-  .port-edit-btn, .icon-btn, .tabbtn, .trip-pill, .dx-ds, .sort-btn, .chip, .link-btn, .proj-col-new, .add-btn {
-    transition: transform .14s cubic-bezier(.3,.7,.4,1.4), background-color .18s, color .18s, border-color .18s, filter .18s, box-shadow .18s;
+     iOS-style push: the new page slides in across the full width from the
+     right with a shadow on its leading edge while the old page drifts left
+     and dims underneath; going back up the sidebar plays it in reverse.
+     Only the content area moves — the sidebar stays put. Direction comes
+     from html[data-nav-dir]. The content area needs an opaque background
+     or the two pages would show through each other mid-slide. */
+  .main-content { view-transition-name: page-area; background: var(--bg); }
+  ::view-transition-group(page-area) { animation: none; overflow: clip; }
+  ::view-transition-image-pair(page-area) { overflow: clip; isolation: auto; }
+  ::view-transition-old(page-area), ::view-transition-new(page-area) {
+    height: auto; object-fit: none; object-position: top; mix-blend-mode: normal;
+    animation-duration: .46s; animation-timing-function: cubic-bezier(.32,.72,0,1); animation-fill-mode: both;
   }
-  .port-edit-btn:hover, .tabbtn:hover, .trip-pill:hover, .dx-ds:hover:not(.active) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-2)); color: var(--text-1); }
-  .add-btn:hover { box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+  ::view-transition-old(page-area) { animation-name: vtPushOut; z-index: 0; }
+  ::view-transition-new(page-area) { animation-name: vtPushIn; z-index: 1; box-shadow: -14px 0 36px rgba(0,0,0,.22); }
+  html[data-nav-dir="back"]::view-transition-old(page-area) { animation-name: vtPopOut; z-index: 1; box-shadow: -14px 0 36px rgba(0,0,0,.22); }
+  html[data-nav-dir="back"]::view-transition-new(page-area) { animation-name: vtPopIn; z-index: 0; box-shadow: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .25s; }
+  @keyframes vtPushIn  { from { transform: translateX(100%); } }
+  @keyframes vtPushOut { to   { transform: translateX(-30%); filter: brightness(.82); } }
+  @keyframes vtPopOut  { to   { transform: translateX(100%); } }
+  @keyframes vtPopIn   { from { transform: translateX(-30%); filter: brightness(.82); } }
+  /* Fallback for browsers without View Transitions: slide the new page in. */
+  @keyframes pageInFwd  { from { opacity: 0; transform: translateX(40%); } }
+  @keyframes pageInBack { from { opacity: 0; transform: translateX(-40%); } }
+  .page.page-in { animation: pageInFwd .42s cubic-bezier(.32,.72,0,1) both; }
+  html[data-nav-dir="back"] .page.page-in { animation-name: pageInBack; }
+
+  /* ---- button micro-interactions ----
+     Press: snaps down to 92% almost instantly, then springs back with a
+     slight overshoot on release. Hover (mouse only): accent-tinted fill;
+     solid buttons lift with a glow. */
+  .port-edit-btn, .icon-btn, .tabbtn, .trip-pill, .dx-ds, .sort-btn, .chip, .pill, .link-btn, .proj-col-new, .add-btn, .pb-chip {
+    transition: transform .42s cubic-bezier(.34,1.8,.5,1), background-color .18s, color .18s, border-color .18s, filter .18s, box-shadow .2s;
+  }
   .port-edit-btn:active, .icon-btn:active, .tabbtn:active, .trip-pill:active, .dx-ds:active, .sort-btn:active,
-  .chip:active, .link-btn:active, .proj-col-new:active, .add-btn:active { transform: scale(.94); }
-  .sidebar-item { transition: background-color .18s, color .18s, opacity .18s, transform .14s; }
-  .sidebar-item:active { transform: scale(.97); }
+  .chip:active, .pill:active, .link-btn:active, .proj-col-new:active, .add-btn:active, a.pb-chip:active {
+    transform: scale(.92); transition-duration: .08s;
+  }
+  @media (hover: hover) {
+    .port-edit-btn:hover, .tabbtn:hover, .trip-pill:hover, .dx-ds:hover:not(.active), .chip:hover, a.pb-chip:hover {
+      background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+      border-color: color-mix(in srgb, var(--accent) 50%, var(--border-2)); color: var(--text-1);
+    }
+    .icon-btn:hover:not(:disabled) { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .add-btn:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .add-btn:hover:active { transform: scale(.92); }
+    .sidebar-item:hover { transform: translateX(3px); }
+  }
+  .sidebar-item { transition: background-color .18s, color .18s, opacity .18s, transform .38s cubic-bezier(.34,1.8,.5,1); }
+  .sidebar-item:active { transform: scale(.96); transition-duration: .08s; }
   .icon-btn:disabled:active { transform: none; }
 
 
@@ -3042,6 +3065,10 @@ var _pendingSectionByPage = {};
 // snapshots old/new content and animates between them — see the
 // ::view-transition rules in the CSS); browsers without it get a simple
 // slide-in on the new page instead.
+// iOS Safari only applies :active (the button press effect) when the page
+// has a touch listener somewhere; this empty one opts the whole page in.
+document.addEventListener("touchstart", function () {}, { passive: true });
+
 function _pageOrder(page) {
   var items = Array.prototype.map.call(document.querySelectorAll(".sidebar-item[data-page]"), function (b) { return b.getAttribute("data-page"); });
   var i = items.indexOf(page);
