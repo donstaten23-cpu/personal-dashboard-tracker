@@ -375,6 +375,55 @@
   #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color:var(--text-2); cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
   #artLightbox .lb-close:hover { color:var(--text-1); }
 
+  /* "Deleted · Undo" bar (see _offerUndo). Floats above the tab bar on phones. */
+  .undo-toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 1500;
+    display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 32px);
+    padding: 11px 12px 11px 18px; border-radius: 14px; overflow: hidden;
+    background: var(--text-1); color: var(--bg); box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    font-size: 14px; opacity: 0; pointer-events: none;
+    transform: translate(-50%, 24px) scale(.96);
+    transition: opacity .2s, transform .38s cubic-bezier(.34,1.56,.64,1);
+  }
+  .undo-toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+  .undo-msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .undo-btn {
+    flex-shrink: 0; background: none; border: none; font: inherit; font-weight: 700; color: var(--accent);
+    padding: 6px 10px; border-radius: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform .3s cubic-bezier(.34,1.8,.5,1), background-color .15s;
+  }
+  .undo-btn:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .undo-btn:active { transform: scale(.9); transition-duration: .08s; }
+  /* Shrinking line showing how long Undo stays available. */
+  .undo-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); transform-origin: left; }
+  .undo-toast.show .undo-bar { animation: undoCountdown 5s linear forwards; }
+  @keyframes undoCountdown { to { transform: scaleX(0); } }
+
+  /* Row swipe (see _swipeBegin): the row's content slides over a colored
+     layer naming the action — green "Paid" on the left, red "Delete" on the
+     right — which brightens once the swipe passes the commit point. */
+  .swiping { position: relative; overflow: hidden; touch-action: pan-y; }
+  .swipe-content { position: relative; z-index: 1; background: var(--bg-card); will-change: transform; }
+  .swipe-bg {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 18px; font-size: 13px; font-weight: 700; color: #fff;
+    background: color-mix(in srgb, #5BAE7A 70%, var(--bg-card)); transition: background-color .15s;
+  }
+  .swiping.swipe-dir-r .swipe-bg { background: color-mix(in srgb, #D9534F 70%, var(--bg-card)); }
+  .swiping.swipe-armed-l .swipe-bg { background: #3E9A61; }
+  .swiping.swipe-armed-r .swipe-bg { background: #D9534F; }
+  .swipe-lbl { transition: transform .2s cubic-bezier(.34,1.8,.5,1); }
+  .swiping.swipe-dir-r .swipe-lbl-l, .swiping:not(.swipe-dir-r) .swipe-lbl-r { visibility: hidden; }
+  .swiping.swipe-armed-l .swipe-lbl-l, .swiping.swipe-armed-r .swipe-lbl-r { transform: scale(1.12); }
+  /* iPhone edge-swipe-back indicator */
+  #edgeBackInd {
+    position: fixed; left: 0; top: 50%; z-index: 1600; width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 30px; line-height: 1; padding-bottom: 3px;
+    background: var(--bg-card); color: var(--text-2); border: 1px solid var(--border-2); box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    opacity: 0; pointer-events: none; transition: opacity .2s, background-color .15s, color .15s;
+  }
+  #edgeBackInd.armed { background: var(--accent); color: #fff; border-color: var(--accent); }
+
   /* Bottom tab bar — phones only (shown in the max-width:700px block below).
      Sits under the menu drawer (z 99/100) so the open drawer covers it. */
   .tabbar { display: none; }
@@ -406,6 +455,7 @@
        and the bottom needs room for the bar. */
     .hamburger { display: none !important; }
     .main-content { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+    .undo-toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
     .sidebar { padding-bottom: env(safe-area-inset-bottom); }
   }
 
@@ -3252,12 +3302,20 @@ function _pageOrder(page) {
   var i = items.indexOf(page);
   return i < 0 ? (page === "dashboard" ? -1 : items.length) : i;
 }
-function switchPage(page) {
+// Each user page change is a real history entry, so Android's back gesture/
+// button, the browser back button, and the iPhone edge swipe (below) all step
+// back through pages. Automatic switches during sign-in don't add entries.
+var _navDepth = 0;
+function switchPage(page, opts) {
+  opts = opts || {};
   var from = currentPage;
   var visible = document.getElementById("dashboardScreen").style.display !== "none";
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (visible && _navAnimReady && page !== from && !opts.fromPop) {
+    try { history.pushState({ page: page }, "", "#" + page); _navDepth++; } catch (e) {}
+  }
   if (!visible || !_navAnimReady || page === from || reduced) { _switchPageNow(page); _afterPageShown(page); return; }
-  var dir = _pageOrder(page) < _pageOrder(from) ? "back" : "forward";
+  var dir = opts.back ? "back" : _pageOrder(page) < _pageOrder(from) ? "back" : "forward";
   document.documentElement.setAttribute("data-nav-dir", dir);
   if (document.startViewTransition) {
     var vt = document.startViewTransition(function () { _switchPageNow(page); window.scrollTo(0, 0); });
@@ -3274,6 +3332,127 @@ function switchPage(page) {
   _afterPageShown(page);
 }
 
+window.addEventListener("popstate", function () {
+  if (!currentUserId) return;
+  var r = parseUrlHash();
+  var page = r && document.getElementById("page-" + r.page) ? r.page : "dashboard";
+  _navDepth = Math.max(0, _navDepth - 1);
+  closeSidebar();
+  if (page !== currentPage) switchPage(page, { back: true, fromPop: true });
+});
+function _goBack() {
+  if (_navDepth > 0) history.back();
+  else document.getElementById("hamburgerBtn").click(); // nowhere to go back to: open the menu
+}
+
+/* ---------------- swipe gestures (touch) ----------------
+   • Swipe a list row left to delete it (with Undo), right to toggle a bill
+     paid. Works on any row by pressing the row's own delete/paid button, so
+     each list needs no gesture code of its own.
+   • iPhone home-screen app only: swipe in from the left edge to go back
+     (Android has a system back gesture, which history entries now serve). */
+var SWIPE_ROW = ".item-row, .weight-log-row";
+var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete"];
+var _sw = null;
+function _swipeButton(row, actions) {
+  return Array.prototype.find.call(row.querySelectorAll("[data-action]"), function (b) {
+    return actions.indexOf(b.getAttribute("data-action")) >= 0 && b.closest(SWIPE_ROW) === row && b.offsetParent;
+  });
+}
+function _swipeBegin(s) {
+  var row = s.row;
+  // Wrap the row's children so they slide as one opaque layer over the
+  // revealed action label (event handlers are delegated, so moving nodes is safe).
+  var content = document.createElement("div");
+  content.className = "swipe-content";
+  while (row.firstChild) content.appendChild(row.firstChild);
+  var bg = document.createElement("div");
+  bg.className = "swipe-bg";
+  var paidNow = s.paid && /✓|✓/.test(s.paid.textContent);
+  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.paid ? (paidNow ? "&#8634; Unpaid" : "&#10003; Paid") : "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
+  row.appendChild(bg); row.appendChild(content);
+  row.classList.add("swiping");
+  s.content = content; s.bg = bg;
+}
+function _swipeEnd(s, commit) {
+  var row = s.row, content = s.content;
+  content.style.transition = "transform .22s cubic-bezier(.2,.8,.2,1)";
+  function unwrap() {
+    if (!row.isConnected) return;
+    while (content.firstChild) row.insertBefore(content.firstChild, content);
+    content.remove(); if (s.bg) s.bg.remove();
+    row.classList.remove("swiping", "swipe-armed-l", "swipe-armed-r");
+  }
+  if (commit === "delete") {
+    content.style.transform = "translateX(-110%)";
+    setTimeout(function () { unwrap(); s.del.click(); }, 200);
+  } else {
+    content.style.transform = "translateX(0)";
+    setTimeout(function () { unwrap(); if (commit === "paid") s.paid.click(); }, 220);
+  }
+}
+document.addEventListener("touchstart", function (e) {
+  _sw = null;
+  if (e.touches.length !== 1) return;
+  var t = e.touches[0];
+  var dash = document.getElementById("dashboardScreen");
+  if (!dash || dash.style.display === "none" || document.getElementById("sidebar").classList.contains("open")) return;
+  if (t.clientX < 24 && navigator.standalone === true) { _sw = { mode: "edge", x0: t.clientX, y0: t.clientY }; return; }
+  var row = e.target.closest && e.target.closest(SWIPE_ROW);
+  // Skip rows open for editing (text fields); a row's selection checkbox is fine.
+  var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
+  if (!row || e.target.closest(field + ", input") || row.querySelector(field)) return;
+  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS), paid = _swipeButton(row, ["toggle-paid"]);
+  if (!del && !paid) return;
+  _sw = { mode: "row", row: row, del: del, paid: paid, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
+}, { passive: true });
+document.addEventListener("touchmove", function (e) {
+  var s = _sw;
+  if (!s) return;
+  var t = e.touches[0], dx = t.clientX - s.x0, dy = t.clientY - s.y0;
+  if (!s.decided) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    s.decided = true;
+    if (Math.abs(dx) < Math.abs(dy) * 1.3 || (s.mode === "edge" && dx < 0)) { _sw = null; return; } // vertical scroll wins
+    if (s.mode === "row") _swipeBegin(s);
+  }
+  e.preventDefault();
+  if (s.mode === "edge") {
+    var ind = document.getElementById("edgeBackInd");
+    if (!ind) { ind = document.createElement("div"); ind.id = "edgeBackInd"; ind.innerHTML = "&#8249;"; document.body.appendChild(ind); }
+    var p = Math.min(1, dx / 90);
+    ind.style.top = t.clientY + "px";
+    ind.style.opacity = String(p);
+    ind.style.transform = "translate(" + (Math.min(dx, 90) * 0.5 - 30) + "px, -50%) scale(" + (0.7 + p * 0.3) + ")";
+    ind.classList.toggle("armed", p >= 1);
+    s.dx = dx;
+    return;
+  }
+  // Resist directions this row has no action for.
+  if ((dx < 0 && !s.del) || (dx > 0 && !s.paid)) dx *= 0.15;
+  s.dx = dx;
+  s.content.style.transition = "none";
+  s.content.style.transform = "translateX(" + dx + "px)";
+  var threshold = Math.min(110, s.width * 0.35);
+  s.row.classList.toggle("swipe-armed-r", dx <= -threshold);
+  s.row.classList.toggle("swipe-armed-l", dx >= threshold);
+  s.row.classList.toggle("swipe-dir-r", dx < 0);
+}, { passive: false });
+function _swipeRelease() {
+  var s = _sw; _sw = null;
+  if (!s || !s.decided) return;
+  if (s.mode === "edge") {
+    var ind = document.getElementById("edgeBackInd");
+    if (ind) { ind.style.opacity = "0"; ind.classList.remove("armed"); }
+    if (s.dx >= 90) _goBack();
+    return;
+  }
+  var threshold = Math.min(110, s.width * 0.35);
+  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.paid ? "paid" : null);
+}
+document.addEventListener("touchend", _swipeRelease);
+document.addEventListener("touchcancel", _swipeRelease);
+
 function _switchPageNow(page) {
   currentPage = page;
   updateUrlHash(page, null);
@@ -3289,6 +3468,7 @@ function _switchPageNow(page) {
     items[i].classList.toggle("active", items[i].getAttribute("data-page") === page);
   }
   _syncTabBar(page);
+  _dismissUndo();
   // Clear budget countdown when leaving budget page
   if (page !== "budget" && window._countdownInterval) {
     clearInterval(window._countdownInterval);
@@ -4453,10 +4633,12 @@ async function renderSpendTab(root, cfg) {
     renderDebtSection();
   }
   function handleDeleteDebt(id) {
+    var taken = _undoTake(data.debts, function (d) { return d.id === id; });
     data.debts = (data.debts || []).filter(function (d) { return d.id !== id; });
     if (debtEditId === id) debtEditId = null;
     save();
     renderDebtSection();
+    _offerUndo("Debt deleted", function () { _undoPut(data.debts || (data.debts = []), taken); save(); renderDebtSection(); });
   }
   function renderDebtSection() {
     if (!cfg.showSavingsGoal) return;
@@ -4737,10 +4919,16 @@ async function renderSpendTab(root, cfg) {
   function handleDeletePlannedItem(groupId, itemId) {
     var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
     if (!g) return;
+    var taken = _undoTake(g.items, function (it) { return it.id === itemId; });
     g.items = (g.items || []).filter(function (it) { return it.id !== itemId; });
     if (plannedItemEditId === itemId) plannedItemEditId = null;
     save();
     renderPlannedList();
+    _offerUndo("Planned purchase deleted", function () {
+      var gNow = (data.plannedGroups || []).find(function (x) { return x.id === groupId; });
+      if (!gNow) return;
+      _undoPut(gNow.items || (gNow.items = []), taken); save(); renderPlannedList();
+    });
   }
   function startPlannedItemEdit(groupId, itemId) {
     var g = (data.plannedGroups || []).find(function (g) { return g.id === groupId; });
@@ -5135,10 +5323,15 @@ async function renderSpendTab(root, cfg) {
     renderPeriodEntries(person);
   }
   function handleDeletePeriodEntry(person, id) {
+    var taken = _undoTake(data.periodSpend[person].entries, function (e) { return e.id === id; });
     data.periodSpend[person].entries = (data.periodSpend[person].entries || []).filter(function (e) { return e.id !== id; });
     save();
     renderPeriodSpend(person);
     renderPeriodEntries(person);
+    _offerUndo("Spending entry deleted", function () {
+      _undoPut(data.periodSpend[person].entries || (data.periodSpend[person].entries = []), taken);
+      save(); renderPeriodSpend(person); renderPeriodEntries(person);
+    });
   }
   // Typing into the Spent/Target fields updates the in-memory model and
   // re-renders the gauge immediately (for responsive feedback), but writing
@@ -5269,11 +5462,13 @@ async function renderSpendTab(root, cfg) {
     renderDynamic();
   }
   function handleDelete(id) {
+    var taken = _undoTake(data.items, function (it) { return it.id === id; });
     data.items = data.items.filter(function (it) { return it.id !== id; });
     data.selectedIds = (data.selectedIds || []).filter(function (sid) { return sid !== id; });
     save();
     if (editRowId === id) editRowId = null;
     renderDynamic();
+    _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Item") + " deleted", function () { _undoPut(data.items, taken); save(); renderDynamic(); });
   }
   function handleTogglePaid(id) {
     var item = data.items.find(function (it) { return it.id === id; });
@@ -6342,10 +6537,13 @@ async function renderTravelTab(root) {
       renderDynamic();
     }
     function handleDelete(id) {
+      var taken = _undoTake(trip.items, function (it) { return it.id === id; });
       trip.items = trip.items.filter(function (it) { return it.id !== id; });
       save();
       if (editRowId === id) editRowId = null;
       renderDynamic();
+      var tripRef = trip;
+      _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Item") + " deleted", function () { _undoPut(tripRef.items, taken); save(); renderDynamic(); });
     }
     function handleResetAll() {
       var btn = document.getElementById("ttResetBtn");
@@ -6897,9 +7095,11 @@ async function renderWorkoutsTab(root) {
       renderWeight();
     }
     function handleDeleteWeight(id) {
+      var taken = _undoTake(data.bodyWeightLog, function (w) { return w.id === id; });
       data.bodyWeightLog = (data.bodyWeightLog || []).filter(function (w) { return w.id !== id; });
       save();
       renderWeight();
+      _offerUndo("Weight entry deleted", function () { _undoPut(data.bodyWeightLog || (data.bodyWeightLog = []), taken); save(); renderWeight(); });
     }
 
     function renderGauge() {
@@ -7285,11 +7485,13 @@ async function renderWorkoutsTab(root) {
     function handleDeleteLift(itemId, liftId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
       if (!item) return;
+      var taken = _undoTake(item.lifts, function (l) { return l.id === liftId; });
       item.lifts = (item.lifts || []).filter(function (l) { return l.id !== liftId; });
       if (editingLiftItemId === itemId && editingLiftId === liftId) { editingLiftItemId = null; editingLiftId = null; }
       if (editingSetItemId === itemId && editingSetLiftId === liftId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
       save();
       refreshLog();
+      _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Exercise") + " deleted", function () { _undoPut(item.lifts || (item.lifts = []), taken); save(); refreshLog(); });
     }
 
     function startLiftEdit(itemId, liftId) {
@@ -7369,10 +7571,12 @@ async function renderWorkoutsTab(root) {
       if (!item) return;
       var lift = (item.lifts || []).find(function (l) { return l.id === liftId; });
       if (!lift) return;
+      var taken = _undoTake(lift.sets, function (s) { return s.id === setId; });
       lift.sets = (lift.sets || []).filter(function (s) { return s.id !== setId; });
       if (editingSetItemId === itemId && editingSetLiftId === liftId && editingSetId === setId) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
       save();
       refreshLog();
+      _offerUndo("Set deleted", function () { _undoPut(lift.sets || (lift.sets = []), taken); save(); refreshLog(); });
     }
     function handleToggleWarmup(itemId, liftId, setId) {
       var item = data.items.find(function (it) { return it.id === itemId; });
@@ -7447,6 +7651,7 @@ async function renderWorkoutsTab(root) {
       refreshLog();
     }
     function handleDelete(id) {
+      var taken = _undoTake(data.items, function (it) { return it.id === id; });
       data.items = data.items.filter(function (it) { return it.id !== id; });
       if (editingLiftItemId === id) { editingLiftItemId = null; editingLiftId = null; }
       if (editingSetItemId === id) { editingSetItemId = null; editingSetLiftId = null; editingSetId = null; }
@@ -7454,6 +7659,7 @@ async function renderWorkoutsTab(root) {
       if (editRowId === id) editRowId = null;
       if (viewingWorkoutId === id) viewingWorkoutId = null;
       renderLogSection();
+      _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Workout") + " deleted", function () { _undoPut(data.items, taken); save(); renderLogSection(); });
     }
     function handleResetAll() {
       var btn = document.getElementById("wkResetBtn");
@@ -9841,17 +10047,21 @@ async function renderRoutinesTab(root) {
   function handleDeleteEntry(id, key) {
     var r = data.routines.find(function (r) { return r.id === id; });
     if (!r) return;
+    var taken = _undoTake(r.completions, function (c) { return (c.date || c.week) === key; });
     r.completions = r.completions.filter(function (c) { return (c.date || c.week) !== key; });
     if (editingNoteRoutineId === id && editingNoteKey === key) { editingNoteRoutineId = null; editingNoteKey = null; }
     save();
     renderDynamic();
+    _offerUndo("Check-in removed", function () { _undoPut(r.completions, taken); save(); renderDynamic(); });
   }
   function handleDeleteRoutine(id) {
+    var taken = _undoTake(data.routines, function (r) { return r.id === id; });
     data.routines = data.routines.filter(function (r) { return r.id !== id; });
     expandedIds.delete(id);
     if (editingNoteRoutineId === id) { editingNoteRoutineId = null; editingNoteKey = null; }
     save();
     renderDynamic();
+    _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Routine") + " deleted", function () { _undoPut(data.routines, taken); save(); renderDynamic(); });
   }
 
   renderFreqPills();
@@ -9984,6 +10194,42 @@ function initScrollAnims() {
   document.querySelectorAll(
     '.card, .item-row, .list-card, .chips, .trip-switcher, .tab-eyebrow, .hero-band, .footer-row, .tabnav'
   ).forEach(function(el) { _animObs.observe(el); });
+}
+
+/* ---------------- undo for deletes ----------------
+   Deletes happen immediately; a "Deleted · Undo" bar then offers to put the
+   item back for a few seconds. Undo re-inserts just that item at its old
+   position in the array as it is *now* (not a whole-data snapshot), so any
+   other edits made in the meantime survive. The bar closes on page switch,
+   since a page's render closure (and its copy of the data) is replaced
+   when the page re-renders. */
+function _undoTake(arr, pred) {
+  var i = (arr || []).findIndex(pred);
+  return i < 0 ? null : { item: arr[i], index: i };
+}
+function _undoPut(arr, taken) {
+  if (!arr || !taken || arr.indexOf(taken.item) >= 0) return;
+  arr.splice(Math.min(taken.index, arr.length), 0, taken.item);
+}
+var _undoTimer = null;
+function _dismissUndo() {
+  clearTimeout(_undoTimer);
+  var el = document.getElementById("undoToast");
+  if (el) el.classList.remove("show");
+}
+function _offerUndo(label, undoFn) {
+  var el = document.getElementById("undoToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "undoToast"; el.className = "undo-toast"; el.setAttribute("role", "status");
+    document.body.appendChild(el);
+  }
+  clearTimeout(_undoTimer);
+  el.innerHTML = '<span class="undo-msg"></span><button type="button" class="undo-btn">Undo</button><span class="undo-bar"></span>';
+  el.querySelector(".undo-msg").textContent = label;
+  el.querySelector(".undo-btn").addEventListener("click", function () { _dismissUndo(); undoFn(); });
+  el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  _undoTimer = setTimeout(_dismissUndo, 5000);
 }
 
 /* ---------------- count-up numbers ---------------- */
@@ -11525,9 +11771,16 @@ async function renderEducationPage() {
         renderEducationPage();
       } else if (action === 'delete-course') {
         if (!group) return;
+        var takenCourse = _undoTake(group.courses, function(c) { return c.id === cid; });
         group.courses = (group.courses || []).filter(function(c) { return c.id !== cid; });
         saveEducationData();
         renderEducationPage();
+        var courseGroupId = group.id;
+        _offerUndo('Course deleted', function() {
+          var g = (_educationData.groups || []).find(function(x) { return x.id === courseGroupId; });
+          if (!g) return;
+          _undoPut(g.courses || (g.courses = []), takenCourse); saveEducationData(); renderEducationPage();
+        });
       } else if (action === 'edit-group') {
         _eduEditGroupId = gid; _eduAddingGroup = false;
         renderEducationPage();
@@ -11543,11 +11796,13 @@ async function renderEducationPage() {
         renderEducationPage();
       } else if (action === 'delete-group') {
         if (!group) return;
+        var takenGroup = _undoTake(data.groups, function(g) { return g.id === gid; });
         data.groups = data.groups.filter(function(g) { return g.id !== gid; });
         if (_eduAddCourseGroupId === gid) _eduAddCourseGroupId = null;
         if (_eduEditGroupId     === gid) _eduEditGroupId     = null;
         saveEducationData();
         renderEducationPage();
+        _offerUndo('Requirement group deleted', function() { _undoPut(_educationData.groups, takenGroup); saveEducationData(); renderEducationPage(); });
       }
     });
   }
@@ -11747,9 +12002,11 @@ async function renderCertPage() {
         cert.notes      = ((document.getElementById('certEditNotes')    || {}).value || '').trim();
         _certEditId = null; saveCertData(); renderCertPage();
       } else if (action === 'cert-delete') {
+        var takenCert = _undoTake(d.certs, function(c) { return c.id === cid; });
         d.certs = (d.certs || []).filter(function(c) { return c.id !== cid; });
         if (_certEditId === cid) _certEditId = null;
         saveCertData(); renderCertPage();
+        _offerUndo('Certification deleted', function() { _undoPut(_certData.certs || (_certData.certs = []), takenCert); saveCertData(); renderCertPage(); });
       }
     });
   }
@@ -12188,9 +12445,11 @@ async function renderJobsPage() {
         job.notes       = ((document.getElementById('jobEditNotes')   || {}).value || '').trim();
         _jobEditId = null; saveJobData(); renderJobsPage();
       } else if (action === 'job-delete') {
+        var takenJob = _undoTake(d.jobs, function(j) { return j.id === jid; });
         d.jobs = (d.jobs || []).filter(function(j) { return j.id !== jid; });
         if (_jobEditId === jid) _jobEditId = null;
         saveJobData(); renderJobsPage();
+        _offerUndo((takenJob && takenJob.item.company ? takenJob.item.company + ' job' : 'Job') + ' deleted', function() { _undoPut(_jobData.jobs || (_jobData.jobs = []), takenJob); saveJobData(); renderJobsPage(); });
       } else if (action === 'job-import-lead') {
         var leadId = btn.getAttribute('data-lead');
         var lead = (_jobLeadsInbox.leads || []).find(function(l) { return l.id === leadId; });
@@ -12679,10 +12938,12 @@ async function renderProjectsPage() {
       } else if (action === 'proj-save') {
         _projSave();
       } else if (action === 'proj-delete') {
-        if (!_projEdit || !confirm('Delete "' + (_projEdit.title || 'this project') + '"?')) return;
+        if (!_projEdit) return;
         var delId = _projEdit.id;
+        var takenProj = _undoTake(_projData.projects, function(x) { return x.id === delId; });
         _projData.projects = _projData.projects.filter(function(x) { return x.id !== delId; });
         _projEdit = null; saveProjectData(); renderProjectsPage();
+        _offerUndo((takenProj && takenProj.item.title ? '"' + takenProj.item.title + '"' : 'Project') + ' deleted', function() { _undoPut(_projData.projects, takenProj); saveProjectData(); renderProjectsPage(); });
       } else if (action === 'proj-task-add') {
         _projReadForm();
         if (_projAddPendingTask()) renderProjectsPage();
