@@ -43,6 +43,70 @@
   input, button, select { font-family: inherit; }
   input::placeholder { color:var(--text-3); }
   button { cursor: pointer; }
+  /* ---- login: pulsing ring that expands away to reveal the form ---- */
+  .auth-scene {
+    position: relative; overflow: hidden; flex-direction: column;
+    background: radial-gradient(120% 90% at 50% 45%, #0A1E28 0%, #06121A 55%, #03080C 100%);
+  }
+  /* Two soft light blobs drifting slowly behind everything. */
+  .auth-scene::before, .auth-scene::after {
+    content: ''; position: absolute; width: 70vmax; height: 70vmax; border-radius: 50%;
+    filter: blur(60px); opacity: .55; pointer-events: none;
+  }
+  .auth-scene::before { background: radial-gradient(circle, #0F4A63 0%, transparent 65%); left: 30%; top: 5%; animation: authDriftA 22s ease-in-out infinite alternate; }
+  .auth-scene::after  { background: radial-gradient(circle, #0B3346 0%, transparent 65%); left: -25%; top: 35%; animation: authDriftB 28s ease-in-out infinite alternate; }
+  @keyframes authDriftA { to { transform: translate(-18vmax, 12vmax) scale(1.15); } }
+  @keyframes authDriftB { to { transform: translate(20vmax, -10vmax) scale(.9); } }
+
+  .auth-orb {
+    position: absolute; left: 50%; top: 50%; width: 160px; height: 160px; margin: -80px 0 0 -80px;
+    border: none; padding: 0; background: none; border-radius: 50%; cursor: pointer; z-index: 2;
+    -webkit-tap-highlight-color: transparent;
+    animation: authBreathe 3.6s ease-in-out infinite;
+    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s;
+  }
+  .auth-orb:focus-visible { outline: none; }
+  .auth-orb:focus-visible .auth-orb-track { border-color: rgba(220,240,248,.8); }
+  .auth-orb-track { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(170,205,218,.38); transition: border-color .3s; animation: authTrackGlow 3.6s ease-in-out infinite; }
+  /* The comet: a conic gradient masked down to a thin ring, fading tail → bright head at 12 o'clock. */
+  .auth-orb-sweep {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg 250deg, rgba(200,230,240,.22) 295deg, rgba(235,248,252,.6) 335deg, #fff 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    animation: authSurge 3.6s cubic-bezier(.65,0,.35,1) infinite;
+  }
+  /* The glowing head. The ring's mask would clip it, so it rides on its own
+     layer with the same rotation. */
+  .auth-orb::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    animation: authSurge 3.6s cubic-bezier(.65,0,.35,1) infinite;
+    background: radial-gradient(circle at 50% 1px, #fff 0 3px, rgba(255,255,255,.55) 4px, rgba(140,210,235,.25) 9px, transparent 16px);
+  }
+  /* Surge-and-settle rather than a constant spin, so it reads as a pulse. */
+  @keyframes authSurge { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes authBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+  @keyframes authTrackGlow { 0%, 100% { border-color: rgba(170,205,218,.32); box-shadow: 0 0 0 rgba(140,210,235,0); } 50% { border-color: rgba(190,225,238,.6); box-shadow: 0 0 22px rgba(140,210,235,.18), inset 0 0 18px rgba(140,210,235,.08); } }
+
+  .auth-orb-hint {
+    position: absolute; left: 0; right: 0; top: calc(50% + 104px); text-align: center; z-index: 2;
+    color: rgba(190,215,225,.55); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    transition: opacity .3s;
+  }
+  .auth-panel {
+    position: relative; z-index: 3; opacity: 0; visibility: hidden; transform: translateY(14px) scale(.96);
+    transition: opacity .5s ease .3s, transform .6s cubic-bezier(.2,.8,.2,1) .3s, visibility 0s linear .9s;
+  }
+  .auth-scene .auth-panel h1 { color: #EAF4F7; }
+  .auth-scene .card { background: rgba(10,26,34,.72); border-color: rgba(150,200,215,.18); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  .auth-scene.auth-open .auth-orb { animation: none; transform: scale(9); opacity: 0; pointer-events: none; }
+  .auth-scene.auth-open .auth-orb-hint { opacity: 0; }
+  .auth-scene.auth-open .auth-panel { opacity: 1; visibility: visible; transform: none; transition: opacity .5s ease .3s, transform .6s cubic-bezier(.2,.8,.2,1) .3s, visibility 0s; }
+  @media (prefers-reduced-motion: reduce) {
+    .auth-scene::before, .auth-scene::after, .auth-orb, .auth-orb::after, .auth-orb-sweep, .auth-orb-track { animation: none !important; }
+    .auth-orb, .auth-panel { transition-duration: .01ms !important; transition-delay: 0s !important; }
+  }
+
   /* ---- app shell ---- */
   .app-shell { display: flex; min-height: 100vh; }
 
@@ -314,6 +378,10 @@
     .st-row { flex-wrap: wrap; }
     .st-row .st-row-top {
       display: flex; align-items: center; gap: 12px; flex: 1 1 100%;
+      /* without this the row can't shrink below its nowrap text's full width,
+         so long bill names/notes pushed past the screen edge instead of
+         truncating with an ellipsis */
+      min-width: 0;
     }
     .st-row .st-row-bottom {
       display: flex; align-items: center; gap: 8px; flex: 1 1 100%;
@@ -688,8 +756,14 @@
 </head>
 <body>
 <!-- Auth Screen -->
-<div id="authScreen" style="min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;">
-  <div style="width:100%;max-width:400px;">
+<div id="authScreen" class="auth-scene" style="min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;">
+  <!-- Pulsing ring: tap to expand it away and reveal the sign-in form. -->
+  <button type="button" id="authOrb" class="auth-orb" aria-label="Open sign in">
+    <span class="auth-orb-track"></span>
+    <span class="auth-orb-sweep"></span>
+  </button>
+  <div class="auth-orb-hint" aria-hidden="true">Tap to sign in</div>
+  <div class="auth-panel" style="width:100%;max-width:400px;">
     <header style="margin-bottom:24px;">
       <h1 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 8px;">Dashboard</h1>
       <div style="color:var(--text-2);font-size:13px;">Sign in to sync your data across devices.</div>
@@ -2383,9 +2457,27 @@ function _flushAllPendingStorySaves() {
 /* ---------------- auth ---------------- */
 
 function showAuthScreen() {
-  document.getElementById("authScreen").style.display = "flex";
+  var scene = document.getElementById("authScreen");
+  scene.style.display = "flex";
+  // Back to the closed ring each time (e.g. after signing out) — unless an
+  // error needs showing, in which case keep the form visible.
+  if (!document.getElementById("authError").textContent) scene.classList.remove("auth-open");
   document.getElementById("dashboardScreen").style.display = "none";
 }
+
+function openAuthPanel() {
+  var scene = document.getElementById("authScreen");
+  if (scene.classList.contains("auth-open")) return;
+  scene.classList.add("auth-open");
+  // Focus once the panel has mostly faded in, so the mobile keyboard doesn't
+  // pop up mid-animation.
+  setTimeout(function () {
+    var email = document.getElementById("authEmail");
+    if (email && !email.value) email.focus();
+    else { var pw = document.getElementById("authPassword"); if (pw) pw.focus(); }
+  }, 450);
+}
+document.getElementById("authOrb").addEventListener("click", openAuthPanel);
 function renderGreeting() {
   var eyebrow = document.getElementById("heroEyebrow");
   var name    = document.getElementById("heroName");
