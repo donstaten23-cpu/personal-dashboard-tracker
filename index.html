@@ -94,6 +94,13 @@
     50% { border-color: color-mix(in srgb, var(--orb-ink) 50%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--orb-glow) 22%, transparent), inset 0 0 18px color-mix(in srgb, var(--orb-glow) 10%, transparent); }
   }
 
+  /* Your logo (Settings → Personal Branding) sits in the middle of the ring. */
+  .auth-orb-logo {
+    position: absolute; left: 50%; top: 50%; width: 112px; height: 112px; transform: translate(-50%, -50%);
+    object-fit: contain; pointer-events: none; opacity: .95;
+    filter: drop-shadow(0 2px 10px color-mix(in srgb, var(--orb-glow) 18%, transparent));
+  }
+  .auth-orb-logo[hidden] { display: none; }
   .auth-orb-hint {
     position: absolute; left: 0; right: 0; top: calc(50% + 104px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
@@ -820,6 +827,7 @@
   <button type="button" id="authOrb" class="auth-orb" aria-label="Open sign in">
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
+    <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
   <div class="auth-orb-hint" id="authOrbHint" aria-hidden="true">Tap to sign in</div>
   <div class="auth-panel" style="width:100%;max-width:400px;">
@@ -2527,6 +2535,18 @@ function showAuthScreen() {
   document.getElementById("dashboardScreen").style.display = "none";
 }
 
+function _setOrbLogo(src) {
+  var img = document.getElementById("authOrbLogo");
+  if (!img) return;
+  var want = src || "./sd-logo.svg";
+  if (img.getAttribute("src") !== want) img.setAttribute("src", want);
+}
+// Use the logo saved on this device right away (applySettings refreshes it
+// after sign-in); hide the slot if the image can't load.
+try { _setOrbLogo(localStorage.getItem("dash-logo")); } catch (e) {}
+document.getElementById("authOrbLogo").addEventListener("error", function () { this.hidden = true; });
+document.getElementById("authOrbLogo").addEventListener("load", function () { this.hidden = false; });
+
 // The same ring doubles as an everyday "tap to enter" screen: when already
 // signed in, the dashboard loads underneath it and tapping the ring expands
 // it away to reveal the dashboard. Skipped once the ring has been tapped this
@@ -2561,6 +2581,28 @@ function passEntryGate() {
   }, 750);
 }
 
+// Phones/installed app: reopening the app usually resumes it rather than
+// reloading, so also bring the gate back when the dashboard returns after
+// being in the background for a bit. Desktop browsers (mouse pointer, not
+// installed) are left alone so switching tabs never triggers it.
+var ENTRY_GATE_RESUME_MS = 20000;
+var _hiddenAt = 0;
+function _isAppLike() {
+  var mm = window.matchMedia ? function (q) { return window.matchMedia(q).matches; } : function () { return false; };
+  return navigator.standalone === true || mm("(display-mode: standalone)") || mm("(pointer: coarse)");
+}
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden) { _hiddenAt = Date.now(); return; }
+  var away = _hiddenAt ? Date.now() - _hiddenAt : 0;
+  _hiddenAt = 0;
+  if (away < ENTRY_GATE_RESUME_MS || !_isAppLike()) return;
+  if (!currentUserId || document.getElementById("dashboardScreen").style.display === "none") return;
+  if (window._shellPrefs && window._shellPrefs.gate === false) return;
+  if (document.getElementById("authScreen").classList.contains("auth-gate")) return;
+  _entryGatePassed = false;
+  showEntryGate();
+});
+
 function openAuthPanel() {
   var scene = document.getElementById("authScreen");
   if (scene.classList.contains("auth-gate")) { passEntryGate(); return; }
@@ -2589,8 +2631,9 @@ function renderGreeting() {
 }
 function showDashboardScreen() {
   var gate = _entryGateWanted();
+  var scene = document.getElementById("authScreen");
   if (gate) showEntryGate();
-  else document.getElementById("authScreen").style.display = "none";
+  else if (!scene.classList.contains("auth-gate")) scene.style.display = "none"; // leave a showing gate alone
   document.getElementById("dashboardScreen").style.display = "block";
   renderGreeting();
   initSidebar();
@@ -10016,6 +10059,13 @@ function applySettings() {
   // Sidebar title & logo
   var titleEl = document.getElementById('sidebarTitle');
   if (titleEl) titleEl.textContent = _settings.siteTitle || "Don's Space";
+  // Same logo in the entry circle; mirrored to its own device-local key
+  // (it can be a sizable data URL) so the circle can show it before sign-in.
+  try {
+    if (_settings.logoDataUrl) localStorage.setItem('dash-logo', _settings.logoDataUrl);
+    else localStorage.removeItem('dash-logo');
+  } catch (e) {}
+  _setOrbLogo(_settings.logoDataUrl);
   var logoEl = document.getElementById('sidebarLogoImg');
   if (logoEl) {
     if (_settings.logoDataUrl) { logoEl.src = _settings.logoDataUrl; logoEl.style.display = 'block'; }
