@@ -702,6 +702,37 @@
   /* gauge fill bar */
   .gauge-fill { transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
 
+  /* ---- page transitions (see switchPage) ----
+     Only the content area slides; the sidebar stays put and just
+     cross-fades its active item. Direction comes from html[data-nav-dir]. */
+  .main-content { view-transition-name: page-area; }
+  ::view-transition-group(page-area) { animation: none; }
+  ::view-transition-old(page-area) { animation: vtOutFwd .22s cubic-bezier(.4,0,1,1) both; }
+  ::view-transition-new(page-area) { animation: vtInFwd .38s cubic-bezier(.2,.8,.2,1) both; }
+  html[data-nav-dir="back"]::view-transition-old(page-area) { animation-name: vtOutBack; }
+  html[data-nav-dir="back"]::view-transition-new(page-area) { animation-name: vtInBack; }
+  ::view-transition-old(page-area), ::view-transition-new(page-area) { height: auto; object-fit: none; object-position: top; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
+  @keyframes vtOutFwd  { to   { opacity: 0; transform: translateX(-40px); } }
+  @keyframes vtInFwd   { from { opacity: 0; transform: translateX(56px); } }
+  @keyframes vtOutBack { to   { opacity: 0; transform: translateX(40px); } }
+  @keyframes vtInBack  { from { opacity: 0; transform: translateX(-56px); } }
+  /* Fallback for browsers without View Transitions: slide the new page in. */
+  .page.page-in { animation: vtInFwd .38s cubic-bezier(.2,.8,.2,1) both; }
+  html[data-nav-dir="back"] .page.page-in { animation-name: vtInBack; }
+
+  /* ---- button micro-interactions: lift/brighten on hover, press-in on tap ---- */
+  .port-edit-btn, .icon-btn, .tabbtn, .trip-pill, .dx-ds, .sort-btn, .chip, .link-btn, .proj-col-new, .add-btn {
+    transition: transform .14s cubic-bezier(.3,.7,.4,1.4), background-color .18s, color .18s, border-color .18s, filter .18s, box-shadow .18s;
+  }
+  .port-edit-btn:hover, .tabbtn:hover, .trip-pill:hover, .dx-ds:hover:not(.active) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-2)); color: var(--text-1); }
+  .add-btn:hover { box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .port-edit-btn:active, .icon-btn:active, .tabbtn:active, .trip-pill:active, .dx-ds:active, .sort-btn:active,
+  .chip:active, .link-btn:active, .proj-col-new:active, .add-btn:active { transform: scale(.94); }
+  .sidebar-item { transition: background-color .18s, color .18s, opacity .18s, transform .14s; }
+  .sidebar-item:active { transform: scale(.97); }
+  .icon-btn:disabled:active { transform: none; }
+
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -2528,7 +2559,13 @@ function showDashboardScreen() {
     _defaultPageApplied = true;
     switchPage(_initialHashRoute.page);
   }
+  // Page slides only start once the dashboard has settled, so the automatic
+  // jump to a default/bookmarked page at sign-in doesn't animate.
+  _navAnimReady = false;
+  setTimeout(function () { _navAnimReady = true; }, 1500);
+  _afterPageShown(currentPage);
 }
+var _navAnimReady = false;
 
 /* ---------------- Firebase dual sign-in (Story data lives on Firebase; auth
    of record stays Supabase) ----------------
@@ -2888,7 +2925,39 @@ function parseUrlHash() {
 }
 var _pendingSectionByPage = {};
 
+// Page changes slide like a native app: forward when moving down the
+// sidebar, back when moving up. Uses the View Transitions API (the browser
+// snapshots old/new content and animates between them — see the
+// ::view-transition rules in the CSS); browsers without it get a simple
+// slide-in on the new page instead.
+function _pageOrder(page) {
+  var items = Array.prototype.map.call(document.querySelectorAll(".sidebar-item[data-page]"), function (b) { return b.getAttribute("data-page"); });
+  var i = items.indexOf(page);
+  return i < 0 ? (page === "dashboard" ? -1 : items.length) : i;
+}
 function switchPage(page) {
+  var from = currentPage;
+  var visible = document.getElementById("dashboardScreen").style.display !== "none";
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!visible || !_navAnimReady || page === from || reduced) { _switchPageNow(page); _afterPageShown(page); return; }
+  var dir = _pageOrder(page) < _pageOrder(from) ? "back" : "forward";
+  document.documentElement.setAttribute("data-nav-dir", dir);
+  if (document.startViewTransition) {
+    var vt = document.startViewTransition(function () { _switchPageNow(page); window.scrollTo(0, 0); });
+    // Tapping another page mid-slide skips the running transition (the page
+    // change itself still happens); that rejects these promises, which is fine.
+    var ignore = function () {};
+    vt.ready.catch(ignore); vt.finished.catch(ignore); vt.updateCallbackDone.catch(ignore);
+  } else {
+    _switchPageNow(page);
+    window.scrollTo(0, 0);
+    var el = document.getElementById("page-" + page);
+    if (el) { el.classList.remove("page-in"); void el.offsetWidth; el.classList.add("page-in"); }
+  }
+  _afterPageShown(page);
+}
+
+function _switchPageNow(page) {
   currentPage = page;
   updateUrlHash(page, null);
   applyPageAccent(page);
@@ -9580,11 +9649,16 @@ function initScrollAnims() {
   // the threshold) re-triggers the opacity:0 "reveal" animation on cards that
   // never actually left the screen — which reads as the card going blank.
   _animObs = new IntersectionObserver(function(entries) {
+    // Elements revealed in the same batch (e.g. everything visible when a
+    // page first renders) cascade in one after another instead of all at once.
+    var batch = 0;
     entries.forEach(function(entry) {
       if (!entry.isIntersecting) return;
       var el = entry.target;
       el.classList.remove('sa-up', 'sa-down');
       void el.offsetHeight;
+      el.style.animationDelay = Math.min(batch, 8) * 55 + 'ms';
+      batch++;
       el.classList.add(_scrollDir === 'up' ? 'sa-down' : 'sa-up');
       _animObs.unobserve(el);
     });
@@ -9592,6 +9666,74 @@ function initScrollAnims() {
   document.querySelectorAll(
     '.card, .item-row, .list-card, .chips, .trip-switcher, .tab-eyebrow, .hero-band, .footer-row, .tabnav'
   ).forEach(function(el) { _animObs.observe(el); });
+}
+
+/* ---------------- count-up numbers ---------------- */
+
+// Big stat numbers (≥20px — totals, stage counts, metrics) count up from 0
+// the first time they come into view after a page opens. Found by shape
+// rather than tagged in each renderer: a leaf element whose whole text is a
+// number like "1,850", "$2,832.67", "42%", "3,000+" or "$260K+". Only runs
+// on page open (not on every re-render), and gives way immediately if the
+// app itself changes the number mid-count.
+var _countUpDone = new WeakSet();
+var _countUpObs = null;
+var COUNT_UP_RE = /^(-?\$?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(%|\+|K\+?|k)?$/;
+
+function _countUpTarget(el) {
+  if (el.children.length || el.isContentEditable || el.closest('input, textarea, select, button, .dx-table, [contenteditable="true"]')) return null;
+  var text = el.textContent.trim();
+  var m = text.match(COUNT_UP_RE);
+  if (!m) return null;
+  var value = Number((m[2] + (m[3] || '')).replace(/,/g, ''));
+  if (!value) return null;
+  if (!m[1] && !m[4] && m[2].indexOf(',') < 0 && !m[3] && value >= 1900 && value <= 2100) return null; // a year, not a stat
+  if (parseFloat(getComputedStyle(el).fontSize) < 20) return null;
+  return { text: text, prefix: m[1], value: value, decimals: m[3] ? m[3].length - 1 : 0, commas: m[2].indexOf(',') >= 0 || value >= 10000, suffix: m[4] || '' };
+}
+
+function _countUpRun(el, t) {
+  var start = performance.now(), dur = 900, last = null;
+  function fmt(v) {
+    var s = v.toFixed(t.decimals);
+    if (t.commas) { var parts = s.split('.'); parts[0] = Number(parts[0]).toLocaleString('en-US'); s = parts.join('.'); }
+    return t.prefix + s + t.suffix;
+  }
+  function frame(now) {
+    if (last !== null && el.textContent !== last) return; // the app updated it — stop
+    var p = Math.min(1, (now - start) / dur);
+    var eased = 1 - Math.pow(1 - p, 3);
+    last = p < 1 ? fmt(t.value * eased) : t.text;
+    el.textContent = last;
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function _countUpScan(pageEl) {
+  if (!pageEl || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  if (!_countUpObs) {
+    _countUpObs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        _countUpObs.unobserve(entry.target);
+        var t = _countUpTarget(entry.target);
+        if (t) _countUpRun(entry.target, t);
+      });
+    }, { threshold: 0.4 });
+  }
+  pageEl.querySelectorAll('div, span, strong, b, p, h1, h2, h3, td').forEach(function (el) {
+    if (_countUpDone.has(el) || !el.offsetParent) return;
+    if (!_countUpTarget(el)) return;
+    _countUpDone.add(el);
+    _countUpObs.observe(el);
+  });
+}
+
+// Pages render asynchronously (data loads), so look again a few times.
+function _afterPageShown(page) {
+  var el = document.getElementById(page === 'dashboard' ? 'page-dashboard' : 'page-' + page);
+  [60, 450, 1200].forEach(function (ms) { setTimeout(function () { if (currentPage === page) _countUpScan(el); }, ms); });
 }
 
 /* ---------------- art portfolio edit mode ---------------- */
