@@ -122,6 +122,10 @@
     transition: opacity .2s;
   }
   .auth-orb.holding .auth-orb-hold { opacity: 1; }
+  /* While pressing, the comet's glowing head is driven from JS (--hold-angle)
+     so it rides the leading edge of the charging ring — same speed — instead
+     of orbiting on its own 3.6s loop. */
+  .auth-orb.syncing .auth-orb-sweep, .auth-orb.syncing::after { animation: none; transform: rotate(var(--hold-angle, 0deg)); }
   .auth-scene.auth-gate .auth-orb.holding {
     scale: 1.16; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--orb-glow) 55%, transparent));
     transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1), filter .3s;
@@ -3157,19 +3161,42 @@ function openAuthPanel() {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var HOLD_MS = reduced ? 300 : 650;
   var rafId = 0, t0 = 0, active = false, unwindId = 0;
+  var sweep = orb.querySelector(".auth-orb-sweep");
+  var a0 = 0, lap = 0; // where the comet head was when the press began, and whether it must catch up a lap
 
   function inGate() { return scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving"); }
-  function setP(p) { orb.style.setProperty("--hold-p", String(p)); }
+  // The comet head is placed at the ring's leading edge (p * 360deg), after a
+  // short ease from wherever its idle orbit had it, so the dot and the orange
+  // charge travel together at the same speed.
+  function setP(p) {
+    orb.style.setProperty("--hold-p", String(p));
+    if (reduced) return;
+    var w = Math.min(1, (performance.now() - t0) / 160);
+    w = w * w * (3 - 2 * w);
+    orb.style.setProperty("--hold-angle", ((1 - w) * a0 + w * (p * 360 + 360 * lap)) + "deg");
+  }
+  function currentCometAngle() {
+    var m = /matrix\(([^)]+)\)/.exec(getComputedStyle(sweep).transform || "");
+    if (!m) return 0;
+    var v = m[1].split(",").map(parseFloat);
+    var deg = Math.atan2(v[1], v[0]) * 180 / Math.PI;
+    return deg < 0 ? deg + 360 : deg;
+  }
 
   window._resetOrbHold = function () {
     active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId);
-    orb.classList.remove("holding"); orb.style.removeProperty("--hold-p");
+    orb.classList.remove("holding", "syncing"); orb.style.removeProperty("--hold-p"); orb.style.removeProperty("--hold-angle");
   };
 
   function begin(e) {
     if (!inGate() || active || (e.pointerType === "mouse" && e.button !== 0)) return;
     cancelAnimationFrame(unwindId);
     active = true; t0 = performance.now();
+    if (!reduced) {
+      a0 = currentCometAngle(); lap = a0 > 3 ? 1 : 0; // run forward to meet the ring, never backwards
+      orb.style.setProperty("--hold-angle", a0 + "deg");
+      orb.classList.add("syncing");
+    }
     orb.classList.add("holding");
     try { orb.setPointerCapture(e.pointerId); } catch (x) {}
     (function frame() {
@@ -3197,7 +3224,8 @@ function openAuthPanel() {
     (function unwind() {
       var k = Math.min(1, (performance.now() - u0) / 180);
       setP(from * (1 - k));
-      if (k < 1) unwindId = requestAnimationFrame(unwind); else orb.style.removeProperty("--hold-p");
+      if (k < 1) unwindId = requestAnimationFrame(unwind);
+      else { orb.style.removeProperty("--hold-p"); orb.classList.remove("syncing"); orb.style.removeProperty("--hold-angle"); } // head is back at the top: the idle orbit resumes from there
     })();
   }
   hint.addEventListener("animationend", function () { hint.classList.remove("nudge"); });
