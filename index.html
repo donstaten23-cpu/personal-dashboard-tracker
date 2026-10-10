@@ -552,7 +552,11 @@
   }
 
   @media (max-width: 700px) {
-    .sidebar { transform: translateX(-100%); }
+    /* will-change keeps the drawer on its own compositing layer from the start.
+       Without it the layer is created at the moment "More" is tapped, and on a
+       very tall page (a long Story chapter) iOS can fail to make it in time,
+       leaving the dim overlay showing with no drawer. */
+    .sidebar { transform: translateX(-100%); will-change: transform; }
     .sidebar.open { transform: translateX(0); }
     .sidebar-overlay.open { display: block; }
     .main-content { margin-left: 0; }
@@ -2640,6 +2644,17 @@ function _withTimeout(promise, ms, label) {
       reject(err);
     }, ms);
     Promise.resolve(promise).then(function (v) { clearTimeout(timer); resolve(v); }, function (e) { clearTimeout(timer); reject(e); });
+  });
+}
+
+// Resolves after the browser has had a chance to paint, with a fallback timer
+// for when requestAnimationFrame is paused (hidden tab).
+function _afterNextPaint() {
+  return new Promise(function (resolve) {
+    var done = false;
+    function finish() { if (!done) { done = true; resolve(); } }
+    requestAnimationFrame(function () { setTimeout(finish, 0); });
+    setTimeout(finish, 150);
   });
 }
 
@@ -8485,6 +8500,9 @@ async function renderStoryPage(root) {
     document.getElementById("storyRetryBtn").addEventListener("click", function () { root._loaded = true; renderStoryPage(root); });
     return;
   }
+  // Let the frame that just closed the menu / switched pages paint (with the
+  // skeleton showing) before the heavy build below blocks the main thread.
+  await _afterNextPaint();
   var chaptersData = loadedStory[0];
   var charactersData = loadedStory[1];
   var comicData = loadedStory[2];
