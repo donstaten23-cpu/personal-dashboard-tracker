@@ -569,6 +569,48 @@
   @keyframes restPulse { 50% { transform: translate(-50%, 0) scale(1.06); } }
   @media (prefers-reduced-motion: reduce) { .rest-timer.done { animation: none; } }
 
+  /* Workout detail: one card per exercise — name + muscle/style line, stat tiles,
+     numbered set rows and a prefilled "add set" row (see renderLiftsBlock). */
+  .lift-head { display: flex; align-items: flex-start; gap: 10px; }
+  .lift-bar { width: 4px; align-self: stretch; min-height: 38px; border-radius: 4px; flex-shrink: 0; }
+  .lift-title { flex: 1; min-width: 0; }
+  .lift-name { font-size: 19px; font-weight: 700; color: var(--text-1); line-height: 1.2; overflow-wrap: anywhere; }
+  .lift-head-btns { display: flex; gap: 2px; flex-shrink: 0; }
+  .lift-tags summary { list-style: none; cursor: pointer; font-size: 12px; color: var(--text-2); margin-top: 3px; display: inline-flex; align-items: center; gap: 4px; }
+  .lift-tags summary::-webkit-details-marker { display: none; }
+  .lift-tags summary::after { content: "\25BE"; font-size: 10px; opacity: .6; }
+  .lift-tags[open] summary::after { content: "\25B4"; }
+  .lift-stats { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin: 14px 0 12px; }
+  .lift-stat { background: var(--bg); border: 1px solid var(--border-2); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; min-width: 0; }
+  .lift-stat-l { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--text-3); }
+  .lift-stat-v { font-size: 24px; font-weight: 700; color: var(--text-1); line-height: 1.15; margin-top: 4px; letter-spacing: -.01em; }
+  .lift-stat-u { font-size: 11px; color: var(--text-2); }
+  .lift-rest {
+    align-self: stretch; background: var(--bg); border: 1px solid var(--border-2); border-radius: 14px; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600;
+    padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .3s cubic-bezier(.34,1.8,.5,1), border-color .2s, color .2s;
+  }
+  .lift-rest:active { transform: scale(.94); transition-duration: .08s; border-color: var(--accent); color: var(--accent); }
+  .lift-sets { display: flex; flex-direction: column; gap: 6px; }
+  .lift-sets .weight-log-row.lift-set { background: var(--bg); border: 1px solid var(--border-2); border-radius: 14px; padding: 7px 8px 7px 8px; gap: 10px; justify-content: flex-start; font-size: 14px; }
+  .lift-sets .weight-log-row.lift-set:last-child { border-bottom: 1px solid var(--border-2); }
+  .lift-sets .weight-log-row:not(.lift-set) { background: var(--bg); border: 1px solid var(--accent); border-radius: 14px; padding: 8px; }
+  .lift-set-n { width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .lift-set.warm .lift-set-n { background: var(--border-2); color: var(--text-3); }
+  .lift-set-main { font-size: 16px; font-weight: 700; color: var(--text-1); white-space: nowrap; }
+  .lift-set.warm .lift-set-main { color: var(--text-2); font-weight: 600; }
+  .lift-set-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .lift-set-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .lift-set-btns { display: flex; gap: 0; flex-shrink: 0; margin-left: auto; }
+  .lift-sets .lift-set .icon-btn { min-width: 32px; min-height: 32px; padding: 4px; }
+  .lift-set-e1rm { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .lift-set-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-2); white-space: nowrap; }
+  .lift-set-tag.pr { background: #D9A441; border-color: #D9A441; color: #12151A; }
+  .lift-add { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 7px 8px; border: 1.5px dashed var(--border-2); border-radius: 14px; flex-wrap: wrap; }
+  .lift-add-n { width: 26px; height: 26px; border-radius: 50%; border: 1.5px dashed var(--text-3); color: var(--text-3); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .lift-add-fields { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
+  .lift-add-fields .form-input { padding: 8px 10px; }
+  .lift-new { margin-top: 0; }
+
   /* Row swipe (see _swipeBegin): the row's content slides over a colored
      layer naming the action — green "Paid" on the left, red "Delete" on the
      right — which brightens once the swipe passes the commit point. */
@@ -3714,7 +3756,7 @@ function _goBack() {
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
-var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove"];
+var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove", "delete-set"];
 // Right-swipe ("complete") buttons -> the label to show, or null when that row
 // has nothing to complete right now (e.g. a routine already done today).
 var SWIPE_DONE_ACTIONS = {
@@ -7285,6 +7327,7 @@ async function renderWorkoutsTab(root) {
   var goalDraft = "";
   var viewingWorkoutId = null;
   var openMonthKeys = null;
+  var liftTagsOpen = {}; // lift id -> its muscle/style editor is expanded
   var editingLiftItemId = null;
   var editingLiftId = null;
   var editingLiftForm = {};
@@ -7670,6 +7713,15 @@ async function renderWorkoutsTab(root) {
       var liftRows = lifts.map(function (l) {
         var isCardio = l.kind === "cardio";
         var isEditingName = editingLiftItemId === item.id && editingLiftId === l.id;
+        var mg = isCardio ? { label: "Cardio / Activity", color: "#E1543F" } : (MUSCLE_GROUPS.filter(function (m) { return m.id === l.muscleGroup; })[0] || MUSCLE_GROUPS[MUSCLE_GROUPS.length - 1]);
+        var subLabel = [mg.label].concat(isCardio ? [] : (l.trainingStyles || []).map(function (id) { var ts = TRAINING_STYLES.filter(function (t) { return t.id === id; })[0]; return ts ? ts.label : ""; }).filter(Boolean)).join(" \u00B7 ");
+        var working = (l.sets || []).filter(function (st) { return !st.isWarmup; });
+        var liftVolume = 0, liftBest1RM = 0, liftMinutes = 0;
+        working.forEach(function (st) {
+          liftVolume += (Number(st.weight) || 0) * (Number(st.reps) || 0);
+          liftBest1RM = Math.max(liftBest1RM, estOneRM(st.weight, st.reps));
+          liftMinutes += Number(st.duration) || 0;
+        });
         var header;
         if (isEditingName) {
           var ef = editingLiftForm;
@@ -7679,17 +7731,20 @@ async function renderWorkoutsTab(root) {
             '<button class="icon-btn" data-action="cancel-lift-edit">\u2715</button>' +
           "</div>";
         } else {
-          header = '<div class="edit-line" style="justify-content:space-between;">' +
-            '<span style="color:var(--text-1);font-weight:600;">' + escapeHtml(l.name) + (isCardio ? ' <span style="color:var(--text-2);font-size:11px;font-weight:400;">(cardio)</span>' : "") + "</span>" +
-            '<span style="display:flex;gap:4px;flex-shrink:0;">' +
-              '<button class="icon-btn" data-action="edit-lift-name" data-item="' + item.id + '" data-lift="' + l.id + '">\u270E</button>' +
-              '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '">\u2715</button>' +
+          header = '<div class="lift-head">' +
+            '<span class="lift-bar" style="background:' + mg.color + ';"></span>' +
+            '<div class="lift-title"><div class="lift-name">' + escapeHtml(l.name) + '</div>' +
+              '<details class="lift-tags" data-lift="' + l.id + '"' + (liftTagsOpen[l.id] ? " open" : "") + '><summary>' + escapeHtml(subLabel) + '</summary>' + "@@TAGS@@" + '</details></div>' +
+            '<span class="lift-head-btns">' +
+              '<button class="icon-btn" data-action="edit-lift-name" data-item="' + item.id + '" data-lift="' + l.id + '" aria-label="Rename">\u270E</button>' +
+              '<button class="icon-btn" data-action="delete-lift" data-item="' + item.id + '" data-lift="' + l.id + '" aria-label="Delete exercise">\u2715</button>' +
             "</span></div>";
         }
-        var tagRow = '<div class="edit-line" style="margin-top:4px;">' +
+        var tagRow = '<div class="edit-line" style="margin-top:8px;">' +
           '<select class="edit-select" data-action="set-muscle-group" data-item="' + item.id + '" data-lift="' + l.id + '">' + tagOptionsHtml(l.muscleGroup) + "</select>" +
           styleTogglePillsHtml(item.id, l.id, l.trainingStyles) +
         "</div>";
+        header = header.replace("@@TAGS@@", tagRow);
 
         var setRows = (l.sets || []).map(function (s, idx) {
           if (editingSetItemId === item.id && editingSetLiftId === l.id && editingSetId === s.id) {
@@ -7715,34 +7770,48 @@ async function renderWorkoutsTab(root) {
             if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
           } else {
             if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
-            if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
+            if (s.reps !== "" && s.reps != null) bits.push(s.reps);
           }
-          return '<div class="weight-log-row">' +
-            '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
-            '<span class="mono" style="color:' + accent + ';flex:1;">' + bits.join(isCardio ? " \u00B7 " : " \u00D7 ") + "</span>" +
-            (s.isWarmup ? '<span class="chip" style="padding:2px 8px;font-size:11px;color:var(--text-2);">Warm-up</span>' : "") +
-            (pr ? '<span class="chip" style="padding:2px 8px;font-size:11px;background:#D9A441;color:#12151A;border-color:#D9A441;">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
-            '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+          var setOneRM = isCardio || s.isWarmup ? 0 : Math.round(estOneRM(s.weight, s.reps));
+          return '<div class="weight-log-row lift-set' + (s.isWarmup ? " warm" : "") + '">' +
+            '<span class="lift-set-n">' + (idx + 1) + "</span>" +
+            '<div class="lift-set-body"><span class="lift-set-main mono">' + bits.join(isCardio ? " \u00B7 " : " \u00D7 ") + "</span>" +
+            (s.isWarmup || pr || setOneRM ? '<span class="lift-set-meta">' +
+              (s.isWarmup ? '<span class="lift-set-tag">Warm-up</span>' : "") +
+              (pr ? '<span class="lift-set-tag pr">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
+              (setOneRM ? '<span class="lift-set-e1rm mono">1RM ' + setOneRM + "</span>" : "") + "</span>" : "") + "</div>" +
+            '<span class="lift-set-btns">' +
               (isCardio ? "" : '<button class="icon-btn" data-action="toggle-warmup" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" title="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";" : "") + '">W</button>') +
               '<button class="icon-btn" data-action="edit-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u270E</button>' +
               '<button class="icon-btn" data-action="delete-set" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '">\u2715</button>' +
             "</span></div>";
         }).join("");
 
+        var lastSet = (l.sets || []).length ? l.sets[l.sets.length - 1] : null;
         var addSetFieldsHtml = isCardio
           ? '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" placeholder="Min" data-set-field="duration" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
             '<input class="form-input" style="width:100px;flex:0 0 auto;" type="text" placeholder="Distance" data-set-field="distance" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
             '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />'
-          : '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+          : '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.weight != null ? lastSet.weight : "") + '" />' +
+            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.reps != null ? lastSet.reps : "") + '" />' +
             '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>';
 
-        return '<div style="padding:10px 0;border-bottom:1px solid #2A313A;">' +
-          header + tagRow +
-          '<div style="margin-top:6px;">' + (setRows || '<div style="color:var(--text-2);font-size:12px;">No sets logged yet.</div>') + "</div>" +
-          '<div class="row-gap" style="margin-top:6px;">' +
-            addSetFieldsHtml +
-            '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">+ Add set</button>' +
+        var tile = function (label, big, unit) {
+          return '<div class="lift-stat"><span class="lift-stat-l">' + label + '</span><span class="lift-stat-v mono">' + big + '</span>' + (unit ? '<span class="lift-stat-u">' + unit + "</span>" : "") + "</div>";
+        };
+        var statsHtml = isEditingName ? "" : '<div class="lift-stats">' +
+          (isCardio
+            ? tile("TOTAL TIME", liftMinutes ? Math.round(liftMinutes * 10) / 10 : "\u2014", liftMinutes ? "min" : "") + tile("SETS", (l.sets || []).length, "")
+            : tile("TOTAL VOLUME", liftVolume ? Math.round(liftVolume).toLocaleString() : "\u2014", liftVolume ? "lbs" : "") + tile("MAX 1RM", liftBest1RM ? Math.round(liftBest1RM) : "\u2014", liftBest1RM ? "lbs" : "")) +
+          '<button type="button" class="lift-rest" data-action="rest-start" aria-label="Start rest timer">&#9201; ' + _fmtRest(window._restLast || 90) + "</button>" +
+        "</div>";
+        return '<div class="card lift-card">' +
+          header + statsHtml +
+          '<div class="lift-sets">' + (setRows || "") + "</div>" +
+          '<div class="lift-add">' +
+            '<span class="lift-add-n">+</span>' +
+            '<div class="lift-add-fields">' + addSetFieldsHtml + "</div>" +
+            '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">Add set</button>' +
           "</div></div>";
       }).join("");
 
@@ -7767,11 +7836,10 @@ async function renderWorkoutsTab(root) {
             '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-action="add-lift" data-item="' + item.id + '">+ Add lift</button>' +
           "</div>";
 
-      return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2A313A;">' +
-        (liftRows || '<div style="color:var(--text-2);font-size:12px;margin-bottom:6px;">No lifts or activities logged for this session yet.</div>') +
-        '<div style="margin-top:8px;">' + kindPillsHtml + newLiftFieldsHtml + "</div>" +
-      "</div>";
+      return (liftRows || '<div class="card" style="color:var(--text-2);font-size:13px;">No lifts or activities logged for this session yet.</div>') +
+        '<div class="card lift-new">' + kindPillsHtml + newLiftFieldsHtml + "</div>";
     }
+    function _fmtRest(sec) { return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); }
 
     // "YYYY-MM" bucket for month grouping in the (chronological) date-sorted view.
     function _wkMonthKey(dateStr) { return dateStr ? dateStr.slice(0, 7) : "no-date"; }
@@ -8246,6 +8314,7 @@ async function renderWorkoutsTab(root) {
       else if (action === "cancel-set-edit") cancelSetEdit();
       else if (action === "toggle-warmup") handleToggleWarmup(btn.getAttribute("data-item"), btn.getAttribute("data-lift"), btn.getAttribute("data-set"));
       else if (action === "set-new-lift-kind") handleSetNewLiftKind(btn.getAttribute("data-kind"));
+      else if (action === "rest-start") _restTimerStart(window._restLast || 90);
     }
     function _wkItemInput(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
@@ -8336,9 +8405,22 @@ async function renderWorkoutsTab(root) {
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">✕</button>' +
       "</div>";
     }
+    var totalVol = 0, totalSets = 0;
+    (item.lifts || []).forEach(function (l) {
+      (l.sets || []).forEach(function (st) { if (!st.isWarmup) { totalSets++; totalVol += (Number(st.weight) || 0) * (Number(st.reps) || 0); } });
+    });
+    var nLifts = (item.lifts || []).length;
+    var statTile = function (label, big, sub) {
+      return '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">' + label + '</span><span><span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span></span></div></div>";
+    };
     bodyEl.innerHTML =
-      '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);margin-bottom:14px;">‹ Back to Log</button>' +
-      '<div class="card">' + headerHtml + renderLiftsBlock(item, prData) + "</div>";
+      '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);justify-self:start;">‹ Back to Log</button>' +
+      '<div class="card">' + headerHtml + "</div>" +
+      (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises")) : "") +
+      renderLiftsBlock(item, prData);
+    bodyEl.querySelectorAll("details.lift-tags").forEach(function (d) {
+      d.addEventListener("toggle", function () { liftTagsOpen[d.getAttribute("data-lift")] = d.open; });
+    });
 
     document.getElementById("wkBackBtn").addEventListener("click", function () {
       viewingWorkoutId = null;
@@ -8347,10 +8429,12 @@ async function renderWorkoutsTab(root) {
       editingSetItemId = null; editingSetLiftId = null; editingSetId = null;
       renderLogSection();
     });
-    bodyEl.addEventListener("click", _wkItemClick);
-    bodyEl.addEventListener("input", _wkItemInput);
-    bodyEl.addEventListener("change", _wkItemChange);
-    bodyEl.addEventListener("keydown", _wkItemKeydown);
+    // bodyEl outlives every render and each renderLogSection makes fresh handler
+    // functions, so drop the previous ones first or a tap would run once per
+    // time the Log has been opened (e.g. "Add set" adding several sets).
+    if (bodyEl._wkH) { for (var ht in bodyEl._wkH) bodyEl.removeEventListener(ht, bodyEl._wkH[ht]); }
+    bodyEl._wkH = { click: _wkItemClick, input: _wkItemInput, change: _wkItemChange, keydown: _wkItemKeydown };
+    for (var ht2 in bodyEl._wkH) bodyEl.addEventListener(ht2, bodyEl._wkH[ht2]);
     initExerciseCombos(bodyEl);
   }
   }
@@ -10808,6 +10892,7 @@ function _restTimerTick() {
   if (left <= 0) _restTimerDone();
 }
 function _restTimerStart(sec) {
+  window._restLast = sec; // the per-exercise rest button reuses the last length picked
   var el = _restTimerEl();
   clearInterval(_restT.iv); clearTimeout(_restT.hideTo);
   el.classList.remove("done");
