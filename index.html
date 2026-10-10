@@ -680,7 +680,7 @@
   .hero-band { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, white) 0%, var(--accent) 45%, color-mix(in srgb, var(--accent) 65%, black) 100%); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; }
   .hero-eyebrow { color: rgba(255,255,255,0.85); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
   .hero-name { color: #fff; font-size: 36px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
-  .tab-eyebrow { color: var(--page-accent); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
+  .tab-eyebrow { color: var(--page-accent, var(--accent)); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; margin-bottom: 8px; }
 
   .tabnav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
   .tabbtn { border: 1px solid #2A313A; background: #1B2027; color:var(--text-2); border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 500; }
@@ -1275,18 +1275,15 @@
     <div class="page active" id="page-dashboard">
       <div class="page-inner">
 
-        <!-- Overview band: date/time + what this is -->
-        <div style="margin-bottom:14px;padding:22px 24px;background:var(--bg-card);border:1px solid var(--border-2);border-radius:20px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-            <div>
-              <div class="gauge-label mono" style="margin-bottom:4px;">RIGHT NOW</div>
-              <div id="overviewClock" class="mono" style="font-size:28px;font-weight:700;color:var(--text-1);line-height:1;"></div>
-              <div id="overviewDate" class="mono" style="font-size:13px;color:var(--text-2);margin-top:4px;"></div>
-            </div>
-            <div style="text-align:right;">
-              <div class="hero-eyebrow" id="heroEyebrow" style="color:var(--accent);margin-bottom:2px;text-align:right;">Hi there,</div>
-              <div id="heroName" class="serif" style="color:var(--text-1);font-size:26px;"></div>
-            </div>
+        <!-- Overview header tile: title + greeting, then the live clock -->
+        <div class="page-hero">
+          <div class="tab-eyebrow">Dashboard</div>
+          <header><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Overview</h2>
+            <div style="color:var(--text-2);font-size:14px;"><span id="heroEyebrow">Hi there,</span> <strong id="heroName" style="color:var(--text-1);font-weight:700;"></strong></div></header>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);">
+            <div class="gauge-label mono" style="margin-bottom:4px;">RIGHT NOW</div>
+            <div id="overviewClock" class="mono" style="font-size:28px;font-weight:700;color:var(--text-1);line-height:1;"></div>
+            <div id="overviewDate" class="mono" style="font-size:13px;color:var(--text-2);margin-top:4px;"></div>
           </div>
         </div>
 
