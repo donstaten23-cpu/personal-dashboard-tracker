@@ -49,6 +49,7 @@
   .auth-scene {
     position: relative; overflow: hidden; flex-direction: column;
     --orb-ink: var(--text-1); --orb-glow: var(--accent);
+    --orb-size: clamp(210px, 60vw, 280px); /* the entry circle (was a fixed 160px) */
     background: radial-gradient(120% 90% at 50% 45%, color-mix(in srgb, var(--accent) 6%, var(--bg)) 0%, var(--bg) 60%, color-mix(in srgb, var(--text-1) 4%, var(--bg)) 100%);
   }
   /* Two soft light blobs drifting slowly behind everything. */
@@ -62,7 +63,7 @@
   @keyframes authDriftB { to { transform: translate(20vmax, -10vmax) scale(.9); } }
 
   .auth-orb {
-    position: absolute; left: 50%; top: 50%; width: 160px; height: 160px; margin: -80px 0 0 -80px;
+    position: absolute; left: 50%; top: 50%; width: var(--orb-size); height: var(--orb-size); margin: calc(var(--orb-size) / -2) 0 0 calc(var(--orb-size) / -2);
     border: none; padding: 0; background: none; border-radius: 50%; cursor: pointer; z-index: 2;
     -webkit-tap-highlight-color: transparent;
     animation: authBreathe 3.6s ease-in-out infinite;
@@ -102,7 +103,7 @@
 
   /* Your logo (Settings → Personal Branding) sits in the middle of the ring. */
   .auth-orb-logo {
-    position: absolute; left: 50%; top: 50%; width: 112px; height: 112px; transform: translate(-50%, -50%);
+    position: absolute; left: 50%; top: 50%; width: calc(var(--orb-size) * .78); height: calc(var(--orb-size) * .78); transform: translate(-50%, -50%);
     object-fit: contain; pointer-events: none; opacity: .95;
     filter: drop-shadow(0 2px 10px color-mix(in srgb, var(--orb-glow) 18%, transparent));
     transition: scale .5s cubic-bezier(.34,1.56,.64,1);
@@ -135,7 +136,7 @@
   .auth-orb-hint.nudge { animation: authNudge .5s ease; }
   @keyframes authNudge { 0%, 100% { transform: none; color: var(--text-3); } 20% { transform: translateY(-5px); color: var(--text-1); } 55% { transform: translateY(2px); } }
   .auth-orb-hint {
-    position: absolute; left: 0; right: 0; top: calc(50% + 104px); text-align: center; z-index: 2;
+    position: absolute; left: 0; right: 0; top: calc(50% + var(--orb-size) / 2 + 26px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
     transition: opacity .3s;
   }
@@ -16489,6 +16490,15 @@ if (_pendingNotifOpenBudget) {
 // A bookmarked/shared link like #workouts or #story/characters — landed on
 // once, in showDashboardScreen() below, then left alone (switchPage() keeps
 // the hash in sync with wherever the user navigates from here on).
+// The installed (home-screen) app always opens on your default page. iOS can
+// relaunch it on whatever address it was last on (e.g. #jobs), which used to
+// drop you straight onto the last page you'd visited. Links with a #page only
+// apply in a normal browser tab; a deliberate "Reload" from the update pill
+// keeps where you were (it sets keepRouteOnce for the next load).
+var _installedApp = navigator.standalone === true || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+var _keepRoute = false;
+try { _keepRoute = sessionStorage.getItem("keepRouteOnce") === "1"; sessionStorage.removeItem("keepRouteOnce"); } catch (e) {}
+if (_installedApp && !_keepRoute && window.location.hash) { try { history.replaceState(null, "", window.location.pathname + window.location.search); } catch (e) {} }
 var _initialHashRoute = parseUrlHash();
 if (_initialHashRoute && !document.getElementById("page-" + _initialHashRoute.page)) _initialHashRoute = null;
 if (_initialHashRoute && _initialHashRoute.section) _pendingSectionByPage[_initialHashRoute.page] = _initialHashRoute.section;
@@ -16515,7 +16525,7 @@ function _onShellUpdated(reload) {
   el.addEventListener("click", function (e) {
     var b = e.target.closest("[data-u]");
     if (!b) return;
-    if (b.getAttribute("data-u") === "reload") reload(); else el.remove();
+    if (b.getAttribute("data-u") === "reload") { try { sessionStorage.setItem("keepRouteOnce", "1"); } catch (x) {} reload(); } else el.remove();
   });
   document.body.appendChild(el);
 }
