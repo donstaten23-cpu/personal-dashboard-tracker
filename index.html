@@ -100,6 +100,36 @@
     50% { border-color: color-mix(in srgb, var(--orb-ink) 50%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--orb-glow) 22%, transparent), inset 0 0 18px color-mix(in srgb, var(--orb-glow) 10%, transparent); }
   }
 
+  /* Your logo (Settings → Personal Branding) sits in the middle of the ring. */
+  .auth-orb-logo {
+    position: absolute; left: 50%; top: 50%; width: 112px; height: 112px; transform: translate(-50%, -50%);
+    object-fit: contain; pointer-events: none; opacity: .95;
+    filter: drop-shadow(0 2px 10px color-mix(in srgb, var(--orb-glow) 18%, transparent));
+    transition: scale .5s cubic-bezier(.34,1.56,.64,1);
+  }
+  .auth-orb-logo[hidden] { display: none; }
+  .auth-orb { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+
+  /* Everyday entry screen is hold-to-enter: pressing charges a ring around the
+     orb (--hold-p, driven from JS, 0 → 1) while the orb and logo swell; at
+     full charge it expands away like a tap used to. Letting go early springs
+     back. The first-time sign-in ring stays a plain tap. */
+  .auth-orb-hold {
+    position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; opacity: 0;
+    background: conic-gradient(var(--orb-glow) calc(var(--hold-p, 0) * 360deg), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+    transition: opacity .2s;
+  }
+  .auth-orb.holding .auth-orb-hold { opacity: 1; }
+  .auth-scene.auth-gate .auth-orb.holding {
+    scale: 1.16; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--orb-glow) 55%, transparent));
+    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1), filter .3s;
+  }
+  .auth-orb.holding .auth-orb-logo { scale: 1.1; }
+  .auth-orb.holding .auth-orb-track { border-color: color-mix(in srgb, var(--orb-ink) 85%, transparent); }
+  .auth-orb-hint.nudge { animation: authNudge .5s ease; }
+  @keyframes authNudge { 0%, 100% { transform: none; color: var(--text-3); } 20% { transform: translateY(-5px); color: var(--text-1); } 55% { transform: translateY(2px); } }
   .auth-orb-hint {
     position: absolute; left: 0; right: 0; top: calc(50% + 104px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
@@ -1037,6 +1067,8 @@
   <button type="button" id="authOrb" class="auth-orb" aria-label="Open sign in">
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
+    <span class="auth-orb-hold"></span>
+    <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
   <div class="auth-orb-hint" id="authOrbHint" aria-hidden="true">Tap to sign in</div>
   <div class="auth-panel" style="width:100%;max-width:400px;">
@@ -2780,7 +2812,19 @@ function showAuthScreen() {
   document.getElementById("dashboardScreen").style.display = "none";
 }
 
-// The same ring doubles as an everyday "tap to enter" screen: when already
+function _setOrbLogo(src) {
+  var img = document.getElementById("authOrbLogo");
+  if (!img) return;
+  var want = src || "./sd-logo.svg";
+  if (img.getAttribute("src") !== want) img.setAttribute("src", want);
+}
+// Use the logo saved on this device right away (applySettings refreshes it
+// after sign-in); hide the slot if the image can't load.
+try { _setOrbLogo(localStorage.getItem("dash-logo")); } catch (e) {}
+document.getElementById("authOrbLogo").addEventListener("error", function () { this.hidden = true; });
+document.getElementById("authOrbLogo").addEventListener("load", function () { this.hidden = false; });
+
+// The same ring doubles as an everyday "hold to enter" screen: when already
 // signed in, the dashboard loads underneath it and tapping the ring expands
 // it away to reveal the dashboard. Skipped once the ring has been tapped this
 // page load (e.g. it was just used to reveal the sign-in form), and can be
@@ -2798,8 +2842,9 @@ function showEntryGate() {
   document.documentElement.style.overflow = "hidden"; // no scrolling the dashboard behind the gate
   _restartOrbAnimations();
   setTimeout(_restartOrbAnimations, 300);
-  document.getElementById("authOrbHint").textContent = "Tap to enter";
-  document.getElementById("authOrb").setAttribute("aria-label", "Enter dashboard");
+  document.getElementById("authOrbHint").textContent = "Hold to enter";
+  document.getElementById("authOrb").setAttribute("aria-label", "Enter dashboard (hold, or press Enter)");
+  _resetOrbHold();
   setTimeout(function () { var o = document.getElementById("authOrb"); if (o) o.focus({ preventScroll: true }); }, 50);
 }
 // iOS suspends CSS animations while an app is in the background and doesn't
@@ -2825,6 +2870,7 @@ window.addEventListener("pageshow", function () { if (_gateIsShowing()) _restart
 
 function passEntryGate() {
   var scene = document.getElementById("authScreen");
+  if (scene.classList.contains("auth-leaving")) return;
   _entryGatePassed = true;
   scene.classList.add("auth-leaving");
   setTimeout(function () {
@@ -2978,7 +3024,69 @@ function openAuthPanel() {
     else { var pw = document.getElementById("authPassword"); if (pw) pw.focus(); }
   }, 450);
 }
-document.getElementById("authOrb").addEventListener("click", openAuthPanel);
+(function () {
+  var orb = document.getElementById("authOrb");
+  var scene = document.getElementById("authScreen");
+  var hint = document.getElementById("authOrbHint");
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var HOLD_MS = reduced ? 300 : 650;
+  var rafId = 0, t0 = 0, active = false, unwindId = 0;
+
+  function inGate() { return scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving"); }
+  function setP(p) { orb.style.setProperty("--hold-p", String(p)); }
+
+  window._resetOrbHold = function () {
+    active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId);
+    orb.classList.remove("holding"); orb.style.removeProperty("--hold-p");
+  };
+
+  function begin(e) {
+    if (!inGate() || active || (e.pointerType === "mouse" && e.button !== 0)) return;
+    cancelAnimationFrame(unwindId);
+    active = true; t0 = performance.now();
+    orb.classList.add("holding");
+    try { orb.setPointerCapture(e.pointerId); } catch (x) {}
+    (function frame() {
+      if (!active) return;
+      var p = Math.min(1, (performance.now() - t0) / HOLD_MS);
+      setP(p);
+      if (p >= 1) { finish(); return; }
+      rafId = requestAnimationFrame(frame);
+    })();
+  }
+  function finish() {
+    active = false; cancelAnimationFrame(rafId);
+    orb.classList.remove("holding");
+    try { if (navigator.vibrate) navigator.vibrate(14); } catch (x) {}
+    passEntryGate();
+  }
+  function release() {
+    if (!active) return;
+    var held = performance.now() - t0;
+    active = false; cancelAnimationFrame(rafId);
+    orb.classList.remove("holding");
+    // Quick tap: say what to do. Early release: unwind the ring.
+    if (held < 220) { hint.classList.remove("nudge"); void hint.offsetWidth; hint.classList.add("nudge"); }
+    var from = parseFloat(orb.style.getPropertyValue("--hold-p")) || 0, u0 = performance.now();
+    (function unwind() {
+      var k = Math.min(1, (performance.now() - u0) / 180);
+      setP(from * (1 - k));
+      if (k < 1) unwindId = requestAnimationFrame(unwind); else orb.style.removeProperty("--hold-p");
+    })();
+  }
+  hint.addEventListener("animationend", function () { hint.classList.remove("nudge"); });
+  orb.addEventListener("pointerdown", begin);
+  orb.addEventListener("pointerup", release);
+  orb.addEventListener("pointercancel", release);
+  orb.addEventListener("lostpointercapture", release);
+  orb.addEventListener("contextmenu", function (e) { if (inGate()) e.preventDefault(); }); // no long-press menu
+  orb.addEventListener("click", function (e) {
+    // At the gate the hold is the gesture; a click with no pointer behind it
+    // (detail 0: Enter/Space on the focused ring) still opens straight away.
+    if (scene.classList.contains("auth-gate")) { if (e.detail === 0) passEntryGate(); return; }
+    openAuthPanel();
+  });
+})();
 function renderGreeting() {
   var eyebrow = document.getElementById("heroEyebrow");
   var name    = document.getElementById("heroName");
@@ -3488,13 +3596,22 @@ function _goBack() {
 }
 
 /* ---------------- swipe gestures (touch) ----------------
-   • Swipe a list row left to delete it (with Undo), right to toggle a bill
-     paid. Works on any row by pressing the row's own delete/paid button, so
-     each list needs no gesture code of its own.
+   • Swipe a list row left to delete it (with Undo) and right to complete it
+     (bill paid, routine done, planned workout done, job moved to its next
+     stage). Works on any row by pressing the row's own delete/complete
+     button, so each list needs no gesture code of its own.
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
-var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete"];
+var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove"];
+// Right-swipe ("complete") buttons -> the label to show, or null when that row
+// has nothing to complete right now (e.g. a routine already done today).
+var SWIPE_DONE_ACTIONS = {
+  "toggle-paid": function (b) { return /\u2713/.test(b.textContent) ? "&#8634; Unpaid" : "&#10003; Paid"; },
+  "toggle": function (b) { return /\u2713/.test(b.textContent) ? null : "&#10003; Done"; },
+  "plan-start": function () { return "&#10003; Done"; },
+  "job-advance": function (b) { return "&#8594; " + escapeHtml(b.getAttribute("data-next-label") || "Next"); }
+};
 var _sw = null;
 function _swipeButton(row, actions) {
   return Array.prototype.find.call(row.querySelectorAll("[data-action]"), function (b) {
@@ -3510,8 +3627,7 @@ function _swipeBegin(s) {
   while (row.firstChild) content.appendChild(row.firstChild);
   var bg = document.createElement("div");
   bg.className = "swipe-bg";
-  var paidNow = s.paid && /✓|✓/.test(s.paid.textContent);
-  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.paid ? (paidNow ? "&#8634; Unpaid" : "&#10003; Paid") : "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
+  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.doneLabel || "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
   row.appendChild(bg); row.appendChild(content);
   row.classList.add("swiping");
   s.content = content; s.bg = bg;
@@ -3530,7 +3646,7 @@ function _swipeEnd(s, commit) {
     setTimeout(function () { unwrap(); s.del.click(); }, 200);
   } else {
     content.style.transform = "translateX(0)";
-    setTimeout(function () { unwrap(); if (commit === "paid") s.paid.click(); }, 220);
+    setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
   }
 }
 document.addEventListener("touchstart", function (e) {
@@ -3544,9 +3660,12 @@ document.addEventListener("touchstart", function (e) {
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
   if (!row || e.target.closest(field + ", input") || row.querySelector(field)) return;
-  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS), paid = _swipeButton(row, ["toggle-paid"]);
-  if (!del && !paid) return;
-  _sw = { mode: "row", row: row, del: del, paid: paid, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
+  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
+  var done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
+  var doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
+  if (doneLabel == null) done = null;
+  if (!del && !done) return;
+  _sw = { mode: "row", row: row, del: del, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
 }, { passive: true });
 document.addEventListener("touchmove", function (e) {
   var s = _sw;
@@ -3571,7 +3690,7 @@ document.addEventListener("touchmove", function (e) {
     return;
   }
   // Resist directions this row has no action for.
-  if ((dx < 0 && !s.del) || (dx > 0 && !s.paid)) dx *= 0.15;
+  if ((dx < 0 && !s.del) || (dx > 0 && !s.done)) dx *= 0.15;
   s.dx = dx;
   s.content.style.transition = "none";
   s.content.style.transform = "translateX(" + dx + "px)";
@@ -3590,7 +3709,7 @@ function _swipeRelease() {
     return;
   }
   var threshold = Math.min(110, s.width * 0.35);
-  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.paid ? "paid" : null);
+  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.done ? "done" : null);
 }
 document.addEventListener("touchend", _swipeRelease);
 document.addEventListener("touchcancel", _swipeRelease);
@@ -8119,10 +8238,15 @@ async function renderWorkoutsTab(root) {
     });
     bodyEl.querySelectorAll("[data-action='plan-remove']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
-        delete planData.days[e.currentTarget.getAttribute("data-date")];
-        if (planEditingDay === e.currentTarget.getAttribute("data-date")) planEditingDay = null;
+        var rmDate = e.currentTarget.getAttribute("data-date");
+        var rmPlan = planData.days[rmDate];
+        delete planData.days[rmDate];
+        if (planEditingDay === rmDate) planEditingDay = null;
         savePlan();
         renderPlanSection();
+        if (rmPlan) _offerUndo("Planned workout removed", function () {
+          if (!planData.days[rmDate]) { planData.days[rmDate] = rmPlan; savePlan(); renderPlanSection(); }
+        });
       });
     });
     bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (checkbox) {
@@ -10875,7 +10999,13 @@ function applySettings() {
   // Sidebar title & logo
   var titleEl = document.getElementById('sidebarTitle');
   if (titleEl) titleEl.textContent = _settings.siteTitle || "Don's Space";
-  try { localStorage.removeItem('dash-logo'); } catch (e) {} // leftover from when the entry circle showed the logo
+  // Same logo in the entry circle; mirrored to its own device-local key
+  // (it can be a sizable data URL) so the circle can show it before sign-in.
+  try {
+    if (_settings.logoDataUrl) localStorage.setItem('dash-logo', _settings.logoDataUrl);
+    else localStorage.removeItem('dash-logo');
+  } catch (e) {}
+  _setOrbLogo(_settings.logoDataUrl);
   var logoEl = document.getElementById('sidebarLogoImg');
   if (logoEl) {
     if (_settings.logoDataUrl) { logoEl.src = _settings.logoDataUrl; logoEl.style.display = 'block'; }
@@ -12398,6 +12528,13 @@ function _jobStage(id) {
   return JOB_STAGES.find(function(s) { return s.id === id; }) || JOB_STAGES[0];
 }
 
+// Next step along the pipeline (saved -> applied -> interview -> offer); none
+// once a job has an offer or was rejected.
+function _jobNextStage(job) {
+  var i = ['saved', 'applied', 'interview', 'offer'].indexOf(job.stage || 'saved');
+  return i >= 0 && i < 3 ? _jobStage(['applied', 'interview', 'offer'][i]) : null;
+}
+
 var JOB_WEEKLY_GOAL_MIN = 15;
 var JOB_WEEKLY_GOAL_MAX = 17;
 var JOB_DAILY_MIN = 3;
@@ -12652,6 +12789,7 @@ async function renderJobsPage() {
             '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
             '<div style="display:flex;gap:4px;">' +
               (job.link ? '<a href="' + escapeHtml(job.link) + '" target="_blank" rel="noopener" class="icon-btn" title="Open posting" style="color:#5B8FA8;text-decoration:none;">&#128279;</a>' : '') +
+              (_jobNextStage(job) ? '<button class="icon-btn" data-action="job-advance" data-job="' + job.id + '" data-next-label="' + _jobNextStage(job).label + '" title="Move to ' + _jobNextStage(job).label + '">&#8594;</button>' : '') +
               '<button class="icon-btn" data-action="job-edit" data-job="' + job.id + '">✎</button>' +
               '<button class="icon-btn" data-action="job-delete" data-job="' + job.id + '">✕</button>' +
             '</div>' +
@@ -12805,6 +12943,17 @@ async function renderJobsPage() {
         job.link        = ((document.getElementById('jobEditLink')    || {}).value || '').trim();
         job.notes       = ((document.getElementById('jobEditNotes')   || {}).value || '').trim();
         _jobEditId = null; saveJobData(); renderJobsPage();
+      } else if (action === 'job-advance') {
+        var nextSt = job && _jobNextStage(job);
+        if (!nextSt) return;
+        var prevStage = job.stage || 'saved', prevDate = job.dateApplied || '';
+        job.stage = nextSt.id;
+        if (nextSt.id === 'applied' && !job.dateApplied) job.dateApplied = todayISO();
+        saveJobData(); renderJobsPage();
+        _offerUndo((job.company || 'Job') + ' moved to ' + nextSt.label, function() {
+          job.stage = prevStage; job.dateApplied = prevDate;
+          saveJobData(); renderJobsPage();
+        });
       } else if (action === 'job-delete') {
         var takenJob = _undoTake(d.jobs, function(j) { return j.id === jid; });
         d.jobs = (d.jobs || []).filter(function(j) { return j.id !== jid; });
