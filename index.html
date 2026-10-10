@@ -821,6 +821,20 @@
   .until-payday-grid.single { grid-template-columns: 1fr; }
   .bsec-hidden, .bview-hidden { display: none !important; }
   /* Budget bills list: group headers (By due day view) */
+  /* Paychecks section */
+  .pay-list { display: flex; flex-direction: column; gap: 10px; }
+  .pay-card { background: var(--bg); border: 1px solid var(--border-2); border-radius: 16px; padding: 14px; }
+  .pay-card.editing { border-color: var(--accent); }
+  .pay-top { display: flex; align-items: flex-start; gap: 10px; }
+  .pay-top > div:first-child { flex: 1; min-width: 0; }
+  .pay-who { font-size: 15px; font-weight: 700; color: var(--text-1); }
+  .pay-next { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .pay-amount { font-size: 26px; font-weight: 700; letter-spacing: -.01em; margin-top: 6px; }
+  .pay-btns { display: flex; flex-shrink: 0; }
+  .pay-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text-2); margin-top: 10px; }
+  .pay-bills { font-size: 12px; color: var(--text-3); margin-top: 3px; overflow-wrap: anywhere; }
+  .pay-left { padding-top: 10px; border-top: 1px dashed var(--border-2); font-weight: 600; color: var(--text-1); }
+  .pay-add { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-2); }
   .bill-group { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 4px 6px; border-bottom: 1px solid var(--border-2); }
   .bill-group:first-child { padding-top: 4px; }
   .bill-group-t { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
@@ -4752,16 +4766,21 @@ async function renderSpendTab(root, cfg) {
       "</div>"
     : "") +
     (cfg.showSavingsGoal ?
-      collapseCard("PAY SCHEDULE", "payScheduleColl", false,
-        '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Pick a name, then add their payday \u2014 it\u2019s used to figure out what\u2019s due before each of you gets paid.</div>' +
-        '<div class="pills" id="payPersonPills"></div>' +
-        '<div class="row-gap" style="margin-bottom:10px;">' +
-          '<input class="small-input" type="number" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
-          '<input class="small-input" type="number" min="0" step="0.01" id="payAmountInput" placeholder="Amount" />' +
-          '<button class="small-btn" id="addPayPeriodBtn" style="background:' + cfg.accent + ';">+ Add</button>' +
+      '<div class="bento-body" id="payTiles" style="margin-bottom:0;"></div>' +
+      '<div class="card" id="payCard">' +
+        '<div class="gauge-top"><span class="gauge-label mono">YOUR PAYCHECKS</span></div>' +
+        '<div style="color:var(--text-2);font-size:12px;margin-bottom:12px;">Each paycheck repeats every month on the day you set. Tap \u270E to change the day or the amount. It\u2019s used to work out which bills land before each of you gets paid.</div>' +
+        '<div id="payPeriodsList" class="pay-list"></div>' +
+        '<div class="pay-add">' +
+          '<div class="gauge-label mono" style="margin-bottom:8px;">ADD A PAYCHECK</div>' +
+          '<div class="pills" id="payPersonPills" style="margin-top:0;"></div>' +
+          '<div class="row-gap">' +
+            '<input class="small-input" type="number" inputmode="numeric" min="1" max="31" id="payDayInput" placeholder="Pay day (1\u201331)" />' +
+            '<input class="small-input" type="number" inputmode="decimal" min="0" step="0.01" id="payAmountInput" placeholder="Amount" />' +
+            '<button class="small-btn" id="addPayPeriodBtn" style="background:' + cfg.accent + ';">+ Add</button>' +
+          "</div>" +
         "</div>" +
-        '<div id="payPeriodsList"></div>'
-      )
+      "</div>"
     : "") +
     (cfg.showSavingsGoal ?
       '<div class="card">' +
@@ -5234,17 +5253,118 @@ async function renderSpendTab(root, cfg) {
     }
   }
 
+  var payEditId = null;
+  var payEditForm = {};
+
+  // Real calendar date of a monthly payday (short months clamp, e.g. the 31st -> the 30th).
+  function nextPayDate(day) {
+    var t = new Date(), y = t.getFullYear(), m = t.getMonth();
+    var d = Math.min(day, new Date(y, m + 1, 0).getDate());
+    if (d >= t.getDate()) return new Date(y, m, d);
+    return new Date(y, m + 1, Math.min(day, new Date(y, m + 2, 0).getDate()));
+  }
+  function payDaysAway(day) {
+    var t = new Date(), start = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    return Math.round((nextPayDate(day) - start) / 86400000);
+  }
+  function payAwayLabel(n) { return n === 0 ? "today" : n === 1 ? "tomorrow" : "in " + n + " days"; }
+  function paySoonestFirst() {
+    return (data.payPeriods || []).filter(function (p) { return Number(p.day); }).slice().sort(function (a, b) { return payDaysAway(Number(a.day)) - payDaysAway(Number(b.day)); });
+  }
+
+  // For one person: for each of their paychecks, the unpaid bills assigned to
+  // them that fall due between the previous paycheck and that one.
+  function payBreakdown(person) {
+    var todayDay = new Date().getDate();
+    var away = function (day) { return day >= todayDay ? day - todayDay : (31 - todayDay) + day; };
+    var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); })
+      .sort(function (a, b) { return away(Number(a.day)) - away(Number(b.day)); });
+    var owned = data.items.filter(function (it) {
+      return it.category !== "savings" && it.owner === person && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it);
+    }).map(function (it) { return { name: it.name, amount: Number(it.amount) || 0, daysAway: away(Number(it.dueDay)) }; });
+    var out = { hasOwned: owned.length > 0 }, prev = -1;
+    periods.forEach(function (p) {
+      var cutoff = away(Number(p.day));
+      var bills = owned.filter(function (b) { return b.daysAway > prev && b.daysAway <= cutoff; });
+      prev = cutoff;
+      out[p.id] = { bills: bills, total: bills.reduce(function (t, b) { return t + b.amount; }, 0) };
+    });
+    return out;
+  }
+
   function renderPayPeriodsList() {
     var el = document.getElementById("payPeriodsList");
     if (!el) return;
-    var sorted = (data.payPeriods || []).slice().sort(function (a, b) { return (Number(a.day) || 0) - (Number(b.day) || 0); });
-    if (sorted.length === 0) {
-      el.innerHTML = '<div style="color:var(--text-2);font-size:12px;">No paychecks added yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '\u2019s below.</div>';
+    var list = paySoonestFirst();
+    if (list.length === 0) {
+      el.innerHTML = '<div class="empty-state" style="padding:18px 8px;">No paychecks yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '’s below.</div>';
       return;
     }
-    el.innerHTML = sorted.map(function (p) {
-      return '<div class="weight-log-row"><span style="color:var(--text-1);">' + escapeHtml(personLabel(p.person)) + ' \u00B7 ' + ordinalDay(p.day) + '</span><span class="mono" style="color:' + cfg.accent + ';">' + formatCurrency(p.amount) + '</span><button class="icon-btn" data-action="delete-pay" data-id="' + p.id + '">\u2715</button></div>';
+    var breakdowns = { me: payBreakdown("me"), partner: payBreakdown("partner") };
+    el.innerHTML = list.map(function (p) {
+      if (p.id === payEditId) {
+        var f = payEditForm;
+        return '<div class="pay-card editing">' +
+          '<div class="edit-line">' +
+            '<select class="edit-select" data-pay-edit="person"><option value="me"' + (f.person === "me" ? " selected" : "") + '>' + escapeHtml(USER_DISPLAY_NAME) + '</option><option value="partner"' + (f.person === "partner" ? " selected" : "") + '>' + escapeHtml(PARTNER_DISPLAY_NAME) + '</option></select>' +
+            '<input class="edit-input amt" type="number" inputmode="numeric" min="1" max="31" data-pay-edit="day" placeholder="Day" value="' + escapeHtml(f.day) + '" />' +
+            '<input class="edit-input grow" type="number" inputmode="decimal" min="0" step="0.01" data-pay-edit="amount" placeholder="Paycheck amount" value="' + escapeHtml(f.amount) + '" />' +
+          '</div>' +
+          '<div class="edit-line" style="justify-content:flex-end;">' +
+            (f.error ? '<span class="error-text" style="margin-right:auto;">' + escapeHtml(f.error) + '</span>' : "") +
+            '<button class="small-btn" data-action="save-pay" style="background:' + cfg.accent + ';">Save</button>' +
+            '<button class="small-btn" data-action="cancel-pay" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button>' +
+          '</div></div>';
+      }
+      var day = Number(p.day), away = payDaysAway(day), dt = nextPayDate(day);
+      var bd = (breakdowns[p.person] || {})[p.id] || { bills: [], total: 0 };
+      var amt = Number(p.amount) || 0;
+      var left = amt - bd.total;
+      var billsLine = bd.bills.length
+        ? '<div class="pay-row"><span>Bills due before this paycheck</span><span class="mono" style="color:#FF8A5C;">' + formatCurrency(bd.total) + '</span></div>' +
+          '<div class="pay-bills">' + bd.bills.map(function (b) { return escapeHtml(b.name); }).join(" · ") + '</div>'
+        : '<div class="pay-row" style="color:var(--text-3);"><span>' + ((breakdowns[p.person] || {}).hasOwned ? "Nothing due before this one ✨" : "No bills assigned to " + escapeHtml(personLabel(p.person)) + " yet") + '</span></div>';
+      return '<div class="pay-card">' +
+        '<div class="pay-top">' +
+          '<div><div class="pay-who">' + escapeHtml(personLabel(p.person)) + ' · the ' + ordinalDay(day) + '</div>' +
+          '<div class="pay-next">' + dt.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ' · ' + payAwayLabel(away) + '</div>' +
+          '<div class="pay-amount mono" style="color:' + cfg.accent + ';">' + (amt ? formatCurrency(amt) : "—") + '</div></div>' +
+          '<div class="pay-btns"><button class="icon-btn" data-action="edit-pay" data-id="' + p.id + '" aria-label="Edit paycheck">✎</button>' +
+          '<button class="icon-btn" data-action="delete-pay" data-id="' + p.id + '" aria-label="Delete paycheck">✕</button></div>' +
+        '</div>' +
+        billsLine +
+        (amt && bd.bills.length ? '<div class="pay-row pay-left"><span>Left after those bills</span><span class="mono" style="color:' + (left < 0 ? "#FF8A5C" : "#5BAE7A") + ';">' + formatCurrency(left) + '</span></div>' : "") +
+      '</div>';
     }).join("");
+  }
+
+  function renderPayTiles() {
+    var el = document.getElementById("payTiles");
+    if (!el) return;
+    var list = paySoonestFirst();
+    if (!list.length) { el.innerHTML = ""; return; }
+    var next = list[0], nd = payDaysAway(Number(next.day));
+    var income = { me: 0, partner: 0 };
+    list.forEach(function (p) { income[p.person === "partner" ? "partner" : "me"] += Number(p.amount) || 0; });
+    var totalIncome = income.me + income.partner;
+    var bd = (payBreakdown(next.person) || {})[next.id] || { bills: [], total: 0 };
+    var nextAmt = Number(next.amount) || 0;
+    var nextTile = _bentoTile("NEXT PAYCHECK", nd === 0 ? "Today" : nd + (nd === 1 ? " day" : " days"), cfg.accent, escapeHtml(personLabel(next.person)) + " &middot; " + nextPayDate(Number(next.day)).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + (nextAmt ? " &middot; " + formatCurrency(nextAmt) : ""));
+    var incomeTile = _bentoTile("MONTHLY INCOME", totalIncome ? formatCurrency(totalIncome) : "&mdash;", "#5BAE7A", list.length + (list.length === 1 ? " paycheck" : " paychecks") + (income.me && income.partner ? "<br>" + escapeHtml(USER_DISPLAY_NAME) + " " + formatCurrency(income.me) + " &middot; " + escapeHtml(PARTNER_DISPLAY_NAME) + " " + formatCurrency(income.partner) : ""));
+    var dueTile = _bentoTile("DUE BEFORE IT", formatCurrency(bd.total), bd.total ? "#FF8A5C" : "var(--text-3)", bd.bills.length ? bd.bills.length + (bd.bills.length === 1 ? " bill" : " bills") + " &middot; " + escapeHtml(personLabel(next.person)) : "nothing assigned yet");
+    var leftTile = nextAmt && bd.total
+      ? _bentoTile("LEFT AFTER BILLS", formatCurrency(nextAmt - bd.total), nextAmt - bd.total < 0 ? "#FF8A5C" : "#5BAE7A", "from the next paycheck", Math.max(0, Math.min(100, ((nextAmt - bd.total) / nextAmt) * 100)))
+      : _bentoTile("LEFT AFTER BILLS", "&mdash;", "var(--text-3)", nextAmt ? "no bills before it" : "add the paycheck amount");
+    el.innerHTML = nextTile + incomeTile + dueTile + leftTile;
+  }
+
+  // Re-draw everything that depends on the pay schedule.
+  function refreshPay() {
+    renderPayPeriodsList();
+    renderPayTiles();
+    renderBeforePayFor("me");
+    renderBeforePayFor("partner");
+    if (billsPersonFilter) renderList();
   }
 
   function handleAddPayPeriod() {
@@ -5257,19 +5377,38 @@ async function renderSpendTab(root, cfg) {
     save();
     dayEl.value = "";
     amtEl.value = "";
-    renderPayPeriodsList();
-    renderBeforePayFor("me");
-    renderBeforePayFor("partner");
-    if (billsPersonFilter) renderList();
+    refreshPay();
   }
   function handleDeletePayPeriod(id) {
+    var taken = _undoTake(data.payPeriods, function (p) { return p.id === id; });
     data.payPeriods = (data.payPeriods || []).filter(function (p) { return p.id !== id; });
+    if (payEditId === id) payEditId = null;
     save();
-    renderPayPeriodsList();
-    renderBeforePayFor("me");
-    renderBeforePayFor("partner");
-    if (billsPersonFilter) renderList();
+    refreshPay();
+    if (taken) _offerUndo(personLabel(taken.item.person) + "’s paycheck on the " + ordinalDay(taken.item.day) + " deleted", function () { _undoPut(data.payPeriods, taken); save(); refreshPay(); });
   }
+  function handleStartEditPay(id) {
+    var p = (data.payPeriods || []).find(function (x) { return x.id === id; });
+    if (!p) return;
+    payEditId = id;
+    payEditForm = { person: p.person === "partner" ? "partner" : "me", day: String(p.day), amount: p.amount === 0 || p.amount === "" || p.amount == null ? "" : String(p.amount), error: "" };
+    renderPayPeriodsList();
+    var amtEl = document.querySelector('#payPeriodsList [data-pay-edit="amount"]');
+    if (amtEl) { amtEl.focus(); amtEl.select(); }
+  }
+  function handleSavePay() {
+    var p = (data.payPeriods || []).find(function (x) { return x.id === payEditId; });
+    if (!p) { payEditId = null; renderPayPeriodsList(); return; }
+    var day = Number(payEditForm.day);
+    if (!day || day < 1 || day > 31 || isNaN(day) || day !== Math.floor(day)) { payEditForm.error = "Pay day is 1–31."; renderPayPeriodsList(); return; }
+    var amt = payEditForm.amount === "" ? 0 : Number(payEditForm.amount);
+    if (isNaN(amt) || amt < 0) { payEditForm.error = "Enter a valid amount."; renderPayPeriodsList(); return; }
+    p.person = payEditForm.person; p.day = day; p.amount = amt;
+    payEditId = null;
+    save();
+    refreshPay();
+  }
+  function handleCancelPay() { payEditId = null; renderPayPeriodsList(); }
 
   // soonest "days from today" among a person's paydays, or null if they
   // haven't added one yet
@@ -5961,6 +6100,8 @@ async function renderSpendTab(root, cfg) {
       [collapseCardFor("periodSpendColl-" + p), collapseCardFor("beforePay-" + p)].forEach(function (c) { if (c) c.classList.toggle("bview-hidden", !show); });
     });
     root.querySelectorAll(".until-payday-grid").forEach(function (g) { g.classList.toggle("single", view !== "both"); });
+    var fab = document.getElementById("stFab");
+    if (fab) fab.style.display = _budgetSection === "overview" || _budgetSection === "bills" ? "" : "none"; // quick add belongs with spending
   }
   function renderBudgetSectionPills() {
     var el = document.getElementById("stSectionPills");
@@ -6045,6 +6186,7 @@ async function renderSpendTab(root, cfg) {
     if (!cfg.showSavingsGoal) return;
     renderGlance();
     renderBillsProgress();
+    if (payEditId === null) { renderPayPeriodsList(); renderPayTiles(); }
   }
 
   function setupBudgetViews() {
@@ -6059,7 +6201,7 @@ async function renderSpendTab(root, cfg) {
     tag(collapseCardFor("addExpenseColl"), "bills");
     [".sort-row", ".footer-row", ".bottom-row"].forEach(function (q) { tag(root.querySelector(q), "bills"); });
     tag(budgetCard("svGoalsList"), "goals"); tag(budgetCard("dtDebtsList"), "goals"); tag(budgetCard("plannedGroups"), "goals");
-    tag(budgetCard("payPeriodsList"), "pay"); tag(budgetCard("stPaycheckNotes"), "pay");
+    tag(document.getElementById("payTiles"), "pay"); tag(budgetCard("payPeriodsList"), "pay"); tag(budgetCard("stPaycheckNotes"), "pay");
 
     // Landed via a bookmarked #budget/<section> link.
     var pend = _pendingSectionByPage.budget;
@@ -6537,12 +6679,32 @@ async function renderSpendTab(root, cfg) {
     ["payDayInput", "payAmountInput"].forEach(function (id) {
       document.getElementById(id).addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPayPeriod(); });
     });
-    document.getElementById("payPeriodsList").addEventListener("click", function (e) {
-      var btn = e.target.closest('[data-action="delete-pay"]');
-      if (btn) handleDeletePayPeriod(btn.getAttribute("data-id"));
+    var payListEl = document.getElementById("payPeriodsList");
+    payListEl.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var act = btn.getAttribute("data-action");
+      if (act === "delete-pay") handleDeletePayPeriod(btn.getAttribute("data-id"));
+      else if (act === "edit-pay") handleStartEditPay(btn.getAttribute("data-id"));
+      else if (act === "save-pay") handleSavePay();
+      else if (act === "cancel-pay") handleCancelPay();
+    });
+    payListEl.addEventListener("input", function (e) {
+      var f = e.target.getAttribute && e.target.getAttribute("data-pay-edit");
+      if (f) payEditForm[f] = e.target.value;
+    });
+    payListEl.addEventListener("change", function (e) {
+      var f = e.target.getAttribute && e.target.getAttribute("data-pay-edit");
+      if (f) payEditForm[f] = e.target.value;
+    });
+    payListEl.addEventListener("keydown", function (e) {
+      if (!e.target.getAttribute || !e.target.getAttribute("data-pay-edit")) return;
+      if (e.key === "Enter") { e.preventDefault(); handleSavePay(); }
+      if (e.key === "Escape") handleCancelPay();
     });
     renderPayPersonPills();
     renderPayPeriodsList();
+    renderPayTiles();
 
     document.getElementById("addPlannedGroupBtn").addEventListener("click", handleAddPlannedGroup);
     document.getElementById("plannedGroupNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPlannedGroup(); });
