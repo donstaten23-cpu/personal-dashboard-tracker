@@ -66,7 +66,13 @@
     border: none; padding: 0; background: none; border-radius: 50%; cursor: pointer; z-index: 2;
     -webkit-tap-highlight-color: transparent;
     animation: authBreathe 3.6s ease-in-out infinite;
-    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s;
+    /* Hover growth uses the separate `scale` property, which stacks on top of
+       the breathing animation's `transform` instead of being overridden by it. */
+    scale: 1;
+    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .45s cubic-bezier(.34,1.56,.64,1), filter .3s;
+  }
+  @media (hover: hover) {
+    .auth-orb:hover { scale: 1.15; filter: drop-shadow(0 0 14px color-mix(in srgb, var(--orb-glow) 35%, transparent)); }
   }
   .auth-orb:focus-visible { outline: none; }
   .auth-orb:focus-visible .auth-orb-track { border-color: color-mix(in srgb, var(--orb-ink) 75%, transparent); }
@@ -94,13 +100,6 @@
     50% { border-color: color-mix(in srgb, var(--orb-ink) 50%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--orb-glow) 22%, transparent), inset 0 0 18px color-mix(in srgb, var(--orb-glow) 10%, transparent); }
   }
 
-  /* Your logo (Settings → Personal Branding) sits in the middle of the ring. */
-  .auth-orb-logo {
-    position: absolute; left: 50%; top: 50%; width: 112px; height: 112px; transform: translate(-50%, -50%);
-    object-fit: contain; pointer-events: none; opacity: .95;
-    filter: drop-shadow(0 2px 10px color-mix(in srgb, var(--orb-glow) 18%, transparent));
-  }
-  .auth-orb-logo[hidden] { display: none; }
   .auth-orb-hint {
     position: absolute; left: 0; right: 0; top: calc(50% + 104px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
@@ -983,7 +982,6 @@
   <button type="button" id="authOrb" class="auth-orb" aria-label="Open sign in">
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
-    <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
   <div class="auth-orb-hint" id="authOrbHint" aria-hidden="true">Tap to sign in</div>
   <div class="auth-panel" style="width:100%;max-width:400px;">
@@ -2683,18 +2681,6 @@ function showAuthScreen() {
   if (!document.getElementById("authError").textContent) scene.classList.remove("auth-open");
   document.getElementById("dashboardScreen").style.display = "none";
 }
-
-function _setOrbLogo(src) {
-  var img = document.getElementById("authOrbLogo");
-  if (!img) return;
-  var want = src || "./sd-logo.svg";
-  if (img.getAttribute("src") !== want) img.setAttribute("src", want);
-}
-// Use the logo saved on this device right away (applySettings refreshes it
-// after sign-in); hide the slot if the image can't load.
-try { _setOrbLogo(localStorage.getItem("dash-logo")); } catch (e) {}
-document.getElementById("authOrbLogo").addEventListener("error", function () { this.hidden = true; });
-document.getElementById("authOrbLogo").addEventListener("load", function () { this.hidden = false; });
 
 // The same ring doubles as an everyday "tap to enter" screen: when already
 // signed in, the dashboard loads underneath it and tapping the ring expands
@@ -10754,13 +10740,7 @@ function applySettings() {
   // Sidebar title & logo
   var titleEl = document.getElementById('sidebarTitle');
   if (titleEl) titleEl.textContent = _settings.siteTitle || "Don's Space";
-  // Same logo in the entry circle; mirrored to its own device-local key
-  // (it can be a sizable data URL) so the circle can show it before sign-in.
-  try {
-    if (_settings.logoDataUrl) localStorage.setItem('dash-logo', _settings.logoDataUrl);
-    else localStorage.removeItem('dash-logo');
-  } catch (e) {}
-  _setOrbLogo(_settings.logoDataUrl);
+  try { localStorage.removeItem('dash-logo'); } catch (e) {} // leftover from when the entry circle showed the logo
   var logoEl = document.getElementById('sidebarLogoImg');
   if (logoEl) {
     if (_settings.logoDataUrl) { logoEl.src = _settings.logoDataUrl; logoEl.style.display = 'block'; }
