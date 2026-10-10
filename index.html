@@ -521,6 +521,54 @@
   .undo-toast.show .undo-bar { animation: undoCountdown 5s linear forwards; }
   @keyframes undoCountdown { to { transform: scaleX(0); } }
 
+  /* Workouts: Mon–Sun strip, rest-timer button and the floating timer pill. */
+  .wk-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; }
+  .wk-day {
+    --c: var(--text-3); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 0 6px;
+    background: transparent; border: 1px solid var(--border-2); border-radius: 14px; color: var(--text-2); font: inherit; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    transition: background-color .2s, border-color .2s, transform .35s cubic-bezier(.34,1.8,.5,1);
+  }
+  .wk-day:active { transform: scale(.92); transition-duration: .08s; }
+  .wk-day.future { opacity: .7; }
+  .wk-day.today { border-color: var(--accent); }
+  .wk-day.planned { border-color: color-mix(in srgb, var(--c) 70%, transparent); border-style: dashed; }
+  .wk-day.done { background: color-mix(in srgb, var(--c) 20%, transparent); border-color: var(--c); }
+  .wk-day.today.planned, .wk-day.today.done { border-color: var(--accent); }
+  .wk-day-l { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; opacity: .75; }
+  .wk-day-c { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--c); line-height: 1; }
+  .wk-day.done .wk-day-c { background: var(--c); color: #12151A; }
+  .wk-day-n { font-size: 12px; color: var(--text-3); }
+  .wk-day.today .wk-day-n { color: var(--accent); font-weight: 700; }
+  .wk-rest-btn {
+    flex-shrink: 0; background: transparent; border: 1px solid var(--border-2); color: var(--text-2); border-radius: 999px;
+    padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform .3s cubic-bezier(.34,1.8,.5,1), border-color .2s, color .2s;
+  }
+  .wk-rest-btn:active { transform: scale(.92); transition-duration: .08s; }
+  .wk-rest-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+  .wk-rest-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .wk-rest-presets[hidden] { display: none; }
+  .rest-timer {
+    position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; z-index: 1500; display: flex; align-items: center; gap: 10px;
+    padding: 8px 8px 8px 12px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--accent); color: var(--text-1);
+    box-shadow: 0 8px 28px rgba(0,0,0,.35); transform: translate(-50%, -140%); opacity: 0; pointer-events: none;
+    transition: transform .4s cubic-bezier(.32,.72,0,1), opacity .25s;
+  }
+  .rest-timer.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  .rest-timer .rt-ring {
+    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+    background: conic-gradient(var(--accent) calc(var(--p, 1) * 360deg), color-mix(in srgb, var(--accent) 22%, transparent) 0);
+    -webkit-mask: radial-gradient(circle, transparent 6px, #000 7px); mask: radial-gradient(circle, transparent 6px, #000 7px);
+  }
+  .rest-timer .rt-time { font-size: 18px; font-weight: 700; min-width: 3ch; font-variant-numeric: tabular-nums; }
+  .rest-timer button { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text-1); border: none; border-radius: 999px; padding: 7px 11px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .rest-timer.done { background: var(--accent); color: #fff; animation: restPulse .6s ease-in-out 3; }
+  .rest-timer.done .rt-ring { display: none; }
+  .rest-timer.done button { background: rgba(255,255,255,.22); color: #fff; }
+  @keyframes restPulse { 50% { transform: translate(-50%, 0) scale(1.06); } }
+  @media (prefers-reduced-motion: reduce) { .rest-timer.done { animation: none; } }
+
   /* Row swipe (see _swipeBegin): the row's content slides over a colored
      layer naming the action — green "Paid" on the left, red "Delete" on the
      right — which brightens once the swipe passes the commit point. */
@@ -7263,10 +7311,10 @@ async function renderWorkoutsTab(root) {
   var planDraftCategory = "strength";
   var planDraftTemplateId = "";
 
-  function save() { saveTabData("dashboard-workouts-data", data); }
+  function save() { saveTabData("dashboard-workouts-data", data); renderWeekStrip(); }
   function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
   function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
-  function savePlan() { saveTabData("dashboard-workouts-plan", planData); }
+  function savePlan() { saveTabData("dashboard-workouts-plan", planData); renderWeekStrip(); }
   if (migratedAny || migratedLiftsAny) save();
   if (_planPrunedAny) savePlan();
 
@@ -7356,7 +7404,10 @@ async function renderWorkoutsTab(root) {
 
   root.innerHTML =
     '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
-    '<header><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<header style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;"><div><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></div>' +
+      '<button type="button" class="wk-rest-btn" id="wkRestBtn" aria-expanded="false">&#9201; Rest timer</button></header>' +
+    '<div class="wk-rest-presets" id="wkRestPresets" hidden></div>' +
+    '<div class="wk-strip" id="wkStrip" role="group" aria-label="This week"></div>' +
     '<div class="pills" id="wkSectionPills"></div></div>' +
     '<div id="wkSectionBody" class="bento-body"></div>';
 
@@ -7378,6 +7429,63 @@ async function renderWorkoutsTab(root) {
     }
   }
 
+  // Mon–Sun strip in the header: filled = logged, ringed = planned, accent
+  // outline = today. Tapping a day jumps to it (view the logged workout, edit
+  // the plan, or plan something for an empty day).
+  function renderWeekStrip() {
+    var el = document.getElementById("wkStrip");
+    if (!el) return;
+    var mon = currentWeekMonday(), today = todayISO(), letters = ["M", "T", "W", "T", "F", "S", "S"];
+    el.innerHTML = letters.map(function (ltr, i) {
+      var d = addDaysISO(mon, i);
+      var logged = data.items.filter(function (it) { return it.date === d; });
+      var plan = planData.days[d];
+      var cls = "wk-day" + (d === today ? " today" : "") + (logged.length ? " done" : plan ? " planned" : "") + (d > today && !logged.length && !plan ? " future" : "");
+      var cat = logged.length ? categoryById(WORKOUT_CATEGORIES, logged[0].category) : plan ? categoryById(WORKOUT_CATEGORIES, plan.category) : null;
+      var mark = logged.length ? (logged.length > 1 ? String(logged.length) : "&#10003;") : plan ? cat.glyph : "";
+      var label = new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" }) + ": " + (logged.length ? logged.map(function (it) { return it.name; }).join(", ") + " logged" : plan ? plan.name + " planned" : "nothing planned");
+      return '<button type="button" class="' + cls + '" data-date="' + d + '" aria-label="' + escapeHtml(label) + '"' + (cat ? ' style="--c:' + cat.color + ';"' : "") + ">" +
+        '<span class="wk-day-l">' + ltr + '</span><span class="wk-day-c">' + mark + '</span><span class="wk-day-n">' + Number(d.slice(8)) + "</span></button>";
+    }).join("");
+  }
+  document.getElementById("wkStrip").addEventListener("click", function (e) {
+    var b = e.target.closest(".wk-day");
+    if (!b) return;
+    var d = b.getAttribute("data-date");
+    var logged = data.items.filter(function (it) { return it.date === d; });
+    if (logged.length) { activeSection = "log"; viewingWorkoutId = logged[0].id; }
+    else {
+      activeSection = "plan";
+      viewingWorkoutId = null;
+      var plan = planData.days[d];
+      planEditingDay = d;
+      if (plan) { planDraftName = plan.name; planDraftCategory = plan.category || "strength"; planDraftTemplateId = plan.templateId || ""; }
+      else { planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = ""; }
+    }
+    renderSectionPills(); renderSection();
+    var body = document.getElementById("wkSectionBody");
+    if (body && body.getBoundingClientRect().top > window.innerHeight * 0.7) body.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  renderWeekStrip();
+
+  // Rest timer: presets drop down under the header; the running timer is the
+  // floating pill (see _restTimer), which keeps counting on other pages too.
+  var restPresetsEl = document.getElementById("wkRestPresets"), restBtn = document.getElementById("wkRestBtn");
+  restPresetsEl.innerHTML = [30, 60, 90, 120, 180].map(function (sec) {
+    return '<button type="button" class="pill" data-sec="' + sec + '" style="border-color:' + accent + ';color:' + accent + ';">' + (sec >= 60 ? (sec / 60) + " min" : sec + " sec") + "</button>";
+  }).join("");
+  restBtn.addEventListener("click", function () {
+    var open = restPresetsEl.hasAttribute("hidden");
+    if (open) restPresetsEl.removeAttribute("hidden"); else restPresetsEl.setAttribute("hidden", "");
+    restBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  restPresetsEl.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-sec]");
+    if (!b) return;
+    _restTimerStart(Number(b.getAttribute("data-sec")));
+    restPresetsEl.setAttribute("hidden", ""); restBtn.setAttribute("aria-expanded", "false");
+  });
+
   function renderSection() {
     if (activeSection === "log") renderLogSection();
     else if (activeSection === "plan") renderPlanSection();
@@ -7386,6 +7494,13 @@ async function renderWorkoutsTab(root) {
     else if (activeSection === "analysis") renderAnalysisSection();
     else if (activeSection === "calendar") renderCalendarSplitSection();
     initScrollAnims();
+  }
+
+  // Most recent logged workout (the later entry wins a same-day tie).
+  function _lastWorkout() {
+    var best = null;
+    data.items.forEach(function (it) { if (it.date && (!best || it.date >= best.date)) best = it; });
+    return best;
   }
 
   function renderStreak() {
@@ -7420,6 +7535,7 @@ async function renderWorkoutsTab(root) {
         '<div class="pills" id="wkPills"></div>' +
         '<div class="row-gap" style="margin-bottom:12px;flex-direction:column;align-items:stretch;">' +
           '<button class="link-btn" id="wkUseTemplateBtn" style="color:' + accent + ';text-align:left;">' + (showTemplatePicker ? "Hide templates" : "Start from a template\u2026") + "</button>" +
+          (data.items.length ? '<button class="link-btn" id="wkRepeatBtn" style="color:' + accent + ';text-align:left;">&#8635; Repeat last workout (' + escapeHtml(_lastWorkout().name) + ")</button>" : "") +
           (showTemplatePicker ? (templatesData.templates.length ?
             '<div class="row-gap" style="flex-wrap:wrap;">' + templatesData.templates.map(function (t) {
               return '<button class="pill" data-action="use-template" data-template="' + t.id + '" style="border-color:' + accent + ";color:" + accent + ';">' + escapeHtml(t.name) + "</button>";
@@ -7810,6 +7926,28 @@ async function renderWorkoutsTab(root) {
       renderLogSection();
     }
 
+    // One tap: copy the most recent workout (exercises and set targets) to
+    // today and open it, ready to fill in.
+    function handleRepeatLast() {
+      var last = _lastWorkout();
+      if (!last) return;
+      var copy = {
+        id: uid(), category: last.category, name: last.name, date: todayISO(), duration: last.duration || "", notes: "",
+        lifts: (last.lifts || []).map(function (l) {
+          return Object.assign({}, l, { id: uid(), trainingStyles: (l.trainingStyles || []).slice(), sets: (l.sets || []).map(function (st) { return Object.assign({}, st, { id: uid() }); }) });
+        })
+      };
+      data.items.push(copy);
+      viewingWorkoutId = copy.id;
+      save();
+      renderLogSection();
+      _offerUndo(copy.name + " copied to today", function () {
+        data.items = data.items.filter(function (it) { return it.id !== copy.id; });
+        if (viewingWorkoutId === copy.id) viewingWorkoutId = null;
+        save(); renderLogSection();
+      });
+    }
+
     function viewWorkout(id) {
       viewingWorkoutId = id;
       renderLogSection();
@@ -8063,6 +8201,8 @@ async function renderWorkoutsTab(root) {
       if (btn) handleDeleteWeight(btn.getAttribute("data-id"));
     });
     document.getElementById("wkUseTemplateBtn").addEventListener("click", function () { showTemplatePicker = !showTemplatePicker; renderLogSection(); });
+    var repeatBtn = document.getElementById("wkRepeatBtn");
+    if (repeatBtn) repeatBtn.addEventListener("click", handleRepeatLast);
     bodyEl.querySelectorAll("[data-action='use-template']").forEach(function (btn) {
       btn.addEventListener("click", function (e) { handleStartFromTemplate(e.currentTarget.getAttribute("data-template")); });
     });
@@ -10641,6 +10781,71 @@ function _offerUndo(label, undoFn) {
   _undoTimer = setTimeout(_dismissUndo, 5000);
 }
 
+/* ---------------- rest timer ----------------
+   A floating countdown pill (Workouts → "Rest timer"). It uses an end
+   timestamp rather than counting ticks, so it stays right if the phone
+   throttles the page, and it keeps running while you browse other pages. */
+var _restT = { end: 0, total: 0, iv: null, hideTo: null };
+function _restTimerEl() {
+  var el = document.getElementById("restTimer");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "restTimer"; el.className = "rest-timer"; el.setAttribute("role", "timer");
+  el.innerHTML = '<span class="rt-ring"></span><span class="rt-time mono">0:00</span>' +
+    '<button type="button" data-rt="add" aria-label="Add 15 seconds">+15s</button>' +
+    '<button type="button" data-rt="stop" aria-label="Dismiss rest timer">&#10005;</button>';
+  el.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-rt]");
+    if (!b) return;
+    if (b.getAttribute("data-rt") === "add") { if (el.classList.contains("done")) _restTimerStart(15); else { _restT.end += 15000; _restT.total += 15; _restTimerTick(); } }
+    else _restTimerStop();
+  });
+  document.body.appendChild(el);
+  return el;
+}
+function _restTimerTick() {
+  var el = _restTimerEl(), left = Math.max(0, _restT.end - Date.now());
+  var secs = Math.ceil(left / 1000);
+  el.querySelector(".rt-time").textContent = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+  el.style.setProperty("--p", String(_restT.total ? left / (_restT.total * 1000) : 0));
+  if (left <= 0) _restTimerDone();
+}
+function _restTimerStart(sec) {
+  var el = _restTimerEl();
+  clearInterval(_restT.iv); clearTimeout(_restT.hideTo);
+  el.classList.remove("done");
+  _restT.total = sec; _restT.end = Date.now() + sec * 1000;
+  _restTimerTick();
+  void el.offsetWidth; el.classList.add("show");
+  _restT.iv = setInterval(_restTimerTick, 250);
+}
+function _restTimerStop() {
+  clearInterval(_restT.iv); clearTimeout(_restT.hideTo);
+  var el = document.getElementById("restTimer");
+  if (el) el.classList.remove("show", "done");
+}
+function _restTimerDone() {
+  clearInterval(_restT.iv);
+  var el = _restTimerEl();
+  el.classList.add("done");
+  el.querySelector(".rt-time").textContent = "Rest over";
+  try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+  try { // two short beeps (allowed because the timer was started by a tap)
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) {
+      var ac = new Ctx();
+      [0, 0.28].forEach(function (t) {
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(0.0001, ac.currentTime + t); g.gain.exponentialRampToValueAtTime(0.25, ac.currentTime + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t + 0.22);
+        o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.25);
+      });
+      setTimeout(function () { try { ac.close(); } catch (e) {} }, 900);
+    }
+  } catch (e) {}
+  _restT.hideTo = setTimeout(_restTimerStop, 8000);
+}
+
 /* ---------------- count-up numbers ---------------- */
 
 // Big stat numbers (≥20px — totals, stage counts, metrics) count up from 0
@@ -10785,22 +10990,6 @@ function renderOverviewTiles() {
       wide: true, label: myTarget ? "Left to spend this period" : "Spent this period", value: value, sub: sub,
       bars: points.length > 1 ? _ovBars(points, money) : "", readout: points.length > 1 ? "Spending by pay period · " + escapeHtml(USER_DISPLAY_NAME) : ""
     }));
-
-    // ── Next bill (an overdue one takes priority)
-    var bills = (budget.items || []).filter(function (it) { return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it); });
-    var todayDay = new Date().getDate();
-    var overdue = bills.filter(function (it) { return Number(it.dueDay) < todayDay; });
-    var upcoming = bills.filter(function (it) { return Number(it.dueDay) >= todayDay; })
-      .sort(function (a, b) { return daysUntilDueDay(Number(a.dueDay)) - daysUntilDueDay(Number(b.dueDay)); });
-    var nb = overdue[0] || upcoming[0];
-    if (nb) {
-      var days = overdue[0] ? -1 : daysUntilDueDay(Number(nb.dueDay));
-      var when = overdue[0] ? '<span class="ov-status-bad">&#9888; Overdue</span>' + (overdue.length > 1 ? " · +" + (overdue.length - 1) + " more" : "")
-        : days === 0 ? "Due today" : days === 1 ? "Due tomorrow" : "Due in " + days + " days";
-      tiles.push(_ovTile("budget", { label: "Next bill", value: money(Number(nb.amount) || 0), sub: escapeHtml(nb.name) + "<br>" + when }));
-    } else {
-      tiles.push(_ovTile("budget", { label: "Next bill", value: '<span class="ov-status-good">&#10003;</span>', sub: "Every bill this month is paid" }));
-    }
   } else {
     tiles.push(_ovTile("budget", { wide: true, label: "Left to spend this period", value: empty, sub: "Loading…" }));
   }
