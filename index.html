@@ -377,6 +377,29 @@
   #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color:var(--text-2); cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
   #artLightbox .lb-close:hover { color:var(--text-1); }
 
+  /* ---- Bento look for the app's pages (Settings & Data Explorer keep their own) ----
+     Each page's title area is a header tile like the Overview's clock card,
+     and cards/lists share the Overview tiles' radius, border and spacing. */
+  .page-hero {
+    background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 20px;
+    padding: 22px 24px; margin-bottom: 14px;
+  }
+  .page-hero header { margin-bottom: 0 !important; }
+  .page-hero .tab-eyebrow, .page-hero .port-eyebrow { margin-top: 0; }
+  .page-hero .trip-switcher { margin-bottom: 0; }
+  .page-hero .pills { margin: 16px 0 0; }
+  .page:not(#page-settings):not(#page-explore):not(#page-portfolio) .card,
+  .page:not(#page-settings):not(#page-explore):not(#page-portfolio) .list-card {
+    border-radius: 18px; margin-bottom: 14px;
+  }
+  body.card-flat .page-hero,
+  body.card-flat .page:not(#page-settings):not(#page-explore):not(#page-portfolio) .card,
+  body.card-flat .page:not(#page-settings):not(#page-explore):not(#page-portfolio) .list-card { border-radius: 6px; }
+  body.card-glass .page-hero { background: rgba(255,255,255,0.06); backdrop-filter: blur(20px) saturate(140%); border-color: rgba(255,255,255,0.10); }
+  @media (max-width: 700px) {
+    .page-hero { padding: 18px; border-radius: 18px; }
+  }
+
   /* Overview bento tiles (see renderOverviewTiles). */
   .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
   .ov-tile {
@@ -4261,6 +4284,7 @@ async function renderSpendTab(root, cfg) {
   }
 
   root.innerHTML =
+    '<div class="page-hero">' +
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
     '<header style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
       '<input id="stTitle" class="name-input serif" aria-label="Title" style="flex:1;min-width:180px;margin-bottom:0;" />' +
@@ -4270,7 +4294,8 @@ async function renderSpendTab(root, cfg) {
       '</div>' +
       '<input type="file" id="stImportCsvInput" accept=".csv,text/csv" style="display:none;" />' +
     "</header>" +
-    '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;margin-bottom:16px;min-height:14px;"></div>' +
+    '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;"></div>' +
+    '</div>' +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
         collapseCard(USER_DISPLAY_NAME.toUpperCase() + "’S SPENDING THIS PERIOD", "periodSpendColl-me", !data.periodSpendCollapsed.me, periodSpendBodyHtml("me")) +
@@ -6024,8 +6049,8 @@ async function renderTravelTab(root) {
   function getActiveTrip() { return raw.trips.find(function (t) { return t.id === raw.activeTripId; }); }
 
   root.innerHTML =
-    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('travel', 'TRAVEL TRACKER')) + '</div>' +
-    '<div class="trip-switcher" id="tripSwitcher"></div>' +
+    '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('travel', 'TRAVEL TRACKER')) + '</div>' +
+    '<div class="trip-switcher" id="tripSwitcher"></div></div>' +
     '<div id="tripDetailRoot"></div>';
 
   function renderTripSwitcher() {
@@ -7028,9 +7053,9 @@ async function renderWorkoutsTab(root) {
   }
 
   root.innerHTML =
-    '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
-    '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
-    '<div class="pills" id="wkSectionPills"></div>' +
+    '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
+    '<header><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
+    '<div class="pills" id="wkSectionPills"></div></div>' +
     '<div id="wkSectionBody"></div>';
 
   function renderSectionPills() {
@@ -8502,6 +8527,7 @@ async function renderStoryPage(root) {
   }
 
   root.innerHTML =
+    '<div class="page-hero">' +
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('story', 'STORY')) + '</div>' +
     '<header style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
       '<div>' +
@@ -8513,6 +8539,7 @@ async function renderStoryPage(root) {
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
       "</div>" +
     "</header>" +
+    '</div>' +
     (window.FirebaseBridge && window.FirebaseBridge.auth.currentUser() ? "" :
       '<div class="card" style="margin-bottom:16px;border-color:' + accent + ';">' +
         '<span style="color:var(--text-2);font-size:13px;">Story sync isn’t connected yet.</span> ' +
@@ -11834,7 +11861,7 @@ async function renderEducationPage() {
   '</div>';
 
   inner.innerHTML =
-    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;">' +
+    '<div class="page-hero">' +
       '<div class="port-eyebrow">Education</div>' +
       '<input class="name-input serif" id="eduDegreeTitle" value="' + escapeHtml(data.degreeTitle || '') + '" placeholder="Degree title" style="font-size:30px;" />' +
       '<input id="eduSchool" value="' + escapeHtml(data.school || '') + '" placeholder="School / College" ' +
@@ -12151,7 +12178,7 @@ async function renderCertPage() {
     : '';
 
   inner.innerHTML =
-    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;">' +
+    '<div class="page-hero">' +
       '<div class="port-eyebrow">Education</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Certifications</div>' +
       '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Plan and track your professional certifications</div>' +
@@ -12579,7 +12606,7 @@ async function renderJobsPage() {
     '</div>';
 
   inner.innerHTML =
-    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
+    '<div class="page-hero">' +
       '<div class="port-eyebrow">Career</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Job Tracker</div>' +
       '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
@@ -13112,7 +13139,7 @@ async function renderProjectsPage() {
   }).join('') + '</div>';
 
   inner.innerHTML =
-    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid var(--border-2);margin-bottom:24px;">' +
+    '<div class="page-hero">' +
       '<div class="port-eyebrow">Career</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Project Tracker</div>' +
       '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Personal projects from backlog to done</div>' +
@@ -13946,9 +13973,9 @@ async function renderChessPage(forceRefresh) {
 
   if (_chessLoadError && !_chessProfile) {
     inner.innerHTML =
-      '<div style="padding-top:40px;">' +
-        '<div class="port-eyebrow">Hobbies</div>' +
-        '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;margin-bottom:16px;">Chess Progress</div>' +
+      '<div>' +
+        '<div class="page-hero"><div class="port-eyebrow">Hobbies</div>' +
+        '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Chess Progress</div></div>' +
         '<div class="card"><div class="error-text" style="margin-bottom:12px;">' + _chessLoadError + '</div>' +
         '<button class="small-btn" style="background:var(--accent);" onclick="renderChessPage(true)">Retry</button></div>' +
       '</div>';
@@ -13988,7 +14015,7 @@ async function renderChessPage(forceRefresh) {
     : '<div class="gauge-track"><div class="gauge-fill" style="width:' + gaugePct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
 
   inner.innerHTML =
-    '<div style="padding-top:40px;padding-bottom:28px;border-bottom:1px solid #2A313A;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
+    '<div class="page-hero" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">' +
       '<div>' +
         '<div class="port-eyebrow">Hobbies</div>' +
         '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Chess Progress</div>' +
