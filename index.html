@@ -818,6 +818,35 @@
   .until-payday-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 16px; }
   @media (min-width: 480px) { .until-payday-grid { grid-template-columns: 1fr 1fr; } }
   .until-payday-grid .card { margin-bottom: 0; }
+  .until-payday-grid.single { grid-template-columns: 1fr; }
+  .bsec-hidden, .bview-hidden { display: none !important; }
+  /* Budget bills list: group headers (By due day view) */
+  .bill-group { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 4px 6px; border-bottom: 1px solid var(--border-2); }
+  .bill-group:first-child { padding-top: 4px; }
+  .bill-group-t { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .bill-group-n { font-size: 11px; color: var(--text-3); }
+  /* Quick add: floating button + sheet */
+  .qa-fab {
+    position: fixed; right: 18px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 85; width: 56px; height: 56px; border-radius: 50%;
+    border: none; background: var(--accent); color: #fff; font-size: 32px; line-height: 1; padding: 0 0 3px; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35), 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+    -webkit-tap-highlight-color: transparent; transition: transform .35s cubic-bezier(.34,1.8,.5,1);
+  }
+  .qa-fab:active { transform: scale(.88); transition-duration: .08s; }
+  @media (min-width: 701px) { .qa-fab { bottom: 28px; right: 28px; } }
+  .qa-backdrop { position: fixed; inset: 0; z-index: 1390; background: rgba(0,0,0,.45); }
+  .qa-sheet {
+    position: fixed; z-index: 1400; top: calc(env(safe-area-inset-top) + 64px); left: 12px; right: 12px; max-width: 420px; margin: 0 auto;
+    background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 22px; padding: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    opacity: 0; transform: translateY(-14px) scale(.97); transition: opacity .22s, transform .32s cubic-bezier(.32,.72,0,1);
+  }
+  .qa-sheet.open { opacity: 1; transform: none; }
+  .qa-sheet[hidden], .qa-backdrop[hidden] { display: none; }
+  .qa-grab { display: none; }
+  .qa-amount { width: 100%; font-size: 30px; font-weight: 700; padding: 12px 14px; }
+  .qa-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .qa-shake { animation: qaShake .35s; }
+  @keyframes qaShake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
   .sort-btn { border: none; border-radius: 999px; padding: 4px 12px; background: transparent; color:var(--text-2); transition: background 0.15s, color 0.15s; }
   .sort-btn.active { background: var(--accent); color:#12151A; }
@@ -4493,6 +4522,14 @@ function renderSavingsPlanHtml(plan, accentColor) {
 
 /* ---------------- budget tab ---------------- */
 
+var _budgetSection = "overview"; // which Budget section is showing (kept across visits)
+var BUDGET_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "bills", label: "Bills" },
+  { id: "goals", label: "Goals" },
+  { id: "pay", label: "Paychecks" }
+];
+
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
   var data = await loadTabData(cfg.storageKey, { title: cfg.defaultTitle, budget: "", savingsGoals: [], items: [], selectedIds: [], payPeriods: [], plannedPurchases: [], plannedGroups: [], debts: [], paycheckNotes: "", periodSpend: { me: { spent: "", target: "", history: [], entries: [] }, partner: { spent: "", target: "", history: [], entries: [] } } });
@@ -4682,7 +4719,12 @@ async function renderSpendTab(root, cfg) {
       '<input type="file" id="stImportCsvInput" accept=".csv,text/csv" style="display:none;" />' +
     "</header>" +
     '<div class="mono" id="stImportStatus" style="color:var(--text-2);font-size:11px;"></div>' +
+    (cfg.showSavingsGoal ? '<div class="pills" id="stSectionPills" role="tablist"></div>' : "") +
     '</div>' +
+    (cfg.showSavingsGoal ?
+      '<div class="pills" id="stSpendViewPills" style="margin:0;"></div>' +
+      '<div class="bento-body" id="stGlance" style="margin-bottom:0;"></div>'
+    : "") +
     (cfg.showSavingsGoal ?
       '<div class="until-payday-grid">' +
         collapseCard(USER_DISPLAY_NAME.toUpperCase() + "’S SPENDING THIS PERIOD", "periodSpendColl-me", !data.periodSpendCollapsed.me, periodSpendBodyHtml("me")) +
@@ -4695,12 +4737,13 @@ async function renderSpendTab(root, cfg) {
         collapseCard("BEFORE " + PARTNER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-partner", true, '<div id="beforePayContent-partner"></div>') +
       "</div>"
     : "") +
-    '<div class="card' + (cfg.showSavingsGoal ? " bento-half" : "") + '">' +
+    (cfg.showSavingsGoal ? '<div class="card" id="stBillsProgress"></div>' : "") +
+    '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
     "</div>" +
     (cfg.showSavingsGoal ?
-      '<div class="card bento-half">' +
+      '<div class="card">' +
         '<div class="gauge-top"><span class="gauge-label mono">SAVINGS</span><span class="mono" id="svTotalAmount" style="color:#D9A441;"></span></div>' +
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:14px;">Tracked separately from spending above. Split it across as many goals as you want \u2014 each goal\u2019s progress comes from savings entries tagged to it.</div>' +
         '<div id="svGoalsList"></div>' +
@@ -4776,7 +4819,20 @@ async function renderSpendTab(root, cfg) {
     '<div class="footer-row"><span class="footer-label">Total tracked</span><span class="footer-total mono" id="stFooterTotal"></span></div>' +
     '<div class="bottom-row">' +
       '<button class="link-btn" id="stResetBtn" style="color:var(--text-2);">Clear this tab</button>' +
-    "</div>";
+    "</div>" +
+    (cfg.showSavingsGoal ?
+      '<button type="button" class="qa-fab" id="stFab" aria-label="Quick add a purchase">+</button>' +
+      '<div class="qa-backdrop" id="stQaBackdrop" hidden></div>' +
+      '<div class="qa-sheet" id="stQaSheet" role="dialog" aria-modal="true" aria-label="Quick add a purchase" hidden>' +
+        '<div class="qa-grab"></div>' +
+        '<div class="gauge-label mono" style="margin-bottom:10px;">QUICK ADD · PURCHASE</div>' +
+        '<input class="small-input qa-amount" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="stQaAmount" placeholder="$0.00" />' +
+        '<input class="small-input" type="text" autocomplete="off" id="stQaNote" placeholder="What was it for? (optional)" style="width:100%;margin-top:8px;" />' +
+        '<div class="pills" id="stQaWho" style="margin:12px 0 0;"></div>' +
+        '<div class="qa-actions"><button type="button" class="small-btn" id="stQaCancel" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button>' +
+          '<button type="button" class="small-btn" id="stQaAdd" style="background:' + cfg.accent + ';flex:1;">Add purchase</button></div>' +
+      "</div>"
+    : "");
 
   document.getElementById("stTitle").value = data.title;
   if (cfg.showSavingsGoal) document.getElementById("stPaycheckNotes").value = data.paycheckNotes || "";
@@ -5417,7 +5473,8 @@ async function renderSpendTab(root, cfg) {
     renderPlannedList();
   }
 
-  function renderBeforePayFor(person) {
+  function renderBeforePayFor(person) { renderBeforePayCore(person); renderGlance(); }
+  function renderBeforePayCore(person) {
     var contentEl = document.getElementById("beforePayContent-" + person);
     var labelEl = document.getElementById("beforePay-" + person + "Label");
     if (!contentEl) return;
@@ -5425,7 +5482,7 @@ async function renderSpendTab(root, cfg) {
     var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); });
     if (periods.length === 0) {
       if (labelEl) labelEl.textContent = personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
-      contentEl.innerHTML = '<div style="color:var(--text-2);font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(person)) + ' yet \u2014 add one in Pay Schedule below.</div>';
+      contentEl.innerHTML = '<div style="color:var(--text-2);font-size:13px;">No paychecks added for ' + escapeHtml(personLabel(person)) + ' yet \u2014 add one under Paychecks.</div>';
       return;
     }
     if (labelEl) labelEl.textContent = periods.length > 1 ? personLabel(person).toUpperCase() + "\u2019S UPCOMING PAYCHECKS" : personLabel(person).toUpperCase() + "\u2019S NEXT PAYCHECK";
@@ -5580,7 +5637,7 @@ async function renderSpendTab(root, cfg) {
       return;
     }
     var sel = new Set(data.selectedIds || []);
-    listEl.innerHTML = sorted.map(function (item) {
+    var rowHtml = function (item) {
       var cat = categoryById(cfg.categories, item.category);
       if (item.id === editRowId) {
         var f = editRowForm;
@@ -5631,7 +5688,38 @@ async function renderSpendTab(root, cfg) {
           '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">\u2715</button></div>' +
         "</div>" +
         "</div></div>";
-    }).join("");
+    };
+    // By due day: group into Overdue / Due this week / Later / No due date /
+    // Paid, each with its count and subtotal, so what needs attention is first.
+    if (cfg.showSavingsGoal && sortBy === "date") {
+      var GROUPS = [
+        { id: "overdue", label: "Overdue", color: "#D9667A" },
+        { id: "week", label: "Due this week", color: "#D9A441" },
+        { id: "later", label: "Later this month", color: "var(--text-2)" },
+        { id: "nodate", label: "No due date", color: "var(--text-3)" },
+        { id: "paid", label: "Paid", color: "#5BAE7A" }
+      ];
+      var todayDay = new Date().getDate();
+      var groupOf = function (it) {
+        if (isCurrentlyPaid(it)) return "paid";
+        if (it.dueDay === "" || it.dueDay == null) return "nodate";
+        if (Number(it.dueDay) < todayDay) return "overdue";
+        return daysUntilDueDay(Number(it.dueDay)) <= 7 ? "week" : "later";
+      };
+      var dayKey = function (it) { return it.dueDay === "" || it.dueDay == null ? 99 : Number(it.dueDay); };
+      var buckets = {};
+      GROUPS.forEach(function (g) { buckets[g.id] = []; });
+      sorted.forEach(function (it) { buckets[groupOf(it)].push(it); });
+      listEl.innerHTML = GROUPS.map(function (g) {
+        var list = buckets[g.id];
+        if (!list.length) return "";
+        list.sort(function (a, b) { return dayKey(a) - dayKey(b); });
+        var sum = list.reduce(function (t, it) { return t + (Number(it.amount) || 0); }, 0);
+        return '<div class="bill-group"><span class="bill-group-t" style="color:' + g.color + ';">' + g.label + '</span><span class="bill-group-n mono">' + list.length + " \u00B7 " + formatCurrency(sum) + "</span></div>" + list.map(rowHtml).join("");
+      }).join("");
+      return;
+    }
+    listEl.innerHTML = sorted.map(rowHtml).join("");
   }
 
   function renderFooter() {
@@ -5646,7 +5734,9 @@ async function renderSpendTab(root, cfg) {
   function periodSpentTotal(person) {
     return (data.periodSpend[person].entries || []).reduce(function (s, e) { return s + (Number(e.amount) || 0); }, 0);
   }
-  function renderPeriodSpend(person) {
+  // Any change to a person's spending also refreshes the glance tiles.
+  function renderPeriodSpend(person) { renderPeriodSpendCore(person); renderGlance(); }
+  function renderPeriodSpendCore(person) {
     if (!cfg.showSavingsGoal) return;
     var amountEl = document.getElementById("psAmount-" + person);
     var bodyEl = document.getElementById("psGaugeBody-" + person);
@@ -5733,24 +5823,27 @@ async function renderSpendTab(root, cfg) {
         '<button class="icon-btn" data-action="delete-period-entry" data-id="' + e.id + '" title="Delete this entry">✕</button></div>';
     }).join("");
   }
-  function handleAddPeriodEntry(person) {
+  function handleAddPeriodEntry(person, quick) {
     var inputEl = document.getElementById("psEntryAmountInput-" + person);
-    if (!inputEl) return;
+    if (!inputEl) return null;
     var raw = inputEl.value.trim();
-    if (!raw) { inputEl.focus(); return; }
+    if (!raw) { if (!quick) inputEl.focus(); return null; }
     var amount = looksLikeMathExpression(raw) ? evalMathExpression(raw) : Number(raw);
-    if (amount === null || amount === undefined || isNaN(amount)) { inputEl.focus(); return; }
+    if (amount === null || amount === undefined || isNaN(amount)) { if (!quick) inputEl.focus(); return null; }
     var pd = data.periodSpend[person];
     if (!pd.entries) pd.entries = [];
     var noteEl = document.getElementById("psEntryNoteInput-" + person);
     var note = noteEl ? noteEl.value.trim() : "";
-    pd.entries.push({ id: uid(), amount: amount, note: note, addedAt: new Date().toISOString() });
+    var entry = { id: uid(), amount: amount, note: note, addedAt: new Date().toISOString() };
+    pd.entries.push(entry);
     save();
     inputEl.value = "";
     if (noteEl) noteEl.value = "";
     renderPeriodSpend(person);
     renderPeriodEntries(person);
-    inputEl.focus();
+    if (!quick) inputEl.focus();
+    renderBudgetViews();
+    return entry;
   }
   // Inline edit for a logged entry — the row swaps to amount + note inputs.
   // The amount accepts the same "12+3.50" math as the add field.
@@ -5850,6 +5943,193 @@ async function renderSpendTab(root, cfg) {
     renderPeriodSpend(person);
   }
 
+  /* ---------------- Budget views ----------------
+     Sections (Overview / Bills / Goals / Paychecks) just show and
+     hide the cards that were already on the page, so nothing about how each
+     card works changes. The Don / Tina / Both switch does the same for the
+     spending and "before next paycheck" cards, and also steers the glance
+     tiles. Quick add fills in the same fields the per-person card uses. */
+  function budgetCard(id) { var e = document.getElementById(id); return e ? e.closest(".card") : null; }
+  function collapseCardFor(key) { var h = root.querySelector('[data-collapse-toggle="' + key + '"]'); return h ? h.closest(".card") : null; }
+  function personsInView() { var v = data.spendView || "me"; return v === "both" ? ["me", "partner"] : [v === "partner" ? "partner" : "me"]; }
+
+  function applyBudgetView() {
+    root.querySelectorAll("[data-bsec]").forEach(function (el) { el.classList.toggle("bsec-hidden", el.getAttribute("data-bsec") !== _budgetSection); });
+    var view = data.spendView || "me";
+    ["me", "partner"].forEach(function (p) {
+      var show = view === "both" || view === p;
+      [collapseCardFor("periodSpendColl-" + p), collapseCardFor("beforePay-" + p)].forEach(function (c) { if (c) c.classList.toggle("bview-hidden", !show); });
+    });
+    root.querySelectorAll(".until-payday-grid").forEach(function (g) { g.classList.toggle("single", view !== "both"); });
+  }
+  function renderBudgetSectionPills() {
+    var el = document.getElementById("stSectionPills");
+    if (!el) return;
+    el.innerHTML = BUDGET_SECTIONS.map(function (sec) {
+      var active = sec.id === _budgetSection;
+      return '<button class="pill" role="tab" aria-selected="' + active + '" data-bsec-pill="' + sec.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(sec.label) + "</button>";
+    }).join("");
+    if (root.closest("#page-budget")) updateUrlHash("budget", _budgetSection);
+  }
+  function renderSpendViewPills() {
+    var el = document.getElementById("stSpendViewPills");
+    if (!el) return;
+    var view = data.spendView || "me";
+    el.innerHTML = [{ id: "me", label: USER_DISPLAY_NAME }, { id: "partner", label: PARTNER_DISPLAY_NAME }, { id: "both", label: "Both" }].map(function (o) {
+      var active = o.id === view;
+      return '<button class="pill" data-spend-view="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
+    }).join("");
+  }
+
+  function renderGlance() {
+    var el = document.getElementById("stGlance");
+    if (!el) return;
+    var persons = personsInView();
+    var who = persons.length === 2 ? "both of you" : personLabel(persons[0]);
+    var target = 0, spent = 0;
+    persons.forEach(function (p) { target += Number(data.periodSpend[p].target) || 0; spent += periodSpentTotal(p); });
+    var left = target > 0
+      ? _bentoTile("LEFT TO SPEND", formatCurrency(target - spent), spent > target ? "#FF8A5C" : cfg.accent, "of " + formatCurrency(target) + " &middot; " + escapeHtml(who), (spent / target) * 100)
+      : _bentoTile("SPENT THIS PERIOD", formatCurrency(spent), cfg.accent, escapeHtml(who) + " &middot; no target set");
+
+    var todayDay = new Date().getDate();
+    var open = data.items.filter(function (it) { return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it); });
+    var overdue = open.filter(function (it) { return Number(it.dueDay) < todayDay; }).sort(function (a, b) { return Number(a.dueDay) - Number(b.dueDay); });
+    var upcoming = open.filter(function (it) { return Number(it.dueDay) >= todayDay; }).sort(function (a, b) { return Number(a.dueDay) - Number(b.dueDay); });
+    var nb = overdue[0] || upcoming[0], nextBill;
+    if (nb) {
+      var dd = Number(nb.dueDay) - todayDay;
+      var when = overdue[0] ? "Overdue" + (overdue.length > 1 ? " &middot; +" + (overdue.length - 1) + " more" : "") : dd === 0 ? "Due today" : dd === 1 ? "Due tomorrow" : "Due in " + dd + " days";
+      nextBill = _bentoTile("NEXT BILL", formatCurrency(Number(nb.amount) || 0), overdue[0] ? "#D9667A" : cfg.accent, escapeHtml(nb.name) + "<br>" + when);
+    } else {
+      nextBill = _bentoTile("NEXT BILL", "&#10003;", "#5BAE7A", "Every bill with a due date is paid");
+    }
+
+    var periods = (data.payPeriods || []).filter(function (pp) { return persons.indexOf(pp.person) >= 0 && Number(pp.day); });
+    var nextPay;
+    if (periods.length) {
+      var away = function (day) { return day >= todayDay ? day - todayDay : (31 - todayDay) + day; };
+      var np = periods.slice().sort(function (a, b) { return away(Number(a.day)) - away(Number(b.day)); })[0];
+      var nd = away(Number(np.day));
+      nextPay = _bentoTile("NEXT PAYCHECK", nd === 0 ? "Today" : nd + (nd === 1 ? " day" : " days"), cfg.accent, escapeHtml(personLabel(np.person)) + " &middot; the " + ordinalDay(Number(np.day)) + (Number(np.amount) ? " &middot; " + formatCurrency(Number(np.amount)) : ""));
+    } else {
+      nextPay = _bentoTile("NEXT PAYCHECK", "&mdash;", "var(--text-3)", "Add one under Paychecks");
+    }
+
+    var bp = billsPaidStats();
+    var paidTile = _bentoTile("BILLS PAID", bp.paid + " of " + bp.total, "#5BAE7A", formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt), bp.totalAmt ? (bp.paidAmt / bp.totalAmt) * 100 : 0);
+    el.innerHTML = left + nextBill + nextPay + paidTile;
+  }
+  function billsPaidStats() {
+    var bills = data.items.filter(function (it) { return it.category !== "savings"; });
+    var out = { total: bills.length, paid: 0, totalAmt: 0, paidAmt: 0 };
+    bills.forEach(function (it) {
+      var amt = Number(it.amount) || 0;
+      out.totalAmt += amt;
+      if (isCurrentlyPaid(it)) { out.paid++; out.paidAmt += amt; }
+    });
+    return out;
+  }
+  function renderBillsProgress() {
+    var el = document.getElementById("stBillsProgress");
+    if (!el) return;
+    var bp = billsPaidStats();
+    if (!bp.total) { el.style.display = "none"; return; }
+    el.style.display = "";
+    var pct = bp.totalAmt ? Math.min(100, (bp.paidAmt / bp.totalAmt) * 100) : 0;
+    el.innerHTML = '<div class="gauge-top"><span class="gauge-label mono">BILLS PAID THIS MONTH</span><span class="mono" style="color:#5BAE7A;">' + bp.paid + " of " + bp.total + '</span></div>' +
+      '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:#5BAE7A;box-shadow:0 0 14px #5BAE7A55;"></div></div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt) + " &middot; swipe a bill right to mark it paid</div>";
+  }
+  function renderBudgetViews() {
+    if (!cfg.showSavingsGoal) return;
+    renderGlance();
+    renderBillsProgress();
+  }
+
+  function setupBudgetViews() {
+    if (!cfg.showSavingsGoal) return;
+    var tag = function (el, sec) { if (el) el.setAttribute("data-bsec", sec); };
+    root.querySelectorAll(".until-payday-grid").forEach(function (g) { tag(g, "overview"); });
+    tag(document.getElementById("stSpendViewPills"), "overview");
+    tag(document.getElementById("stGlance"), "overview");
+    tag(document.getElementById("stBillsProgress"), "bills");
+    tag(budgetCard("stGaugeBody"), "bills");
+    ["stChips", "stSelectBar", "stPersonFilterRow", "stList"].forEach(function (id) { tag(document.getElementById(id), "bills"); });
+    tag(collapseCardFor("addExpenseColl"), "bills");
+    [".sort-row", ".footer-row", ".bottom-row"].forEach(function (q) { tag(root.querySelector(q), "bills"); });
+    tag(budgetCard("svGoalsList"), "goals"); tag(budgetCard("dtDebtsList"), "goals"); tag(budgetCard("plannedGroups"), "goals");
+    tag(budgetCard("payPeriodsList"), "pay"); tag(budgetCard("stPaycheckNotes"), "pay");
+
+    // Landed via a bookmarked #budget/<section> link.
+    var pend = _pendingSectionByPage.budget;
+    if (pend) { delete _pendingSectionByPage.budget; if (BUDGET_SECTIONS.some(function (sec) { return sec.id === pend; })) _budgetSection = pend; }
+    if (!BUDGET_SECTIONS.some(function (sec) { return sec.id === _budgetSection; })) _budgetSection = "overview";
+    if (!data.spendView) data.spendView = "me";
+
+    renderBudgetSectionPills();
+    renderSpendViewPills();
+    applyBudgetView();
+    document.getElementById("stSectionPills").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-bsec-pill]");
+      if (!b) return;
+      _budgetSection = b.getAttribute("data-bsec-pill");
+      renderBudgetSectionPills(); applyBudgetView();
+    });
+    document.getElementById("stSpendViewPills").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-spend-view]");
+      if (!b) return;
+      data.spendView = b.getAttribute("data-spend-view");
+      save(); renderSpendViewPills(); applyBudgetView(); renderGlance();
+    });
+
+    // ---- Quick add: a floating + that logs a purchase from anywhere on the page
+    var sheet = document.getElementById("stQaSheet"), backdrop = document.getElementById("stQaBackdrop");
+    var qaAmount = document.getElementById("stQaAmount"), qaNote = document.getElementById("stQaNote"), qaWhoEl = document.getElementById("stQaWho");
+    var qaWho = "me";
+    function renderQaWho() {
+      qaWhoEl.innerHTML = [{ id: "me", label: USER_DISPLAY_NAME }, { id: "partner", label: PARTNER_DISPLAY_NAME }].map(function (o) {
+        var active = o.id === qaWho;
+        return '<button type="button" class="pill" data-qa-who="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
+      }).join("");
+    }
+    function openQa() {
+      qaWho = data.spendView === "partner" ? "partner" : "me";
+      renderQaWho();
+      qaAmount.value = ""; qaNote.value = "";
+      sheet.hidden = false; backdrop.hidden = false;
+      void sheet.offsetWidth;
+      sheet.classList.add("open");
+      qaAmount.focus();
+    }
+    function closeQa() {
+      sheet.classList.remove("open");
+      backdrop.hidden = true;
+      setTimeout(function () { if (!sheet.classList.contains("open")) sheet.hidden = true; }, 260);
+    }
+    function submitQa() {
+      var ai = document.getElementById("psEntryAmountInput-" + qaWho), ni = document.getElementById("psEntryNoteInput-" + qaWho);
+      if (!ai) return;
+      ai.value = qaAmount.value; ni.value = qaNote.value;
+      var who = qaWho;
+      var entry = handleAddPeriodEntry(who, true);
+      if (!entry) { qaAmount.focus(); qaAmount.classList.remove("qa-shake"); void qaAmount.offsetWidth; qaAmount.classList.add("qa-shake"); return; }
+      closeQa();
+      var t = Number(data.periodSpend[who].target) || 0;
+      _offerUndo("Added " + formatCurrency(entry.amount) + " for " + personLabel(who) + (t > 0 ? " · " + formatCurrency(t - periodSpentTotal(who)) + " left" : ""), function () {
+        var pd = data.periodSpend[who];
+        pd.entries = (pd.entries || []).filter(function (en) { return en.id !== entry.id; });
+        save(); renderPeriodSpend(who); renderPeriodEntries(who); renderBudgetViews();
+      });
+    }
+    document.getElementById("stFab").addEventListener("click", openQa);
+    backdrop.addEventListener("click", closeQa);
+    document.getElementById("stQaCancel").addEventListener("click", closeQa);
+    document.getElementById("stQaAdd").addEventListener("click", submitQa);
+    qaWhoEl.addEventListener("click", function (e) { var b = e.target.closest("[data-qa-who]"); if (b) { qaWho = b.getAttribute("data-qa-who"); renderQaWho(); } });
+    sheet.addEventListener("keydown", function (e) { if (e.key === "Enter") submitQa(); if (e.key === "Escape") closeQa(); });
+  }
+
   function renderDynamic() {
     renderGauge();
     renderPeriodSpend("me");
@@ -5867,6 +6147,7 @@ async function renderSpendTab(root, cfg) {
     renderList();
     renderFooter();
     renderPlannedList();
+    renderBudgetViews();
   }
 
   function resetForm() {
@@ -6377,6 +6658,7 @@ async function renderSpendTab(root, cfg) {
 
   syncCollapseUI();
   renderPills();
+  setupBudgetViews();
   renderDynamic();
   initScrollAnims();
   animatePageHeading(root.closest(".page"));
