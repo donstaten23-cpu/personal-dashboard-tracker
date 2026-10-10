@@ -400,6 +400,32 @@
     .page-hero { padding: 18px; border-radius: 18px; }
   }
 
+  /* ---- Bento bodies (pass 2) ----
+     A container marked .bento-body is a 2-column grid. Children span the full
+     row by default, so forms and lists are untouched; stat-style tiles opt in
+     to sitting side by side with .bento-half. .bento-stat styles a tile like
+     the Overview's: small-caps label, one big number, a quiet sub line.
+     On phones, half tiles stay paired only if they're compact (.bento-stat). */
+  .bento-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .bento-body > * { grid-column: 1 / -1; min-width: 0; margin-bottom: 0 !important; }
+  .bento-body > .bento-half { grid-column: auto; }
+  .bento-stat { display: flex; flex-direction: column; }
+  .bento-stat .gauge-label, .bento-stat .gauge-top .gauge-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+  .bento-stat .gauge-top { flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 10px; }
+  .bento-stat .bento-value { display: block; font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; color: var(--text-1); }
+  .bento-stat .bento-sub { display: block; font-size: 13px; line-height: 1.45; font-weight: 400; color: var(--text-2); margin-top: 4px; overflow-wrap: anywhere; }
+  .bento-stat .weight-current { font-family: inherit; font-size: 30px; font-weight: 700; line-height: 1.1; letter-spacing: -.01em; }
+  .bento-stat .weight-row { margin-bottom: 6px; }
+  .bento-body #stGaugeAmount { font-size: 26px; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; font-family: inherit; }
+  .bento-stat .weight-log-row { font-size: 12px; }
+  .bento-stat .weight-log-row > * { white-space: nowrap; }
+  .bento-stat .gauge-track { margin-top: auto; }
+  @media (max-width: 560px) {
+    .bento-body { gap: 10px; }
+    .bento-body > .bento-half:not(.bento-stat) { grid-column: 1 / -1; }
+    .bento-stat .bento-value { font-size: 26px; }
+  }
+
   /* Overview bento tiles (see renderOverviewTiles). */
   .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
   .ov-tile {
@@ -4271,8 +4297,8 @@ async function renderSpendTab(root, cfg) {
       '<div id="psHistory-' + person + '" style="margin-top:8px;"></div>';
   }
 
-  function collapseCard(headerLabel, toggleKey, startOpen, bodyHtml) {
-    return '<div class="card">' +
+  function collapseCard(headerLabel, toggleKey, startOpen, bodyHtml, extraClass) {
+    return '<div class="card' + (extraClass ? " " + extraClass : "") + '">' +
       '<div class="collapse-header' + (startOpen ? " open" : "") + '" data-collapse-toggle="' + toggleKey + '">' +
         '<div class="collapse-header-left"><span class="gauge-label mono" id="' + toggleKey + 'Label">' + headerLabel + '</span></div>' +
         '<span class="collapse-chevron">\u25b8</span>' +
@@ -4283,6 +4309,7 @@ async function renderSpendTab(root, cfg) {
     "</div>";
   }
 
+  root.classList.add("bento-body");
   root.innerHTML =
     '<div class="page-hero">' +
     '<div class="tab-eyebrow">' + escapeHtml(cfg.eyebrow || "") + '</div>' +
@@ -4308,6 +4335,19 @@ async function renderSpendTab(root, cfg) {
         collapseCard("BEFORE " + PARTNER_DISPLAY_NAME.toUpperCase() + "\u2019S NEXT PAYCHECK", "beforePay-partner", true, '<div id="beforePayContent-partner"></div>') +
       "</div>"
     : "") +
+    '<div class="card' + (cfg.showSavingsGoal ? " bento-half" : "") + '">' +
+      '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
+      '<div id="stGaugeBody"></div>' +
+    "</div>" +
+    (cfg.showSavingsGoal ?
+      '<div class="card bento-half">' +
+        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS</span><span class="mono" id="svTotalAmount" style="color:#D9A441;"></span></div>' +
+        '<div style="color:var(--text-2);font-size:11px;margin-bottom:14px;">Tracked separately from spending above. Split it across as many goals as you want \u2014 each goal\u2019s progress comes from savings entries tagged to it.</div>' +
+        '<div id="svGoalsList"></div>' +
+        '<div id="svGoalForm"></div>' +
+        '<button class="link-btn" id="svAddGoalBtn" style="color:#D9A441;margin-top:4px;">+ New savings goal</button>' +
+      "</div>"
+    : "") +
     (cfg.showSavingsGoal ?
       collapseCard("PAY SCHEDULE", "payScheduleColl", false,
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Pick a name, then add their payday \u2014 it\u2019s used to figure out what\u2019s due before each of you gets paid.</div>' +
@@ -4327,26 +4367,14 @@ async function renderSpendTab(root, cfg) {
         '<textarea class="form-input" id="stPaycheckNotes" style="min-height:110px;resize:vertical;line-height:1.5;" placeholder="e.g. Oct 3 check: $500 rent, $150 savings, rest to CC payoff"></textarea>' +
       "</div>"
     : "") +
-    '<div class="card">' +
-      '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
-      '<div id="stGaugeBody"></div>' +
-    "</div>" +
-    (cfg.showSavingsGoal ?
-      '<div class="card">' +
-        '<div class="gauge-top"><span class="gauge-label mono">SAVINGS</span><span class="mono" id="svTotalAmount" style="color:#D9A441;"></span></div>' +
-        '<div style="color:var(--text-2);font-size:11px;margin-bottom:14px;">Tracked separately from spending above. Split it across as many goals as you want \u2014 each goal\u2019s progress comes from savings entries tagged to it.</div>' +
-        '<div id="svGoalsList"></div>' +
-        '<div id="svGoalForm"></div>' +
-        '<button class="link-btn" id="svAddGoalBtn" style="color:#D9A441;margin-top:4px;">+ New savings goal</button>' +
-      "</div>"
-    : "") +
     (cfg.showSavingsGoal ?
       collapseCard("DEBT PAYOFF", "debtColl", false,
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Track what’s owed across loans, credit cards, and other debt — separate from spending and savings above.</div>' +
         '<div class="gauge-top" style="margin-bottom:6px;"><span class="gauge-label mono">TOTAL OWED</span><span class="mono" id="dtTotalAmount" style="color:#D9667A;"></span></div>' +
         '<div id="dtDebtsList"></div>' +
         '<div id="dtDebtForm"></div>' +
-        '<button class="link-btn" id="dtAddDebtBtn" style="color:#D9667A;margin-top:4px;">+ New debt</button>'
+        '<button class="link-btn" id="dtAddDebtBtn" style="color:#D9667A;margin-top:4px;">+ New debt</button>',
+        "bento-half"
       )
     : "") +
     (cfg.showSavingsGoal ?
@@ -4359,7 +4387,8 @@ async function renderSpendTab(root, cfg) {
         "</div>" +
         '<div style="border-top:1px solid #2A313A;margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;">' +
           '<span style="color:var(--text-2);font-size:12px;">Total planned</span><span class="mono" id="plannedTotal" style="color:' + cfg.accent + ';"></span>' +
-        "</div>"
+        "</div>",
+        "bento-half"
       )
     : "") +
     '<div class="chips" id="stChips"></div>' +
@@ -7056,7 +7085,7 @@ async function renderWorkoutsTab(root) {
     '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="pills" id="wkSectionPills"></div></div>' +
-    '<div id="wkSectionBody"></div>';
+    '<div id="wkSectionBody" class="bento-body"></div>';
 
   function renderSectionPills() {
     updateUrlHash("workouts", activeSection);
@@ -7106,13 +7135,13 @@ async function renderWorkoutsTab(root) {
             '<div style="color:var(--text-2);font-size:13px;">3 tough training weeks in a row \u2014 tonnage has stayed well above your recent average. A deload week can help you keep progressing.</div></div>' +
             '<button class="icon-btn" id="wkDismissDeload" style="flex-shrink:0;">\u2715</button>' +
           "</div></div>" : "") +
-      '<div class="card">' +
+      '<div class="card bento-half bento-stat">' +
         '<div class="weight-row"><span class="gauge-label mono">CURRENT WEIGHT</span></div>' +
-        '<div class="weight-current mono" id="wkCurrentWeight" style="color:' + accent + ';"></div>' +
+        '<div class="weight-current mono" id="wkCurrentWeight" style="color:var(--text-1);"></div>' +
         '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
         '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
       "</div>" +
-      '<div class="card"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span class="mono" id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
+      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
       '<div class="chips" id="wkChips"></div>' +
       '<div class="card">' +
         '<div class="pills" id="wkPills"></div>' +
@@ -7181,13 +7210,13 @@ async function renderWorkoutsTab(root) {
       var weekWeightLbs = currentBodyWeight();
       var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
       var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
-      amountEl.style.color = accent;
+      var weekTile = function (big, sub) { return '<span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span>"; };
       if (goalNum > 0) {
         var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
-        amountEl.textContent = thisWeek.length + " of " + goalNum + " workouts" + weekCalSuffix;
+        amountEl.innerHTML = weekTile(thisWeek.length + " of " + goalNum, "workouts" + weekCalSuffix);
         bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
       } else {
-        amountEl.textContent = thisWeek.length + " workouts" + weekCalSuffix;
+        amountEl.innerHTML = weekTile(String(thisWeek.length), (thisWeek.length === 1 ? "workout" : "workouts") + weekCalSuffix);
         if (showGoalInput) {
           bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
           var gd = document.getElementById("wkGoalDraft");
@@ -12482,16 +12511,17 @@ async function renderJobsPage() {
   var weekPct = Math.min(100, (weekCount / JOB_WEEKLY_GOAL_MAX) * 100);
   var todayColor = todayCount >= JOB_DAILY_MIN ? '#5BAE7A' : (todayCount > 0 ? '#D9A441' : '#D9667A');
 
-  var paceHtml =
-    '<div class="card" style="margin-bottom:16px;">' +
-      '<div class="gauge-top"><span class="gauge-label mono">WEEKLY PACE</span><span class="mono" style="color:' + weekColor + ';">' + weekCount + ' of ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + '</span></div>' +
-      '<div class="gauge-track"><div class="gauge-fill" style="width:' + weekPct + '%;background:' + weekColor + ';box-shadow:0 0 14px ' + weekColor + '55;"></div></div>' +
-      '<div style="color:var(--text-2);font-size:11px;margin-top:6px;">Goal: ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + ' applications this week</div>' +
-      '<div style="border-top:1px solid var(--border-2);margin-top:12px;padding-top:10px;display:flex;justify-content:space-between;align-items:center;">' +
-        '<span style="color:var(--text-2);font-size:12px;">Today · daily minimum ' + JOB_DAILY_MIN + '</span>' +
-        '<span class="mono" style="color:' + todayColor + ';font-weight:600;">' + todayCount + ' of ' + JOB_DAILY_MIN + '</span>' +
-      '</div>' +
+  var todayPct = Math.min(100, (todayCount / JOB_DAILY_MIN) * 100);
+  var paceTile = function (label, big, color, sub, pct) {
+    return '<div class="card bento-half bento-stat">' +
+      '<div class="gauge-top"><span class="gauge-label mono">' + label + '</span>' +
+        '<span><span class="bento-value" style="color:' + color + ';">' + big + '</span><span class="bento-sub">' + sub + '</span></span></div>' +
+      '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:' + color + ';box-shadow:0 0 14px ' + color + '55;"></div></div>' +
     '</div>';
+  };
+  var paceHtml =
+    paceTile('APPLIED THIS WEEK', weekCount, weekColor, 'goal ' + JOB_WEEKLY_GOAL_MIN + '–' + JOB_WEEKLY_GOAL_MAX + ' per week', weekPct) +
+    paceTile('APPLIED TODAY', todayCount, todayColor, 'daily minimum ' + JOB_DAILY_MIN, todayPct);
 
   var filtered = _jobStageFilter === 'all' ? jobs : jobs.filter(function(j) { return (j.stage || 'saved') === _jobStageFilter; });
   // Sort: newest applied date first, then by creation order
@@ -12612,11 +12642,12 @@ async function renderJobsPage() {
       '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Track applications through every stage of your search</div>' +
     '</div>' +
 
+    '<div class="bento-body">' +
     leadsInboxHtml +
-    breakdownHtml +
     paceHtml +
+    breakdownHtml +
 
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;" id="jobSummaryCards">' + summaryHtml + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;" id="jobSummaryCards">' + summaryHtml + '</div>' +
 
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
       '<div class="port-section-label" style="margin:0;">' +
@@ -12629,8 +12660,9 @@ async function renderJobsPage() {
     jobsHtml +
     addFormHtml +
 
-    '<div style="padding:12px 0 40px;">' +
+    '<div style="padding:0 0 40px;">' +
       (_jobAddMode ? '' : '<button class="port-edit-btn" data-action="job-show-add">+ Add job</button>') +
+    '</div>' +
     '</div>';
 
   // Focus add form
