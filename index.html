@@ -849,6 +849,8 @@
   .pay-line .pay-btns { margin-left: auto; align-items: center; gap: 4px; }
   .pay-list { align-items: stretch; }
   /* Plan ahead */
+  .job-capture { margin-top: 10px; border-top: 1px solid var(--border-2); padding-top: 10px; }
+  .job-capture summary { cursor: pointer; font-size: 12px; color: var(--text-2); }
   .plan-month { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); margin: 16px 2px 8px; }
   .plan-period { background: var(--bg); border: 1px solid var(--border-2); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
   .plan-head-block { border-style: dashed; }
@@ -3096,9 +3098,11 @@ var _launchIntent = (function () {
     var q = new URLSearchParams(location.search);
     var action = q.get("action");
     var shared = q.get("title") || q.get("text") || q.get("url");
-    if (!action && !shared) return null;
+    var packed = q.get("data"), data = null;
+    if (packed) { try { data = JSON.parse(decodeURIComponent(escape(atob(packed)))); } catch (e) { data = null; } }
+    if (!action && !shared && !data) return null;
     history.replaceState(null, "", location.pathname + location.hash);
-    return { action: action || "share-job", title: q.get("title") || "", text: q.get("text") || "", url: q.get("url") || "" };
+    return { action: action || "share-job", title: q.get("title") || "", text: q.get("text") || "", url: q.get("url") || "", data: data };
   } catch (e) { return null; }
 })();
 
@@ -3137,6 +3141,94 @@ function _parseSharedJob(it) {
   return { role: role.trim(), company: company.trim(), url: url, notes: notes.slice(0, 500) };
 }
 
+/* Quick capture of a job someone is looking at: paste a link or the whole
+   posting. Pulls out what it can (company, role, location, pay, link) from
+   well-known job-site addresses and from the text; anything it can't work out
+   is left for the person to fill in. */
+function _titleCaseWords(str) {
+  var ACR = /^(it|sap|erp|crm|bi|qa|sql|aws|hr|ui|ux|ii|iii|iv|vp|api|sre|devops|bsa|pm|llc|inc|usa|us|uk|ai|ml|etl|net|php|css|html|ceo|cfo|cto|coo|sdr|bdr|sw|hw|it)$/i;
+  return String(str || "").replace(/[-_+]+/g, " ").replace(/\s+/g, " ").trim().split(" ").map(function (w) {
+    if (ACR.test(w)) return w.toUpperCase();
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(" ");
+}
+function _jobFromUrl(u) {
+  var out = { url: u, role: "", company: "" };
+  var a;
+  try { a = new URL(u); } catch (e) { return out; }
+  var host = a.hostname.replace(/^www\./, ""), parts = a.pathname.split("/").filter(Boolean), m;
+  if (/linkedin\.com$/.test(host)) {
+    var cj = a.searchParams.get("currentJobId");
+    if (parts[0] === "jobs" && parts[1] === "view" && parts[2]) {
+      out.url = "https://www.linkedin.com/jobs/view/" + parts[2] + "/";
+      m = parts[2].replace(/-\d{6,}$/, "").match(/^(.+?)-at-(.+)$/);
+      if (m) { out.role = _titleCaseWords(m[1]); out.company = _titleCaseWords(m[2]); }
+      else if (!/^\d+$/.test(parts[2])) out.role = _titleCaseWords(parts[2].replace(/-\d{6,}$/, ""));
+    } else if (cj) out.url = "https://www.linkedin.com/jobs/view/" + cj + "/";
+  } else if (/indeed\.com$/.test(host)) {
+    var jk = a.searchParams.get("jk") || a.searchParams.get("vjk");
+    if (jk) out.url = "https://www.indeed.com/viewjob?jk=" + jk;
+  } else if (/greenhouse\.io$/.test(host) && parts[0]) {
+    out.company = _titleCaseWords(parts[0]); out.url = a.origin + a.pathname;
+  } else if (/lever\.co$|ashbyhq\.com$/.test(host) && parts[0]) {
+    out.company = _titleCaseWords(parts[0]); out.url = a.origin + a.pathname;
+  } else if (/workable\.com$/.test(host) && parts[0] && parts[0] !== "j") {
+    out.company = _titleCaseWords(parts[0]); out.url = a.origin + a.pathname;
+  } else if (/myworkdayjobs\.com$/.test(host)) {
+    out.company = _titleCaseWords(host.split(".")[0]);
+    var last = parts[parts.length - 1] || "";
+    if (/^(.+?)_(R|JR|REQ)?-?\d+/i.test(last)) out.role = _titleCaseWords(last.replace(/_(R|JR|REQ)?-?\d+.*$/i, ""));
+    out.url = a.origin + a.pathname;
+  }
+  return out;
+}
+function _parseJobInput(raw) {
+  raw = String(raw || "").trim();
+  var um = raw.match(/https?:\/\/[^\s<>"']+/);
+  var fromUrl = um ? _jobFromUrl(um[0].replace(/[).,;]+$/, "")) : { url: "", role: "", company: "" };
+  var text = um ? raw.replace(um[0], " ").trim() : raw;
+  var lines = text.split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+  var role = "", company = "", location = "", salary = "", m;
+  // Salary / location anywhere in the text
+  m = text.match(/\$\s?\d{2,3}(?:,\d{3})?(?:\.\d+)?\s?[kK]?(?:\s?\/\s?(?:yr|hr|year|hour))?(?:\s?(?:-|\u2013|to)\s?\$?\s?\d{2,3}(?:,\d{3})?\s?[kK]?(?:\s?\/\s?(?:yr|hr|year|hour))?)?/);
+  if (m) salary = m[0].replace(/\s+/g, " ").trim();
+  m = text.match(/\b(Remote|Hybrid|On-?site)\b(?:\s*\(([^)]{2,40})\))?/i);
+  if (m) location = m[0].trim();
+  var cityState = text.match(/\b([A-Z][A-Za-z.' ]{2,28},\s?[A-Z]{2})\b/);
+  if (cityState) location = location && !/remote/i.test(location) ? location : (location ? cityState[1] + " (" + location + ")" : cityState[1]);
+  // Title / company from the first line(s)
+  if (lines.length) {
+    var first = lines[0].replace(/\s*[|\u00B7\u2013-]\s*(LinkedIn|Indeed(\.com)?|Glassdoor|ZipRecruiter|Built ?In)\b.*$/i, "").trim();
+    first = first.replace(/^(?:check|look|see|found|sharing|hiring|new job|job|this)\b[^:]{0,35}:\s+(?=\S)/i, ""); // "Check this out: Title - Company"
+    var parsed = _parseSharedJob({ title: first, text: "", url: "" });
+    if (parsed.company) { role = parsed.role; company = parsed.company; }
+    else if (first.length <= 120) {
+      role = first;
+      var second = (lines[1] || "").split(/\s*[\u00B7|\u2022]\s*/)[0].trim();
+      if (second && second.length <= 60 && !/[$]|^\d|applicants|ago$|^(full|part)[- ]time|^remote$/i.test(second) && second !== first) company = second;
+    }
+  }
+  role = role || fromUrl.role; company = company || fromUrl.company;
+  return { role: role.trim(), company: company.trim(), url: fromUrl.url || "", location: location, salary: salary, notes: "" };
+}
+
+// Open the Add Job form with what was captured filled in.
+function _jobPrefillForm(job) {
+  _jobAddMode = true; _jobEditId = null;
+  renderJobsPage();
+  _whenReady(function () { return document.getElementById("jobNewCompany"); }, function () {
+    document.getElementById("jobNewCompany").value = job.company || "";
+    document.getElementById("jobNewRole").value = job.role || "";
+    document.getElementById("jobNewLink").value = job.url || "";
+    document.getElementById("jobNewNotes").value = job.notes || "";
+    var sal = document.getElementById("jobNewSalary"); if (sal && job.salary) sal.value = job.salary;
+    window._jobPrefillLocation = job.location || "";
+    var st = document.getElementById("jobNewStage"); if (st) st.value = "saved";
+    var dt = document.getElementById("jobNewDate"); if (dt) dt.value = "";
+    (job.company ? document.getElementById("jobNewRole") : document.getElementById("jobNewCompany")).focus();
+  });
+}
+
 function _runLaunchIntent(it) {
   var a = it.action;
   if (a === "add-expense") {
@@ -3157,14 +3249,15 @@ function _runLaunchIntent(it) {
       renderJobsPage();
       if (a === "share-job") {
         var job = _parseSharedJob(it);
-        _whenReady(function () { return document.getElementById("jobNewCompany"); }, function () {
-          document.getElementById("jobNewCompany").value = job.company;
-          document.getElementById("jobNewRole").value = job.role;
-          document.getElementById("jobNewLink").value = job.url;
-          document.getElementById("jobNewNotes").value = job.notes;
-          var st = document.getElementById("jobNewStage"); if (st) st.value = "saved";
-          (job.company ? document.getElementById("jobNewRole") : document.getElementById("jobNewCompany")).focus();
-        });
+        var dd = it.data;
+        if (dd) { // from the bookmarklet: structured data from the page, falling back to the title/link
+          var guess = _parseJobInput([dd.title || "", dd.sel || "", dd.url || ""].join("\n"));
+          job = { role: dd.role || guess.role, company: dd.company || guess.company, url: guess.url || dd.url || "", location: dd.location || guess.location, salary: dd.salary || guess.salary, notes: "" };
+        } else if (!job.company || !job.role) {
+          var g2 = _parseJobInput([it.title, it.text, it.url].join("\n"));
+          job = { role: job.role || g2.role, company: job.company || g2.company, url: job.url || g2.url, location: g2.location, salary: g2.salary, notes: job.notes };
+        }
+        _jobPrefillForm(job);
       } else {
         _focusWhenReady("#jobNewCompany");
       }
@@ -13820,6 +13913,14 @@ async function renderCertPage() {
 
 var _jobData    = null;
 var _jobAddMode = false;
+var _jobQuickText = "", _jobQuickMore = false;
+// A drag-to-bookmarks button for computers: reads the job posting's own data
+// (many sites embed it) plus the page title/link, and opens the tracker with it.
+function _jobBookmarkletCode() {
+  var app = location.origin + location.pathname;
+  var code = "(function(){var d={url:location.href,title:document.title,sel:String(getSelection()||'')};try{[].slice.call(document.querySelectorAll('script[type=\"application/ld+json\"]')).forEach(function(s){var j=JSON.parse(s.textContent);var all=[].concat(j,(j&&j['@graph'])||[]);all.forEach(function(x){if(x&&x['@type']==='JobPosting'){d.role=x.title;d.company=x.hiringOrganization&&x.hiringOrganization.name;var l=[].concat(x.jobLocation||[])[0],a=l&&l.address;d.location=a?[a.addressLocality,a.addressRegion].filter(Boolean).join(', '):(x.jobLocationType==='TELECOMMUTE'?'Remote':'');var b=x.baseSalary&&x.baseSalary.value;if(b){d.salary=b.minValue?'$'+b.minValue+(b.maxValue?' - $'+b.maxValue:''):(b.value?'$'+b.value:'')}}})})}catch(e){}window.open('" + app + "?action=share-job&data='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(d))))),'_blank')})()";
+  return "javascript:" + encodeURIComponent(code);
+}
 var _jobEditId  = null;
 var _jobStageFilter = 'all';
 // Leads the "Daily Jobs Report" routine writes to a Google Drive file each
@@ -14165,6 +14266,26 @@ async function renderJobsPage() {
       }).join('') +
     '</div>';
 
+  var quickHtml =
+    '<div class="card" id="jobQuick">' +
+      '<div class="gauge-top"><span class="gauge-label mono">QUICK ADD</span></div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Looking at a job? Copy its link (or the whole posting) and paste it here. The company, role, location and pay get filled in for you.</div>' +
+      '<textarea class="form-input" id="jobQuickInput" rows="2" placeholder="Paste a job link or the posting text" style="width:100%;resize:vertical;">' + escapeHtml(_jobQuickText) + '</textarea>' +
+      '<div class="row-gap" style="margin-top:8px;">' +
+        '<button class="small-btn" data-action="job-quick-paste" style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);">Paste</button>' +
+        '<button class="small-btn" data-action="job-quick-add" style="background:var(--accent);flex:1;">Add to tracker</button>' +
+      '</div>' +
+      '<div id="jobQuickMsg" style="font-size:12px;color:var(--text-2);margin-top:8px;min-height:16px;"></div>' +
+      '<details class="job-capture"' + (_jobQuickMore ? ' open' : '') + '><summary>More ways to capture a job</summary>' +
+        '<div style="font-size:12px;color:var(--text-2);line-height:1.55;margin-top:8px;">' +
+          '<p style="margin:0 0 8px;"><strong style="color:var(--text-1);">iPhone:</strong> in the job app or Safari tap Share \u2192 Copy, open this page and tap Paste.</p>' +
+          '<p style="margin:0 0 8px;"><strong style="color:var(--text-1);">Android:</strong> install the app, then use Share \u2192 Dashboard on any job and it opens here ready to save.</p>' +
+          '<p style="margin:0 0 8px;"><strong style="color:var(--text-1);">Computer:</strong> drag this button to your bookmarks bar, then click it on any job page. It reads the posting and opens the tracker with it filled in.</p>' +
+          '<p style="margin:0;"><a id="jobBookmarklet" class="port-edit-btn" href="#" style="display:inline-block;text-decoration:none;">+ Add to Job Tracker</a> <button class="link-btn" data-action="job-copy-bookmarklet" style="color:var(--accent);">Copy the bookmarklet code</button></p>' +
+        '</div>' +
+      '</details>' +
+    '</div>';
+
   inner.innerHTML =
     '<div class="page-hero">' +
       '<div class="port-eyebrow">Career</div>' +
@@ -14173,6 +14294,7 @@ async function renderJobsPage() {
     '</div>' +
 
     '<div class="bento-body">' +
+    quickHtml +
     leadsInboxHtml +
     paceHtml +
     breakdownHtml +
@@ -14207,8 +14329,13 @@ async function renderJobsPage() {
     }
   });
 
+  var bm = document.getElementById('jobBookmarklet');
+  if (bm) { bm.setAttribute('href', _jobBookmarkletCode()); bm.addEventListener('click', function (e) { e.preventDefault(); var m3 = document.getElementById('jobQuickMsg'); if (m3) m3.textContent = 'Drag this button up to your bookmarks bar; clicking it here does nothing.'; }); }
+  var qd = inner.querySelector('.job-capture');
+  if (qd) qd.addEventListener('toggle', function () { _jobQuickMore = qd.open; });
   if (!inner._jobClickAttached) {
     inner._jobClickAttached = true;
+    inner.addEventListener('input', function (e) { if (e.target && e.target.id === 'jobQuickInput') _jobQuickText = e.target.value; });
     inner.addEventListener('click', function(e) {
       var d = _jobData;
       if (!d) return;
@@ -14218,7 +14345,35 @@ async function renderJobsPage() {
       var jid    = btn.getAttribute('data-job');
       var job    = jid ? (d.jobs || []).find(function(j) { return j.id === jid; }) : null;
 
-      if (action === 'job-filter') {
+      if (action === 'job-quick-paste') {
+        var qi = document.getElementById('jobQuickInput');
+        var gotText = function (t) { if (qi && t) { qi.value = t; _jobQuickText = t; qi.focus(); } };
+        if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(gotText).catch(function () { if (qi) qi.focus(); });
+        else if (qi) qi.focus();
+        return;
+      } else if (action === 'job-quick-add') {
+        var qEl = document.getElementById('jobQuickInput'), msg = document.getElementById('jobQuickMsg');
+        var rawIn = (qEl && qEl.value || '').trim();
+        if (!rawIn) { if (msg) msg.textContent = 'Paste a link or the posting first.'; if (qEl) qEl.focus(); return; }
+        var got = _parseJobInput(rawIn);
+        var dupe = got.url && (d.jobs || []).find(function (j) { return j.link && j.link.replace(/\/$/, '') === got.url.replace(/\/$/, ''); });
+        if (dupe) { if (msg) msg.textContent = 'Already in your tracker: ' + (dupe.company || 'that job') + ' (' + _jobStage(dupe.stage || 'saved').label + ').'; return; }
+        _jobQuickText = '';
+        if (got.company && got.role) {
+          if (!d.jobs) d.jobs = [];
+          var nj = { id: uid(), company: got.company, role: got.role, stage: 'saved', dateApplied: '', salary: got.salary, location: got.location, link: got.url, notes: '', createdAt: todayISO() };
+          d.jobs.push(nj); saveJobData(); renderJobsPage();
+          _offerUndo('Saved ' + got.role + ' at ' + got.company, function () { d.jobs = (d.jobs || []).filter(function (j) { return j.id !== nj.id; }); saveJobData(); renderJobsPage(); });
+        } else {
+          _jobPrefillForm(got); // couldn't tell everything: confirm it in the form
+        }
+        return;
+      } else if (action === 'job-copy-bookmarklet') {
+        var codeStr = _jobBookmarkletCode(), copied = function () { var m2 = document.getElementById('jobQuickMsg'); if (m2) m2.textContent = 'Bookmarklet copied. Make a bookmark and paste it as its address.'; };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(codeStr).then(copied).catch(function () { window.prompt('Copy this as the bookmark address:', codeStr); });
+        else window.prompt('Copy this as the bookmark address:', codeStr);
+        return;
+      } else if (action === 'job-filter') {
         _jobStageFilter = btn.getAttribute('data-stage') || 'all';
         renderJobsPage();
       } else if (action === 'job-show-add') {
@@ -14237,10 +14392,12 @@ async function renderJobsPage() {
           stage:       (document.getElementById('jobNewStage')  || {}).value || 'saved',
           dateApplied: ((document.getElementById('jobNewDate')   || {}).value || '').trim(),
           salary:      ((document.getElementById('jobNewSalary') || {}).value || '').trim(),
+          location:    window._jobPrefillLocation || '',
           link:        ((document.getElementById('jobNewLink')   || {}).value || '').trim(),
           notes:       ((document.getElementById('jobNewNotes')  || {}).value || '').trim(),
           createdAt:   todayISO()
         });
+        window._jobPrefillLocation = '';
         _jobAddMode = false; saveJobData(); renderJobsPage();
       } else if (action === 'job-edit') {
         _jobEditId = jid; _jobAddMode = false; renderJobsPage();
