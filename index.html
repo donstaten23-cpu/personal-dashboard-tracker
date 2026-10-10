@@ -87,8 +87,8 @@
   }
   /* The glowing head. The ring's mask would clip it, so it rides on its own
      layer with the same rotation. */
-  .auth-orb::after {
-    content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  .auth-orb-head {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
     animation: authSurge 3.6s cubic-bezier(.65,0,.35,1) infinite;
     background: radial-gradient(circle at 50% 1px, var(--orb-ink) 0 3px, color-mix(in srgb, var(--orb-ink) 50%, transparent) 4px, color-mix(in srgb, var(--orb-glow) 30%, transparent) 9px, transparent 16px);
   }
@@ -122,10 +122,10 @@
     transition: opacity .2s;
   }
   .auth-orb.holding .auth-orb-hold { opacity: 1; }
-  /* While pressing, the comet's glowing head is driven from JS (--hold-angle)
-     so it rides the leading edge of the charging ring — same speed — instead
-     of orbiting on its own 3.6s loop. */
-  .auth-orb.syncing .auth-orb-sweep, .auth-orb.syncing::after { animation: none; transform: rotate(var(--hold-angle, 0deg)); }
+  /* While pressing, the comet (ring tail + glowing head) is rotated straight
+     from JS (inline transform, see the hold code) so the head rides the
+     leading edge of the charging ring — same speed — instead of orbiting on
+     its own 3.6s loop. */
   .auth-scene.auth-gate .auth-orb.holding {
     scale: 1.16; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--orb-glow) 55%, transparent));
     transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1), filter .3s;
@@ -158,7 +158,7 @@
   .auth-scene.auth-leaving .auth-orb { animation: none; transform: scale(9); opacity: 0; }
   .auth-scene.auth-leaving .auth-orb-hint { opacity: 0; }
   @media (prefers-reduced-motion: reduce) {
-    .auth-scene::before, .auth-scene::after, .auth-orb, .auth-orb::after, .auth-orb-sweep, .auth-orb-track { animation: none !important; }
+    .auth-scene::before, .auth-scene::after, .auth-orb, .auth-orb-head, .auth-orb-sweep, .auth-orb-track { animation: none !important; }
     .auth-orb, .auth-panel, .auth-scene { transition-duration: .01ms !important; transition-delay: 0s !important; }
   }
 
@@ -614,6 +614,15 @@
   .lift-add-fields { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
   .lift-add-fields .form-input { padding: 8px 10px; }
   .lift-new { margin-top: 0; }
+
+  .update-banner {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 1600;
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 16px; border-radius: 999px; background: var(--bg-card);
+    border: 1px solid var(--accent); color: var(--text-1); font-size: 13px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,.35); white-space: nowrap;
+  }
+  .update-banner button { border: none; border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--accent); color: #fff; }
+  .update-banner button[data-u="dismiss"] { background: transparent; color: var(--text-2); padding: 7px 8px; }
+  @media (min-width: 701px) { .update-banner { bottom: 24px; } }
 
   /* Row swipe (see _swipeBegin): the row's content slides over a colored
      layer naming the action — green "Paid" on the left, red "Delete" on the
@@ -1204,6 +1213,7 @@
   <button type="button" id="authOrb" class="auth-orb" aria-label="Open sign in">
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
+    <span class="auth-orb-head"></span>
     <span class="auth-orb-hold"></span>
     <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
@@ -3161,7 +3171,7 @@ function openAuthPanel() {
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var HOLD_MS = reduced ? 300 : 650;
   var rafId = 0, t0 = 0, active = false, unwindId = 0;
-  var sweep = orb.querySelector(".auth-orb-sweep");
+  var sweep = orb.querySelector(".auth-orb-sweep"), head = orb.querySelector(".auth-orb-head");
   var a0 = 0, lap = 0; // where the comet head was when the press began, and whether it must catch up a lap
 
   function inGate() { return scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving"); }
@@ -3173,7 +3183,18 @@ function openAuthPanel() {
     if (reduced) return;
     var w = Math.min(1, (performance.now() - t0) / 160);
     w = w * w * (3 - 2 * w);
-    orb.style.setProperty("--hold-angle", ((1 - w) * a0 + w * (p * 360 + 360 * lap)) + "deg");
+    setComet((1 - w) * a0 + w * (p * 360 + 360 * lap));
+  }
+  // Inline transforms on real elements: the most dependable thing to animate
+  // from JS on iOS Safari (a CSS-variable-driven pseudo-element wasn't).
+  function setComet(deg) {
+    var t = "rotate(" + deg.toFixed(2) + "deg)";
+    sweep.style.transform = t; head.style.transform = t;
+  }
+  function cometSync(on) {
+    var a = on ? "none" : "";
+    sweep.style.animation = a; head.style.animation = a;
+    if (!on) { sweep.style.transform = ""; head.style.transform = ""; } // idle orbit restarts from the top
   }
   function currentCometAngle() {
     var m = /matrix\(([^)]+)\)/.exec(getComputedStyle(sweep).transform || "");
@@ -3185,7 +3206,7 @@ function openAuthPanel() {
 
   window._resetOrbHold = function () {
     active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId);
-    orb.classList.remove("holding", "syncing"); orb.style.removeProperty("--hold-p"); orb.style.removeProperty("--hold-angle");
+    orb.classList.remove("holding"); orb.style.removeProperty("--hold-p"); cometSync(false);
   };
 
   function begin(e) {
@@ -3194,8 +3215,8 @@ function openAuthPanel() {
     active = true; t0 = performance.now();
     if (!reduced) {
       a0 = currentCometAngle(); lap = a0 > 3 ? 1 : 0; // run forward to meet the ring, never backwards
-      orb.style.setProperty("--hold-angle", a0 + "deg");
-      orb.classList.add("syncing");
+      setComet(a0);
+      cometSync(true);
     }
     orb.classList.add("holding");
     try { orb.setPointerCapture(e.pointerId); } catch (x) {}
@@ -3225,7 +3246,7 @@ function openAuthPanel() {
       var k = Math.min(1, (performance.now() - u0) / 180);
       setP(from * (1 - k));
       if (k < 1) unwindId = requestAnimationFrame(unwind);
-      else { orb.style.removeProperty("--hold-p"); orb.classList.remove("syncing"); orb.style.removeProperty("--hold-angle"); } // head is back at the top: the idle orbit resumes from there
+      else { orb.style.removeProperty("--hold-p"); cometSync(false); } // head is back at the top: the idle orbit resumes from there
     })();
   }
   hint.addEventListener("animationend", function () { hint.classList.remove("nudge"); });
@@ -16249,8 +16270,37 @@ if (_pendingNotifOpenBudget) {
 var _initialHashRoute = parseUrlHash();
 if (_initialHashRoute && !document.getElementById("page-" + _initialHashRoute.page)) _initialHashRoute = null;
 if (_initialHashRoute && _initialHashRoute.section) _pendingSectionByPage[_initialHashRoute.page] = _initialHashRoute.section;
+// The service worker serves the saved copy of the app first (instant) and
+// refreshes it in the background, so a new version used to need a second
+// open. When it tells us a newer copy is ready: at the entry screen just
+// reload into it; anywhere else offer a Reload button rather than yanking
+// the page out from under whatever is being done.
+function _onShellUpdated(reload) {
+  reload = reload || function () { location.reload(); };
+  var scene = document.getElementById("authScreen"), orb = document.getElementById("authOrb");
+  var atGate = scene && scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving") && !scene.classList.contains("auth-open") && !(orb && orb.classList.contains("holding"));
+  var last = 0;
+  try { last = Number(sessionStorage.getItem("shellReloadAt")) || 0; } catch (e) {}
+  if (atGate && Date.now() - last > 60000) { // the time check stops a reload loop if the file ever differs on every fetch
+    try { sessionStorage.setItem("shellReloadAt", String(Date.now())); } catch (e) {}
+    reload();
+    return;
+  }
+  if (document.getElementById("updateBanner")) return;
+  var el = document.createElement("div");
+  el.id = "updateBanner"; el.className = "update-banner"; el.setAttribute("role", "status");
+  el.innerHTML = '<span>New version ready</span><button type="button" data-u="reload">Reload</button><button type="button" data-u="dismiss" aria-label="Dismiss">&#10005;</button>';
+  el.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-u]");
+    if (!b) return;
+    if (b.getAttribute("data-u") === "reload") reload(); else el.remove();
+  });
+  document.body.appendChild(el);
+}
+window._onShellUpdated = _onShellUpdated;
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", function (event) {
+    if (event.data && event.data.type === "shell-updated") { _onShellUpdated(); return; }
     if (!event.data || event.data.type !== "bill-reminder-click") return;
     if (currentUserId) {
       _defaultPageApplied = true;

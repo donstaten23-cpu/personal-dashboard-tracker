@@ -80,8 +80,23 @@ self.addEventListener("fetch", function (event) {
   event.respondWith(
     caches.open(CACHE_NAME).then(function (cache) {
       return cache.match(request).then(function (cached) {
+        // Copy taken now: `cached` is about to be handed to the page, which
+        // uses up its body.
+        var cachedForCompare = cached && isShellPage(request) ? cached.clone() : null;
         var networkFetch = fetch(request).then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
+          if (response && response.ok) {
+            if (cachedForCompare) {
+              // Stale-while-revalidate means the page just loaded the OLD
+              // copy. If the fresh one differs, say so, so the page can offer
+              // (or at the entry screen, just do) a reload instead of making
+              // the user open the app twice to see an update.
+              var fresh = response.clone();
+              Promise.all([cachedForCompare.text(), fresh.text()]).then(function (t) {
+                if (t[0] !== t[1]) tellClientsShellUpdated();
+              }).catch(function () {});
+            }
+            cache.put(request, response.clone());
+          }
           return response;
         }).catch(function () { return cached; });
         return cached || networkFetch;
@@ -89,6 +104,16 @@ self.addEventListener("fetch", function (event) {
     })
   );
 });
+
+function isShellPage(request) {
+  var path = new URL(request.url).pathname;
+  return /\/$/.test(path) || /\/index\.html$/.test(path);
+}
+function tellClientsShellUpdated() {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+    list.forEach(function (c) { c.postMessage({ type: "shell-updated" }); });
+  });
+}
 
 /* ---------------- push notifications (bill reminders) ----------------
    Payload comes from supabase/functions/send-bill-reminders as plain JSON:
