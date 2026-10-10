@@ -409,6 +409,8 @@
   .bento-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
   .bento-body > * { grid-column: 1 / -1; min-width: 0; margin-bottom: 0 !important; }
   .bento-body > .bento-half { grid-column: auto; }
+  .bento-body > *:empty { display: none; }
+  .bento-body > div > .card:only-child { margin-bottom: 0 !important; }
   .bento-stat { display: flex; flex-direction: column; }
   .bento-stat .gauge-label, .bento-stat .gauge-top .gauge-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
   .bento-stat .gauge-top { flex-direction: column; align-items: flex-start; gap: 6px; margin-bottom: 10px; }
@@ -6080,7 +6082,7 @@ async function renderTravelTab(root) {
   root.innerHTML =
     '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('travel', 'TRAVEL TRACKER')) + '</div>' +
     '<div class="trip-switcher" id="tripSwitcher"></div></div>' +
-    '<div id="tripDetailRoot"></div>';
+    '<div id="tripDetailRoot" class="bento-body"></div>';
 
   function renderTripSwitcher() {
     var sw = document.getElementById("tripSwitcher");
@@ -6126,27 +6128,27 @@ async function renderTravelTab(root) {
     var detailRoot = document.getElementById("tripDetailRoot");
 
     detailRoot.innerHTML =
-      '<header style="margin-bottom:16px;">' +
+      '<header class="card">' +
         '<input id="ttTitle" class="name-input serif" aria-label="Trip name" />' +
         '<div class="date-row"><label>Dates <input type="date" id="ttStart" /></label><span>\u2013</span><input type="date" id="ttEnd" /><span class="mono" id="ttNights"></span></div>' +
         '<div class="date-row" style="margin-top:8px;"><label style="display:flex;align-items:center;gap:6px;">Trip date <input type="date" id="ttTripDate" /></label></div>' +
       "</header>" +
       '<div id="ttCountdownWrap"></div>' +
-      '<div class="card">' +
+      '<div class="card bento-half">' +
         '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="ttGaugeAmount"></span></div>' +
         '<div id="ttGaugeBody"></div>' +
       "</div>" +
-      '<div class="card">' +
+      '<div class="card bento-half">' +
         '<div class="gauge-top"><span class="gauge-label mono">SAVINGS FOR THIS TRIP</span><span class="mono" id="ttSavingsAmount" style="color:#D9A441;"></span></div>' +
         '<div id="ttSavingsBody"></div>' +
         '<div style="color:var(--text-2);font-size:11px;margin-top:6px;">Tracks your overall savings balance from the Budget tab against a goal for this trip.</div>' +
       "</div>" +
-      '<div class="card">' +
+      '<div class="card bento-half">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">BOOKING STATUS</div>' +
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">A rolling read on what your savings actually cover right now, not a lock — costed categories clear for booking as they get funded.</div>' +
         '<div id="ttBookingAdvisor"></div>' +
       "</div>" +
-      '<div class="card">' +
+      '<div class="card bento-half">' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">HOTEL OPTIONS</div>' +
         '<div style="color:var(--text-2);font-size:11px;margin-bottom:8px;">Compare a few stays, then pick one — only the picked hotel’s cost counts toward your budget above.</div>' +
         '<div id="ttHotelLinks"></div>' +
@@ -8579,7 +8581,7 @@ async function renderStoryPage(root) {
       '<div id="storySearchResults" style="position:absolute;top:100%;left:0;right:0;z-index:10;margin-top:4px;"></div>' +
     "</div>" +
     '<div class="pills" id="storySectionPills"></div>' +
-    '<div id="storySectionBody"></div>';
+    '<div id="storySectionBody" class="bento-body"></div>';
 
   renderStorySyncStatus();
   document.getElementById("storyDownloadBtn").addEventListener("click", downloadStoryExport);
@@ -8908,14 +8910,18 @@ async function renderStoryPage(root) {
       "</div>";
     }).join("");
 
+    var structureLabel = function (t) { return '<div class="gauge-label mono" style="margin:0 0 8px;">' + t + "</div>"; };
+    var tocHtml = chapters.length === 0 ? "" : '<div class="pills" id="storyTocPills" style="margin-bottom:0;">' + chapters.map(function (c, i) {
+      var color = c.arcId ? arcColor(c.arcId) : accent;
+      return '<button class="pill" data-toc="' + c.id + '" style="border-color:' + color + ';color:' + color + ';">' + (i + 1) + ". " + escapeHtml(c.title || "Untitled chapter") + "</button>";
+    }).join("") + "</div>";
     bodyEl.innerHTML =
       wordCountHtml +
-      arcNavHtml +
-      statusManagerHtml +
-      (chapters.length === 0 ? "" : '<div class="pills" id="storyTocPills">' + chapters.map(function (c, i) {
-        var color = c.arcId ? arcColor(c.arcId) : accent;
-        return '<button class="pill" data-toc="' + c.id + '" style="border-color:' + color + ';color:' + color + ';">' + (i + 1) + ". " + escapeHtml(c.title || "Untitled chapter") + "</button>";
-      }).join("") + "</div>") +
+      '<div class="card">' +
+        structureLabel("ARCS") + arcNavHtml +
+        structureLabel("STATUSES") + statusManagerHtml +
+        (chapters.length === 0 ? "" : structureLabel("CHAPTERS") + tocHtml) +
+      "</div>" +
       (chapters.length === 0 ? '<div class="empty-state">No chapters yet. Add your first one below.</div>' : "") +
       chapterCardsHtml +
       '<div class="row-gap" style="margin:16px 0;"><button class="add-btn" id="storyAddChapterBtn" style="background:' + accent + ';">+ New chapter</button></div>' +
@@ -9574,7 +9580,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       (characters.length === 0 ? '<div class="empty-state">No characters yet. Add your first one below.</div>' : "") +
       characters.map(function (ch) {
-        return '<div class="card" id="storyChar-' + ch.id + '">' +
+        return '<div class="card bento-half" id="storyChar-' + ch.id + '">' +
           '<div class="row-gap" style="margin-bottom:10px;">' +
             '<input class="form-input" style="flex:1;font-weight:600;" data-character-field="name" data-id="' + ch.id + '" placeholder="Character name" value="' + escapeHtml(ch.name) + '" />' +
             '<button class="icon-btn" data-action="delete-char" data-id="' + ch.id + '">✕</button>' +
@@ -9662,7 +9668,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       (entries.length === 0 ? '<div class="empty-state">No lore yet. Jot down worldbuilding notes below — settings, factions, rules of the world, timelines…</div>' : "") +
       entries.map(function (entry) {
-        return '<div class="card" id="storyLore-' + entry.id + '">' +
+        return '<div class="card bento-half" id="storyLore-' + entry.id + '">' +
           '<div class="row-gap" style="margin-bottom:10px;">' +
             '<input class="form-input" style="flex:1;font-weight:600;" data-lore-field="title" data-id="' + entry.id + '" placeholder="Topic, e.g. The Old Kingdom, Magic System, Timeline…" value="' + escapeHtml(entry.title) + '" />' +
             '<button class="icon-btn" data-action="delete-lore" data-id="' + entry.id + '">✕</button>' +
@@ -9728,7 +9734,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       (locations.length === 0 ? '<div class="empty-state">No locations yet. Add your first one below — cities, buildings, regions…</div>' : "") +
       locations.map(function (loc) {
-        return '<div class="card" id="storyLoc-' + loc.id + '">' +
+        return '<div class="card bento-half" id="storyLoc-' + loc.id + '">' +
           '<div class="row-gap" style="margin-bottom:10px;">' +
             '<input class="form-input" style="flex:1;font-weight:600;" data-location-field="name" data-id="' + loc.id + '" placeholder="Place name, e.g. The Sunken City, Port of Ashwick…" value="' + escapeHtml(loc.name) + '" />' +
             '<button class="icon-btn" data-action="delete-location" data-id="' + loc.id + '">✕</button>' +
