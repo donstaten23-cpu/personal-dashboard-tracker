@@ -3596,13 +3596,22 @@ function _goBack() {
 }
 
 /* ---------------- swipe gestures (touch) ----------------
-   • Swipe a list row left to delete it (with Undo), right to toggle a bill
-     paid. Works on any row by pressing the row's own delete/paid button, so
-     each list needs no gesture code of its own.
+   • Swipe a list row left to delete it (with Undo) and right to complete it
+     (bill paid, routine done, planned workout done, job moved to its next
+     stage). Works on any row by pressing the row's own delete/complete
+     button, so each list needs no gesture code of its own.
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
-var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete"];
+var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove"];
+// Right-swipe ("complete") buttons -> the label to show, or null when that row
+// has nothing to complete right now (e.g. a routine already done today).
+var SWIPE_DONE_ACTIONS = {
+  "toggle-paid": function (b) { return /\u2713/.test(b.textContent) ? "&#8634; Unpaid" : "&#10003; Paid"; },
+  "toggle": function (b) { return /\u2713/.test(b.textContent) ? null : "&#10003; Done"; },
+  "plan-start": function () { return "&#10003; Done"; },
+  "job-advance": function (b) { return "&#8594; " + escapeHtml(b.getAttribute("data-next-label") || "Next"); }
+};
 var _sw = null;
 function _swipeButton(row, actions) {
   return Array.prototype.find.call(row.querySelectorAll("[data-action]"), function (b) {
@@ -3618,8 +3627,7 @@ function _swipeBegin(s) {
   while (row.firstChild) content.appendChild(row.firstChild);
   var bg = document.createElement("div");
   bg.className = "swipe-bg";
-  var paidNow = s.paid && /✓|✓/.test(s.paid.textContent);
-  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.paid ? (paidNow ? "&#8634; Unpaid" : "&#10003; Paid") : "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
+  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.doneLabel || "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
   row.appendChild(bg); row.appendChild(content);
   row.classList.add("swiping");
   s.content = content; s.bg = bg;
@@ -3638,7 +3646,7 @@ function _swipeEnd(s, commit) {
     setTimeout(function () { unwrap(); s.del.click(); }, 200);
   } else {
     content.style.transform = "translateX(0)";
-    setTimeout(function () { unwrap(); if (commit === "paid") s.paid.click(); }, 220);
+    setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
   }
 }
 document.addEventListener("touchstart", function (e) {
@@ -3652,9 +3660,12 @@ document.addEventListener("touchstart", function (e) {
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
   if (!row || e.target.closest(field + ", input") || row.querySelector(field)) return;
-  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS), paid = _swipeButton(row, ["toggle-paid"]);
-  if (!del && !paid) return;
-  _sw = { mode: "row", row: row, del: del, paid: paid, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
+  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
+  var done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
+  var doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
+  if (doneLabel == null) done = null;
+  if (!del && !done) return;
+  _sw = { mode: "row", row: row, del: del, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
 }, { passive: true });
 document.addEventListener("touchmove", function (e) {
   var s = _sw;
@@ -3679,7 +3690,7 @@ document.addEventListener("touchmove", function (e) {
     return;
   }
   // Resist directions this row has no action for.
-  if ((dx < 0 && !s.del) || (dx > 0 && !s.paid)) dx *= 0.15;
+  if ((dx < 0 && !s.del) || (dx > 0 && !s.done)) dx *= 0.15;
   s.dx = dx;
   s.content.style.transition = "none";
   s.content.style.transform = "translateX(" + dx + "px)";
@@ -3698,7 +3709,7 @@ function _swipeRelease() {
     return;
   }
   var threshold = Math.min(110, s.width * 0.35);
-  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.paid ? "paid" : null);
+  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.done ? "done" : null);
 }
 document.addEventListener("touchend", _swipeRelease);
 document.addEventListener("touchcancel", _swipeRelease);
@@ -8227,10 +8238,15 @@ async function renderWorkoutsTab(root) {
     });
     bodyEl.querySelectorAll("[data-action='plan-remove']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
-        delete planData.days[e.currentTarget.getAttribute("data-date")];
-        if (planEditingDay === e.currentTarget.getAttribute("data-date")) planEditingDay = null;
+        var rmDate = e.currentTarget.getAttribute("data-date");
+        var rmPlan = planData.days[rmDate];
+        delete planData.days[rmDate];
+        if (planEditingDay === rmDate) planEditingDay = null;
         savePlan();
         renderPlanSection();
+        if (rmPlan) _offerUndo("Planned workout removed", function () {
+          if (!planData.days[rmDate]) { planData.days[rmDate] = rmPlan; savePlan(); renderPlanSection(); }
+        });
       });
     });
     bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (checkbox) {
@@ -12512,6 +12528,13 @@ function _jobStage(id) {
   return JOB_STAGES.find(function(s) { return s.id === id; }) || JOB_STAGES[0];
 }
 
+// Next step along the pipeline (saved -> applied -> interview -> offer); none
+// once a job has an offer or was rejected.
+function _jobNextStage(job) {
+  var i = ['saved', 'applied', 'interview', 'offer'].indexOf(job.stage || 'saved');
+  return i >= 0 && i < 3 ? _jobStage(['applied', 'interview', 'offer'][i]) : null;
+}
+
 var JOB_WEEKLY_GOAL_MIN = 15;
 var JOB_WEEKLY_GOAL_MAX = 17;
 var JOB_DAILY_MIN = 3;
@@ -12766,6 +12789,7 @@ async function renderJobsPage() {
             '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
             '<div style="display:flex;gap:4px;">' +
               (job.link ? '<a href="' + escapeHtml(job.link) + '" target="_blank" rel="noopener" class="icon-btn" title="Open posting" style="color:#5B8FA8;text-decoration:none;">&#128279;</a>' : '') +
+              (_jobNextStage(job) ? '<button class="icon-btn" data-action="job-advance" data-job="' + job.id + '" data-next-label="' + _jobNextStage(job).label + '" title="Move to ' + _jobNextStage(job).label + '">&#8594;</button>' : '') +
               '<button class="icon-btn" data-action="job-edit" data-job="' + job.id + '">✎</button>' +
               '<button class="icon-btn" data-action="job-delete" data-job="' + job.id + '">✕</button>' +
             '</div>' +
@@ -12919,6 +12943,17 @@ async function renderJobsPage() {
         job.link        = ((document.getElementById('jobEditLink')    || {}).value || '').trim();
         job.notes       = ((document.getElementById('jobEditNotes')   || {}).value || '').trim();
         _jobEditId = null; saveJobData(); renderJobsPage();
+      } else if (action === 'job-advance') {
+        var nextSt = job && _jobNextStage(job);
+        if (!nextSt) return;
+        var prevStage = job.stage || 'saved', prevDate = job.dateApplied || '';
+        job.stage = nextSt.id;
+        if (nextSt.id === 'applied' && !job.dateApplied) job.dateApplied = todayISO();
+        saveJobData(); renderJobsPage();
+        _offerUndo((job.company || 'Job') + ' moved to ' + nextSt.label, function() {
+          job.stage = prevStage; job.dateApplied = prevDate;
+          saveJobData(); renderJobsPage();
+        });
       } else if (action === 'job-delete') {
         var takenJob = _undoTake(d.jobs, function(j) { return j.id === jid; });
         d.jobs = (d.jobs || []).filter(function(j) { return j.id !== jid; });
