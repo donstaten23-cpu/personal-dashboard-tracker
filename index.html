@@ -834,6 +834,34 @@
   .until-payday-grid.single { grid-template-columns: 1fr; }
   .bsec-hidden, .bview-hidden { display: none !important; }
   /* Budget bills list: group headers (By due day view) */
+  /* Plan ahead */
+  .plan-month { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); margin: 16px 2px 8px; }
+  .plan-period { background: var(--bg); border: 1px solid var(--border-2); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; }
+  .plan-head-block { border-style: dashed; }
+  .plan-when { font-size: 15px; font-weight: 700; color: var(--text-1); }
+  .plan-cover { font-size: 12px; color: var(--text-2); margin: 2px 0 8px; }
+  .plan-chips { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .plan-pay { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: left; width: 100%; background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 12px; padding: 9px 12px; color: var(--text-1); font: inherit; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .plan-pay .mono { font-weight: 700; color: var(--accent); font-size: 16px; }
+  .plan-pay .plan-pen { margin-left: auto; color: var(--text-3); }
+  .plan-pay.edited { border-style: dashed; }
+  .plan-tag { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-2); white-space: nowrap; }
+  .plan-edit { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--accent); border-radius: 12px; }
+  .plan-edit-l { width: 100%; font-size: 12px; color: var(--text-2); }
+  .plan-edit .small-input { flex: 1; min-width: 90px; }
+  .plan-bill { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; border-top: 1px solid var(--border-2); }
+  .plan-bd { width: 52px; flex-shrink: 0; color: var(--text-3); font-size: 12px; }
+  .plan-bn { flex: 1; min-width: 0; color: var(--text-1); overflow-wrap: anywhere; }
+  .plan-ba { color: #FF8A5C; }
+  .plan-x { min-width: 28px !important; min-height: 28px !important; padding: 2px !important; }
+  .plan-none { font-size: 12px; color: var(--text-3); padding: 6px 0; border-top: 1px solid var(--border-2); }
+  .plan-foot { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--text-2); padding-top: 8px; margin-top: 4px; border-top: 1px dashed var(--border-2); }
+  .plan-total { margin-top: 16px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border-2); }
+  .plan-tl { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+  .plan-trow { display: flex; justify-content: space-between; font-size: 14px; color: var(--text-2); padding-top: 6px; }
+  .plan-net { font-weight: 700; color: var(--text-1); border-top: 1px dashed var(--border-2); margin-top: 6px; }
+  .plan-add { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-2); }
+
   /* Paychecks section */
   .pay-list { display: flex; flex-direction: column; gap: 10px; }
   .pay-card { background: var(--bg); border: 1px solid var(--border-2); border-radius: 16px; padding: 14px; }
@@ -4600,6 +4628,9 @@ async function renderSpendTab(root, cfg) {
   if (!data.plannedGroups) data.plannedGroups = [];
   if (!data.savingsGoals) data.savingsGoals = [];
   if (!data.debts) data.debts = [];
+  if (!data.oneTimeBills) data.oneTimeBills = [];
+  if (!data.payOverrides || typeof data.payOverrides !== "object") data.payOverrides = {};
+  if ([1, 2, 3, 6].indexOf(data.planMonths) < 0) data.planMonths = 3;
   // migrate the old single shared periodSpend {spent,target} into a per-person shape.
   if (data.periodSpend && data.periodSpend.spent !== undefined && !data.periodSpend.me) {
     data.periodSpend = { me: { spent: data.periodSpend.spent, target: data.periodSpend.target }, partner: { spent: "", target: "" } };
@@ -4816,6 +4847,7 @@ async function renderSpendTab(root, cfg) {
     : "") +
     (cfg.showSavingsGoal ?
       '<div class="bento-body" id="payTiles" style="margin-bottom:0;"></div>' +
+      '<div class="card" id="payPlan"></div>' +
       '<div class="card" id="payCard">' +
         '<div class="gauge-top"><span class="gauge-label mono">YOUR PAYCHECKS</span></div>' +
         '<div style="color:var(--text-2);font-size:12px;margin-bottom:12px;">Each paycheck repeats every month on the day you set. Tap \u270E to change the day or the amount. It\u2019s used to work out which bills land before each of you gets paid.</div>' +
@@ -5321,24 +5353,78 @@ async function renderSpendTab(root, cfg) {
     return (data.payPeriods || []).filter(function (p) { return Number(p.day); }).slice().sort(function (a, b) { return payDaysAway(Number(a.day)) - payDaysAway(Number(b.day)); });
   }
 
-  // For one person: for each of their paychecks, the unpaid bills assigned to
-  // them that fall due between the previous paycheck and that one.
-  function payBreakdown(person) {
-    var todayDay = new Date().getDate();
-    var away = function (day) { return day >= todayDay ? day - todayDay : (31 - todayDay) + day; };
-    var periods = (data.payPeriods || []).filter(function (p) { return p.person === person && Number(p.day); })
-      .sort(function (a, b) { return away(Number(a.day)) - away(Number(b.day)); });
-    var owned = data.items.filter(function (it) {
-      return it.category !== "savings" && it.owner === person && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it);
-    }).map(function (it) { return { name: it.name, amount: Number(it.amount) || 0, daysAway: away(Number(it.dueDay)) }; });
-    var out = { hasOwned: owned.length > 0 }, prev = -1;
-    periods.forEach(function (p) {
-      var cutoff = away(Number(p.day));
-      var bills = owned.filter(function (b) { return b.daysAway > prev && b.daysAway <= cutoff; });
-      prev = cutoff;
-      out[p.id] = { bills: bills, total: bills.reduce(function (t, b) { return t + b.amount; }, 0) };
-    });
+  /* ---------- Plan ahead ----------
+     Paychecks and bills both repeat on a day of the month, so any date range
+     can be laid out by expanding them into real dates. Each paycheck pays for
+     the bills due from its own date until the day before the next paycheck;
+     bills due before the first paycheck come out of money already on hand. */
+  function isoOf(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function dateOfISO(str) { var q = String(str || "").split("-"); return q.length === 3 ? new Date(Number(q[0]), Number(q[1]) - 1, Number(q[2])) : null; }
+  function fmtShort(d) { return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+  function monthlyDates(day, from, to) {
+    var out = [];
+    for (var i = 0; i < 40; i++) {
+      var y = from.getFullYear(), m = from.getMonth() + i;
+      var d = new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
+      if (d > to) break;
+      if (d >= from) out.push(d);
+    }
     return out;
+  }
+  function buildPlan(persons, months) {
+    var now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var end = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
+    var everyone = persons.length > 1;
+    var mine = function (owner) { return everyone || owner === persons[0]; };
+    var pays = [];
+    (data.payPeriods || []).forEach(function (pp) {
+      if (!Number(pp.day) || persons.indexOf(pp.person) < 0) return;
+      monthlyDates(Number(pp.day), today, end).forEach(function (d) {
+        var key = pp.id + "@" + isoOf(d), ov = (data.payOverrides || {})[key], usual = Number(pp.amount) || 0;
+        pays.push({ id: pp.id, person: pp.person, date: d, key: key, usual: usual, amount: ov ? (Number(ov.amount) || 0) : usual, overridden: !!ov });
+      });
+    });
+    pays.sort(function (x, y) { return x.date - y.date; });
+    var bills = [];
+    (data.items || []).forEach(function (it) {
+      if (it.category === "savings" || it.dueDay === "" || it.dueDay == null || !mine(it.owner || "")) return;
+      var day = Number(it.dueDay), amt = Number(it.amount) || 0;
+      if (day < today.getDate() && !isCurrentlyPaid(it)) bills.push({ name: it.name, amount: amt, date: today, overdue: true });
+      monthlyDates(day, today, end).forEach(function (d) {
+        if (d.getTime() === today.getTime() && isCurrentlyPaid(it)) return;
+        bills.push({ name: it.name, amount: amt, date: d });
+      });
+    });
+    (data.oneTimeBills || []).forEach(function (ob) {
+      var d = dateOfISO(ob.date);
+      if (!d || d < today || d > end || !mine(ob.owner || "")) return;
+      bills.push({ name: ob.name, amount: Number(ob.amount) || 0, date: d, oneTime: true, id: ob.id });
+    });
+    bills.sort(function (x, y) { return x.date - y.date; });
+    var periods = [];
+    pays.forEach(function (pay) {
+      var host = periods.filter(function (pd) { return pd.date.getTime() === pay.date.getTime(); })[0];
+      if (!host) { host = { date: pay.date, paychecks: [], bills: [] }; periods.push(host); }
+      host.paychecks.push(pay);
+    });
+    periods.forEach(function (pd, i) { pd.end = i + 1 < periods.length ? new Date(periods[i + 1].date.getFullYear(), periods[i + 1].date.getMonth(), periods[i + 1].date.getDate() - 1) : end; });
+    var head = [];
+    bills.forEach(function (bl) {
+      var host = null;
+      periods.forEach(function (pd) { if (pd.date <= bl.date) host = pd; });
+      (host ? host.bills : head).push(bl);
+    });
+    var sum = function (arr, f) { return arr.reduce(function (t, x) { return t + f(x); }, 0); };
+    periods.forEach(function (pd) {
+      pd.income = sum(pd.paychecks, function (x) { return x.amount; });
+      pd.billsTotal = sum(pd.bills, function (x) { return x.amount; });
+      pd.left = pd.income - pd.billsTotal;
+    });
+    return { today: today, end: end, periods: periods, head: head, headTotal: sum(head, function (x) { return x.amount; }) };
+  }
+  // The first plan period that includes a given recurring paycheck.
+  function coverageFor(plan, payId) {
+    return plan.periods.filter(function (pd) { return pd.paychecks.some(function (x) { return x.id === payId; }); })[0] || null;
   }
 
   function renderPayPeriodsList() {
@@ -5349,7 +5435,7 @@ async function renderSpendTab(root, cfg) {
       el.innerHTML = '<div class="empty-state" style="padding:18px 8px;">No paychecks yet. Add yours and ' + escapeHtml(PARTNER_DISPLAY_NAME) + '’s below.</div>';
       return;
     }
-    var breakdowns = { me: payBreakdown("me"), partner: payBreakdown("partner") };
+    var plans = { me: buildPlan(["me"], 3), partner: buildPlan(["partner"], 3) };
     el.innerHTML = list.map(function (p) {
       if (p.id === payEditId) {
         var f = payEditForm;
@@ -5366,13 +5452,15 @@ async function renderSpendTab(root, cfg) {
           '</div></div>';
       }
       var day = Number(p.day), away = payDaysAway(day), dt = nextPayDate(day);
-      var bd = (breakdowns[p.person] || {})[p.id] || { bills: [], total: 0 };
+      var per = coverageFor(plans[p.person === "partner" ? "partner" : "me"], p.id);
+      var bd = per ? { bills: per.bills, total: per.billsTotal } : { bills: [], total: 0 };
+      var hasOwned = data.items.some(function (it) { return it.category !== "savings" && it.owner === p.person && it.dueDay !== "" && it.dueDay != null; });
       var amt = Number(p.amount) || 0;
       var left = amt - bd.total;
       var billsLine = bd.bills.length
-        ? '<div class="pay-row"><span>Bills due before this paycheck</span><span class="mono" style="color:#FF8A5C;">' + formatCurrency(bd.total) + '</span></div>' +
+        ? '<div class="pay-row"><span>Bills this paycheck covers<br><span style="color:var(--text-3);font-size:11px;">' + fmtShort(per.date) + ' – ' + fmtShort(per.end) + '</span></span><span class="mono" style="color:#FF8A5C;">' + formatCurrency(bd.total) + '</span></div>' +
           '<div class="pay-bills">' + bd.bills.map(function (b) { return escapeHtml(b.name); }).join(" · ") + '</div>'
-        : '<div class="pay-row" style="color:var(--text-3);"><span>' + ((breakdowns[p.person] || {}).hasOwned ? "Nothing due before this one ✨" : "No bills assigned to " + escapeHtml(personLabel(p.person)) + " yet") + '</span></div>';
+        : '<div class="pay-row" style="color:var(--text-3);"><span>' + (hasOwned ? "Nothing due until the next paycheck ✨" : "No bills assigned to " + escapeHtml(personLabel(p.person)) + " yet") + '</span></div>';
       return '<div class="pay-card">' +
         '<div class="pay-top">' +
           '<div><div class="pay-who">' + escapeHtml(personLabel(p.person)) + ' · the ' + ordinalDay(day) + '</div>' +
@@ -5396,21 +5484,152 @@ async function renderSpendTab(root, cfg) {
     var income = { me: 0, partner: 0 };
     list.forEach(function (p) { income[p.person === "partner" ? "partner" : "me"] += Number(p.amount) || 0; });
     var totalIncome = income.me + income.partner;
-    var bd = (payBreakdown(next.person) || {})[next.id] || { bills: [], total: 0 };
+    var nextPer = coverageFor(buildPlan([next.person === "partner" ? "partner" : "me"], 3), next.id);
+    var bd = nextPer ? { bills: nextPer.bills, total: nextPer.billsTotal } : { bills: [], total: 0 };
     var nextAmt = Number(next.amount) || 0;
     var nextTile = _bentoTile("NEXT PAYCHECK", nd === 0 ? "Today" : nd + (nd === 1 ? " day" : " days"), cfg.accent, escapeHtml(personLabel(next.person)) + " &middot; " + nextPayDate(Number(next.day)).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + (nextAmt ? " &middot; " + formatCurrency(nextAmt) : ""));
     var incomeTile = _bentoTile("MONTHLY INCOME", totalIncome ? formatCurrency(totalIncome) : "&mdash;", "#5BAE7A", list.length + (list.length === 1 ? " paycheck" : " paychecks") + (income.me && income.partner ? "<br>" + escapeHtml(USER_DISPLAY_NAME) + " " + formatCurrency(income.me) + " &middot; " + escapeHtml(PARTNER_DISPLAY_NAME) + " " + formatCurrency(income.partner) : ""));
-    var dueTile = _bentoTile("DUE BEFORE IT", formatCurrency(bd.total), bd.total ? "#FF8A5C" : "var(--text-3)", bd.bills.length ? bd.bills.length + (bd.bills.length === 1 ? " bill" : " bills") + " &middot; " + escapeHtml(personLabel(next.person)) : "nothing assigned yet");
+    var dueTile = _bentoTile("IT COVERS", formatCurrency(bd.total), bd.total ? "#FF8A5C" : "var(--text-3)", bd.bills.length ? bd.bills.length + (bd.bills.length === 1 ? " bill" : " bills") + " &middot; " + escapeHtml(personLabel(next.person)) : "nothing due until the next one");
     var leftTile = nextAmt && bd.total
       ? _bentoTile("LEFT AFTER BILLS", formatCurrency(nextAmt - bd.total), nextAmt - bd.total < 0 ? "#FF8A5C" : "#5BAE7A", "from the next paycheck", Math.max(0, Math.min(100, ((nextAmt - bd.total) / nextAmt) * 100)))
       : _bentoTile("LEFT AFTER BILLS", "&mdash;", "var(--text-3)", nextAmt ? "no bills before it" : "add the paycheck amount");
     el.innerHTML = nextTile + incomeTile + dueTile + leftTile;
   }
 
+  var planEditKey = null, planEditVal = "";
+  var planAddOpen = false, planAddForm = { name: "", amount: "", date: "", owner: "" }, planAddError = "";
+
+  function renderPlanAhead() {
+    var el = document.getElementById("payPlan");
+    if (!el) return;
+    var months = data.planMonths || 3, view = data.spendView || "me", persons = personsInView();
+    var plan = buildPlan(persons, months);
+    var pill = function (attr, val, label, active) {
+      return '<button class="pill" ' + attr + '="' + val + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + label + "</button>";
+    };
+    var html = '<div class="gauge-top"><span class="gauge-label mono">PLAN AHEAD</span></div>' +
+      '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Every paycheck and bill repeats on its day each month, so you can see the months ahead. Each paycheck pays for the bills due from its date until the next paycheck. Tap a paycheck amount to change it for just that date (a bonus, a short check, a skipped week).</div>' +
+      '<div class="pills" style="margin:0 0 8px;">' + [{ id: "me", label: USER_DISPLAY_NAME }, { id: "partner", label: PARTNER_DISPLAY_NAME }, { id: "both", label: "Both" }].map(function (o) { return pill("data-plan-view", o.id, escapeHtml(o.label), o.id === view); }).join("") + '</div>' +
+      '<div class="pills" style="margin:0 0 14px;">' + [1, 2, 3, 6].map(function (n) { return pill("data-plan-months", n, n + (n === 1 ? " month" : " months"), n === months); }).join("") + '</div>';
+    if (!plan.periods.length) {
+      html += '<div class="empty-state" style="padding:16px 8px;">' + (persons.length === 1 ? "No paychecks for " + escapeHtml(personLabel(persons[0])) + " yet." : "No paychecks yet.") + ' Add one below to see what each paycheck covers.</div>';
+    }
+    var billRow = function (b) {
+      return '<div class="plan-bill"><span class="plan-bd">' + (b.overdue ? '<span style="color:#D9667A;">Overdue</span>' : fmtShort(b.date)) + '</span><span class="plan-bn">' + escapeHtml(b.name) + (b.oneTime ? ' <span class="plan-tag">one-time</span>' : "") + '</span><span class="mono plan-ba">' + formatCurrency(b.amount) + '</span>' +
+        (b.oneTime ? '<button class="icon-btn plan-x" data-action="plan-del-onetime" data-id="' + b.id + '" aria-label="Delete one-time bill">✕</button>' : "") + '</div>';
+    };
+    if (plan.head.length) {
+      html += '<div class="plan-period plan-head-block"><div class="plan-when">Before the first paycheck</div><div class="plan-cover">From money you already have · until ' + (plan.periods[0] ? fmtShort(new Date(plan.periods[0].date.getFullYear(), plan.periods[0].date.getMonth(), plan.periods[0].date.getDate() - 1)) : fmtShort(plan.end)) + '</div>' +
+        plan.head.map(billRow).join("") + '<div class="plan-foot"><span>Bills</span><span class="mono" style="color:#FF8A5C;">' + formatCurrency(plan.headTotal) + '</span></div></div>';
+    }
+    var lastMonth = "", income = 0, billsAll = plan.headTotal;
+    plan.periods.forEach(function (pd) {
+      income += pd.income; billsAll += pd.billsTotal;
+      var mk = pd.date.getFullYear() + "-" + pd.date.getMonth();
+      if (mk !== lastMonth) {
+        lastMonth = mk;
+        html += '<div class="plan-month">' + pd.date.toLocaleDateString(undefined, { month: "long", year: pd.date.getFullYear() === plan.today.getFullYear() ? undefined : "numeric" }) + '</div>';
+      }
+      var chips = pd.paychecks.map(function (pay) {
+        if (pay.key === planEditKey) {
+          return '<div class="plan-edit"><span class="plan-edit-l">' + escapeHtml(personLabel(pay.person)) + ' · this paycheck only</span>' +
+            '<input class="small-input" type="number" inputmode="decimal" min="0" step="0.01" data-plan-input value="' + escapeHtml(planEditVal) + '" placeholder="Amount" />' +
+            '<button class="small-btn" data-action="plan-save" data-key="' + pay.key + '" style="background:' + cfg.accent + ';">Save</button>' +
+            '<button class="small-btn" data-action="plan-skip" data-key="' + pay.key + '" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Skip</button>' +
+            (pay.overridden ? '<button class="small-btn" data-action="plan-reset" data-key="' + pay.key + '" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Usual</button>' : "") +
+            '<button class="icon-btn" data-action="plan-cancel" aria-label="Cancel">✕</button></div>';
+        }
+        return '<button class="plan-pay' + (pay.overridden ? " edited" : "") + '" data-action="plan-edit" data-key="' + pay.key + '" data-amount="' + pay.amount + '">' +
+          '<span>' + escapeHtml(personLabel(pay.person)) + '</span><span class="mono">' + formatCurrency(pay.amount) + '</span><span class="plan-pen">✎</span>' +
+          (pay.overridden ? '<span class="plan-tag">edited · usual ' + formatCurrency(pay.usual) + '</span>' : "") + '</button>';
+      }).join("");
+      html += '<div class="plan-period"><div class="plan-when">' + pd.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + '</div>' +
+        '<div class="plan-cover">pays for ' + fmtShort(pd.date) + ' – ' + fmtShort(pd.end) + '</div>' +
+        '<div class="plan-chips">' + chips + '</div>' +
+        (pd.bills.length ? pd.bills.map(billRow).join("") : '<div class="plan-none">Nothing due in this stretch ✨</div>') +
+        '<div class="plan-foot"><span>Bills <span class="mono">' + formatCurrency(pd.billsTotal) + '</span></span><span>Left <span class="mono" style="color:' + (pd.left < 0 ? "#FF8A5C" : "#5BAE7A") + ';">' + formatCurrency(pd.left) + '</span></span></div></div>';
+    });
+    if (plan.periods.length) {
+      var net = income - billsAll;
+      html += '<div class="plan-total"><div><span class="plan-tl">Next ' + months + (months === 1 ? " month" : " months") + '</span></div>' +
+        '<div class="plan-trow"><span>Paychecks</span><span class="mono">' + formatCurrency(income) + '</span></div>' +
+        '<div class="plan-trow"><span>Bills</span><span class="mono">' + formatCurrency(billsAll) + '</span></div>' +
+        '<div class="plan-trow plan-net"><span>Left over</span><span class="mono" style="color:' + (net < 0 ? "#FF8A5C" : "#5BAE7A") + ';">' + formatCurrency(net) + '</span></div></div>';
+    }
+    html += '<div class="plan-add">';
+    if (!planAddOpen) {
+      html += '<button class="link-btn" data-action="plan-add-open" style="color:' + cfg.accent + ';">+ Add a one-time bill (car registration, a trip deposit…)</button>';
+    } else {
+      var f = planAddForm;
+      html += '<div class="gauge-label mono" style="margin-bottom:8px;">ONE-TIME BILL</div>' +
+        '<div class="row-gap" style="margin-bottom:8px;"><input class="small-input" data-plan-add="name" placeholder="What is it?" value="' + escapeHtml(f.name) + '" style="flex:1;min-width:140px;" />' +
+        '<input class="small-input" data-plan-add="amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Amount" value="' + escapeHtml(f.amount) + '" style="width:110px;" /></div>' +
+        '<div class="row-gap" style="margin-bottom:8px;"><input class="small-input" data-plan-add="date" type="date" value="' + escapeHtml(f.date) + '" style="flex:1;min-width:140px;" />' +
+        '<select class="edit-select" data-plan-add="owner"><option value=""' + (f.owner === "" ? " selected" : "") + '>Household (Both view)</option><option value="me"' + (f.owner === "me" ? " selected" : "") + '>' + escapeHtml(USER_DISPLAY_NAME) + '</option><option value="partner"' + (f.owner === "partner" ? " selected" : "") + '>' + escapeHtml(PARTNER_DISPLAY_NAME) + '</option></select></div>' +
+        (planAddError ? '<div class="error-text" style="margin-bottom:8px;">' + escapeHtml(planAddError) + '</div>' : "") +
+        '<div class="row-gap"><button class="small-btn" data-action="plan-add-save" style="background:' + cfg.accent + ';">Add bill</button><button class="small-btn" data-action="plan-add-cancel" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button></div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function planSaveOverride(key, amount) {
+    var usual = 0;
+    (data.payPeriods || []).forEach(function (pp) { if (key.indexOf(pp.id + "@") === 0) usual = Number(pp.amount) || 0; });
+    if (amount === usual) delete data.payOverrides[key]; else data.payOverrides[key] = { amount: amount };
+    planEditKey = null; save(); refreshPay();
+  }
+  function wirePlanAhead() {
+    var el = document.getElementById("payPlan");
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      var v = e.target.closest("[data-plan-view]"), m = e.target.closest("[data-plan-months]");
+      if (v) { data.spendView = v.getAttribute("data-plan-view"); save(); renderSpendViewPills(); applyBudgetView(); renderGlance(); renderPayTiles(); renderPlanAhead(); return; }
+      if (m) { data.planMonths = Number(m.getAttribute("data-plan-months")); save(); renderPlanAhead(); return; }
+      var btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      var act = btn.getAttribute("data-action"), key = btn.getAttribute("data-key");
+      if (act === "plan-edit") { planEditKey = key; planEditVal = btn.getAttribute("data-amount") || ""; renderPlanAhead(); var inp = el.querySelector("[data-plan-input]"); if (inp) { inp.focus(); inp.select(); } }
+      else if (act === "plan-cancel") { planEditKey = null; renderPlanAhead(); }
+      else if (act === "plan-save") { var n = planEditVal === "" ? 0 : Number(planEditVal); if (isNaN(n) || n < 0) return; planSaveOverride(key, n); }
+      else if (act === "plan-skip") planSaveOverride(key, 0);
+      else if (act === "plan-reset") { delete data.payOverrides[key]; planEditKey = null; save(); refreshPay(); }
+      else if (act === "plan-add-open") { planAddOpen = true; planAddError = ""; planAddForm = { name: "", amount: "", date: "", owner: (data.spendView || "me") === "both" ? "" : (data.spendView || "me") }; renderPlanAhead(); var ni = el.querySelector('[data-plan-add="name"]'); if (ni) ni.focus(); }
+      else if (act === "plan-add-cancel") { planAddOpen = false; renderPlanAhead(); }
+      else if (act === "plan-add-save") {
+        var f = planAddForm;
+        if (!f.name.trim()) { planAddError = "Give it a name."; renderPlanAhead(); return; }
+        if (f.amount === "" || isNaN(Number(f.amount))) { planAddError = "Enter an amount."; renderPlanAhead(); return; }
+        var d = dateOfISO(f.date);
+        if (!f.date || !d) { planAddError = "Pick the date it's due."; renderPlanAhead(); return; }
+        data.oneTimeBills.push({ id: uid(), name: f.name.trim(), amount: Number(f.amount), date: f.date, owner: f.owner });
+        planAddOpen = false; save(); refreshPay();
+      }
+      else if (act === "plan-del-onetime") {
+        var id = btn.getAttribute("data-id");
+        var taken = _undoTake(data.oneTimeBills, function (b) { return b.id === id; });
+        data.oneTimeBills = data.oneTimeBills.filter(function (b) { return b.id !== id; });
+        save(); refreshPay();
+        if (taken) _offerUndo("“" + taken.item.name + "” removed", function () { _undoPut(data.oneTimeBills, taken); save(); refreshPay(); });
+      }
+    });
+    el.addEventListener("input", function (e) {
+      if (e.target.hasAttribute && e.target.hasAttribute("data-plan-input")) planEditVal = e.target.value;
+      var f = e.target.getAttribute && e.target.getAttribute("data-plan-add");
+      if (f) planAddForm[f] = e.target.value;
+    });
+    el.addEventListener("change", function (e) { var f = e.target.getAttribute && e.target.getAttribute("data-plan-add"); if (f) planAddForm[f] = e.target.value; });
+    el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-plan-input")) { e.preventDefault(); var n = planEditVal === "" ? 0 : Number(planEditVal); if (!isNaN(n) && n >= 0) planSaveOverride(planEditKey, n); }
+      if (e.key === "Escape") { planEditKey = null; planAddOpen = false; renderPlanAhead(); }
+    });
+  }
+
   // Re-draw everything that depends on the pay schedule.
   function refreshPay() {
     renderPayPeriodsList();
     renderPayTiles();
+    renderPlanAhead();
     renderBeforePayFor("me");
     renderBeforePayFor("partner");
     if (billsPersonFilter) renderList();
@@ -6236,6 +6455,7 @@ async function renderSpendTab(root, cfg) {
     renderGlance();
     renderBillsProgress();
     if (payEditId === null) { renderPayPeriodsList(); renderPayTiles(); }
+    if (planEditKey === null && !planAddOpen) renderPlanAhead();
   }
 
   function setupBudgetViews() {
@@ -6250,7 +6470,7 @@ async function renderSpendTab(root, cfg) {
     tag(collapseCardFor("addExpenseColl"), "bills");
     [".sort-row", ".footer-row", ".bottom-row"].forEach(function (q) { tag(root.querySelector(q), "bills"); });
     tag(budgetCard("svGoalsList"), "goals"); tag(budgetCard("dtDebtsList"), "goals"); tag(budgetCard("plannedGroups"), "goals");
-    tag(document.getElementById("payTiles"), "pay"); tag(budgetCard("payPeriodsList"), "pay"); tag(budgetCard("stPaycheckNotes"), "pay");
+    tag(document.getElementById("payTiles"), "pay"); tag(document.getElementById("payPlan"), "pay"); tag(budgetCard("payPeriodsList"), "pay"); tag(budgetCard("stPaycheckNotes"), "pay");
 
     // Landed via a bookmarked #budget/<section> link.
     var pend = _pendingSectionByPage.budget;
@@ -6271,7 +6491,7 @@ async function renderSpendTab(root, cfg) {
       var b = e.target.closest("[data-spend-view]");
       if (!b) return;
       data.spendView = b.getAttribute("data-spend-view");
-      save(); renderSpendViewPills(); applyBudgetView(); renderGlance();
+      save(); renderSpendViewPills(); applyBudgetView(); renderGlance(); renderPlanAhead();
     });
 
     // ---- Quick add: a floating + that logs a purchase from anywhere on the page
@@ -6754,6 +6974,8 @@ async function renderSpendTab(root, cfg) {
     renderPayPersonPills();
     renderPayPeriodsList();
     renderPayTiles();
+    renderPlanAhead();
+    wirePlanAhead();
 
     document.getElementById("addPlannedGroupBtn").addEventListener("click", handleAddPlannedGroup);
     document.getElementById("plannedGroupNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") handleAddPlannedGroup(); });
