@@ -118,6 +118,9 @@
   /* Everyday entry screen: the same scene laid over the (already loading)
      dashboard; tapping the ring expands it and fades the whole layer away. */
   .auth-scene.auth-gate { position: fixed; inset: 0; z-index: 2000; min-height: 0 !important; }
+  /* Momentary class used by _restartOrbAnimations() to kick frozen animations. */
+  .auth-scene.anim-reset, .auth-scene.anim-reset::before, .auth-scene.anim-reset::after,
+  .auth-scene.anim-reset *, .auth-scene.anim-reset *::after { animation: none !important; }
   .auth-scene.auth-leaving { opacity: 0; pointer-events: none; transition: opacity .5s ease .25s; }
   .auth-scene.auth-leaving .auth-orb { animation: none; transform: scale(9); opacity: 0; }
   .auth-scene.auth-leaving .auth-orb-hint { opacity: 0; }
@@ -374,6 +377,45 @@
   #artLightbox .lb-caption { color:var(--text-1); font-size: 15px; margin-top: 14px; text-align: center; max-width: 600px; cursor: default; }
   #artLightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 36px; color:var(--text-2); cursor: pointer; line-height: 1; user-select: none; transition: color .15s; }
   #artLightbox .lb-close:hover { color:var(--text-1); }
+
+  /* Overview bento tiles (see renderOverviewTiles). */
+  .ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .ov-tile {
+    display: flex; flex-direction: column; align-items: stretch; text-align: left; min-width: 0;
+    background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 18px; padding: 16px 18px;
+    color: var(--text-1); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform .42s cubic-bezier(.34,1.8,.5,1), border-color .18s, box-shadow .2s;
+  }
+  .ov-tile:active { transform: scale(.97); transition-duration: .08s; }
+  .ov-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (hover: hover) { .ov-tile:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-2)); box-shadow: 0 6px 20px rgba(0,0,0,.08); } }
+  .ov-wide { grid-column: 1 / -1; }
+  .ov-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
+  .ov-value { font-size: 30px; font-weight: 700; line-height: 1.1; color: var(--text-1); letter-spacing: -.01em; }
+  .ov-sub { font-size: 13px; line-height: 1.45; color: var(--text-2); margin-top: 4px; overflow-wrap: anywhere; }
+  .ov-muted { color: var(--text-3); }
+  .ov-status-good { color: #3E9A61; font-weight: 600; }
+  .ov-status-warn { color: #C9862B; font-weight: 600; }
+  .ov-status-bad  { color: #D9534F; font-weight: 600; }
+  .ov-stages { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; font-size: 12px; color: var(--text-2); }
+  .ov-stage { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .ov-stage i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  /* Trend bars: thin, rounded data-end, square at the baseline, 2px+ gaps;
+     past periods muted, current period in the accent. */
+  .ov-bars { display: flex; align-items: flex-end; gap: 4px; height: 44px; margin-top: auto; padding-top: 14px; border-bottom: 1px solid var(--border-2); }
+  .ov-bar {
+    flex: 1; max-width: 24px; border-radius: 4px 4px 0 0;
+    background: color-mix(in srgb, var(--text-3) 40%, transparent); transition: background-color .15s;
+  }
+  .ov-bar.current { background: var(--accent); }
+  .ov-bar.hot { background: color-mix(in srgb, var(--text-2) 75%, transparent); }
+  .ov-bar.current.hot { background: color-mix(in srgb, var(--accent) 80%, var(--text-1)); }
+  .ov-readout { font-size: 11px; color: var(--text-3); margin-top: 6px; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 420px) {
+    .ov-grid { gap: 10px; }
+    .ov-tile { padding: 14px; border-radius: 16px; }
+    .ov-value { font-size: 26px; }
+  }
 
   /* "Deleted · Undo" bar (see _offerUndo). Floats above the tab bar on phones. */
   .undo-toast {
@@ -1105,8 +1147,8 @@
       <div class="page-inner">
 
         <!-- Overview band: date/time + what this is -->
-        <div style="margin-bottom:20px;padding:24px;background:var(--bg-card);border:1px solid var(--border-2);border-radius:20px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="margin-bottom:14px;padding:22px 24px;background:var(--bg-card);border:1px solid var(--border-2);border-radius:20px;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
             <div>
               <div class="gauge-label mono" style="margin-bottom:4px;">RIGHT NOW</div>
               <div id="overviewClock" class="mono" style="font-size:28px;font-weight:700;color:var(--text-1);line-height:1;"></div>
@@ -1117,26 +1159,10 @@
               <div id="heroName" class="serif" style="color:var(--text-1);font-size:26px;"></div>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border);padding-top:14px;">
-            <div class="gauge-label mono" style="margin-bottom:8px;">ABOUT THIS DASHBOARD</div>
-            <p style="color:var(--text-2);font-size:14px;line-height:1.7;margin:0;">
-              A personal dashboard — built to keep travel plans, finances, workouts, daily routines, hobbies, and career tracking all in one place, synced across devices in real time.
-              Use the sidebar to navigate between your dashboard tabs, portfolio pages, and trackers.
-            </p>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--accent);">&#9783; Travel tracker</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#5BAE7A;">&#9650; Budget &amp; bills</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#D9A441;">&#9671; Daily routines</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#3DBFC4;">&#9651; Workouts</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#8B5E3C;">&#9823; Chess progress</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#5B8FA8;">&#9632; Work portfolio</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#D9667A;">&#9670; Art portfolio</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#9B8AC4;">&#127891; Degree tracker</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#C9A15A;">&#127941; Certifications</span>
-              <span style="background:var(--bg-card);border:1px solid var(--border-2);border-radius:999px;padding:5px 12px;font-size:12px;color:#6B8F71;">&#128188; Job tracker</span>
-            </div>
-          </div>
         </div>
+
+        <!-- Bento overview tiles — filled by renderOverviewTiles() from each page's saved data. -->
+        <div class="ov-grid" id="overviewTiles"></div>
 
         <div id="gcalCard" style="margin-bottom:16px;"></div>
 
@@ -2686,10 +2712,33 @@ function showEntryGate() {
   scene.classList.add("auth-gate");
   scene.style.display = "flex";
   document.documentElement.style.overflow = "hidden"; // no scrolling the dashboard behind the gate
+  _restartOrbAnimations();
+  setTimeout(_restartOrbAnimations, 300);
   document.getElementById("authOrbHint").textContent = "Tap to enter";
   document.getElementById("authOrb").setAttribute("aria-label", "Enter dashboard");
   setTimeout(function () { var o = document.getElementById("authOrb"); if (o) o.focus({ preventScroll: true }); }, 50);
 }
+// iOS suspends CSS animations while an app is in the background and doesn't
+// always resume them, leaving the ring frozen. Briefly dropping every
+// animation in the scene and restoring it on a later frame forces a restart.
+function _restartOrbAnimations() {
+  var scene = document.getElementById("authScreen");
+  if (!scene) return;
+  scene.classList.add("anim-reset");
+  void scene.offsetWidth;
+  requestAnimationFrame(function () { requestAnimationFrame(function () { scene.classList.remove("anim-reset"); }); });
+}
+function _gateIsShowing() {
+  var s = document.getElementById("authScreen");
+  return s && s.style.display !== "none" && getComputedStyle(s).display !== "none";
+}
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden || !_gateIsShowing()) return;
+  _restartOrbAnimations();
+  setTimeout(_restartOrbAnimations, 300); // iOS can report "visible" a beat before it resumes rendering
+});
+window.addEventListener("pageshow", function () { if (_gateIsShowing()) _restartOrbAnimations(); });
+
 function passEntryGate() {
   var scene = document.getElementById("authScreen");
   _entryGatePassed = true;
@@ -2904,6 +2953,7 @@ function showDashboardScreen() {
   // jump to a default/bookmarked page at sign-in doesn't animate.
   _navAnimReady = false;
   setTimeout(function () { _navAnimReady = true; }, 1500);
+  if (currentPage === "dashboard") renderOverviewTiles();
   if (!gate) _afterPageShown(currentPage); // behind the gate, passEntryGate() runs this instead
   if (_launchIntent) {
     var intent = _launchIntent;
@@ -3477,6 +3527,7 @@ function _switchPageNow(page) {
   }
   _syncTabBar(page);
   _dismissUndo();
+  if (page === "dashboard") renderOverviewTiles();
   // Clear budget countdown when leaving budget page
   if (page !== "budget" && window._countdownInterval) {
     clearInterval(window._countdownInterval);
@@ -10253,7 +10304,7 @@ var _countUpObs = null;
 var COUNT_UP_RE = /^(-?\$?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(%|\+|K\+?|k)?$/;
 
 function _countUpTarget(el) {
-  if (el.children.length || el.isContentEditable || el.closest('input, textarea, select, button, .dx-table, [contenteditable="true"]')) return null;
+  if (el.children.length || el.isContentEditable || el.closest('input, textarea, select, button:not(.ov-tile), .dx-table, [contenteditable="true"]')) return null;
   var text = el.textContent.trim();
   var m = text.match(COUNT_UP_RE);
   if (!m) return null;
@@ -10308,6 +10359,189 @@ function _afterPageShown(page) {
   [60, 450, 1200].forEach(function (ms) { setTimeout(function () { if (currentPage === page) _countUpScan(el); }, ms); });
   setTimeout(_updateAppBadge, 1500);
 }
+
+/* ---------------- overview bento tiles ----------------
+   Stat tiles summarizing each area, built from the copy of each page's data
+   this device already has cached (_readCache — no network). Only when a key
+   has never been cached here does it fetch once (loadTabData), then re-render.
+   Each tile is a button that opens its page. Trend bars follow the stat-tile
+   pattern: past periods in a muted tone, the current one in the accent;
+   hovering/focusing a bar shows its value in the tile's readout line. */
+var _ovFetching = {};
+function _ovData(key) {
+  var c = _readCache(key);
+  if (c) return c;
+  if (!_ovFetching[key] && currentUserId) {
+    _ovFetching[key] = true;
+    loadTabData(key, {}).then(function () { if (currentPage === "dashboard") renderOverviewTiles(); });
+  }
+  return null;
+}
+
+function _ovWeekStart(offsetWeeks) {
+  var d = new Date(todayWeekKey() + "T00:00:00");
+  d.setDate(d.getDate() - 7 * offsetWeeks);
+  return d.toISOString().slice(0, 10);
+}
+function _ovShortDate(iso) {
+  var d = new Date(iso + "T00:00:00");
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Trend bars: [{ value, label }] oldest → newest; the last is the current period.
+function _ovBars(points, fmt) {
+  if (!points.length) return "";
+  var max = Math.max.apply(null, points.map(function (p) { return p.value; }).concat([1]));
+  return '<div class="ov-bars" role="img" aria-label="' + escapeHtml(points.map(function (p) { return p.label + ": " + fmt(p.value); }).join(", ")) + '">' +
+    points.map(function (p, i) {
+      var h = p.value > 0 ? Math.max(6, Math.round(p.value / max * 100)) : 3;
+      var current = i === points.length - 1;
+      return '<span class="ov-bar' + (current ? " current" : "") + '" style="height:' + h + '%;" data-readout="' + escapeHtml(p.label + " · " + fmt(p.value)) + '"></span>';
+    }).join("") + "</div>";
+}
+
+function _ovTile(page, opts) {
+  return '<button type="button" class="ov-tile' + (opts.wide ? " ov-wide" : "") + '" data-ov-page="' + page + '">' +
+    '<div class="ov-label">' + opts.label + "</div>" +
+    '<div class="ov-value">' + opts.value + "</div>" +
+    (opts.sub ? '<div class="ov-sub">' + opts.sub + "</div>" : "") +
+    (opts.extra || "") +
+    (opts.bars ? opts.bars + '<div class="ov-readout" data-default="' + escapeHtml(opts.readout || "") + '">' + (opts.readout || "") + "</div>" : "") +
+  "</button>";
+}
+
+function renderOverviewTiles() {
+  var el = document.getElementById("overviewTiles");
+  if (!el || !currentUserId) return;
+  var tiles = [];
+  var money = function (n) { return formatCurrency(n); };
+  var empty = '<span class="ov-muted">&#8212;</span>';
+
+  // ── Money: left to spend this pay period
+  var budget = _ovData("dashboard-budget-data");
+  if (budget) {
+    var ps = budget.periodSpend || {};
+    var spentOf = function (p) { return ((ps[p] || {}).entries || []).reduce(function (s, e) { return s + (Number(e.amount) || 0); }, 0); };
+    var me = ps.me || {}, partner = ps.partner || {};
+    var myTarget = Number(me.target) || 0, mySpent = spentOf("me");
+    var value = myTarget ? money(myTarget - mySpent) : money(mySpent);
+    var sub = myTarget ? "left of " + money(myTarget) + " · " + escapeHtml(USER_DISPLAY_NAME) : "spent so far · " + escapeHtml(USER_DISPLAY_NAME);
+    var pTarget = Number(partner.target) || 0, pSpent = spentOf("partner");
+    if (pTarget || pSpent) sub += '<br><span class="ov-muted">' + escapeHtml(PARTNER_DISPLAY_NAME) + ": " + (pTarget ? money(pTarget - pSpent) + " left of " + money(pTarget) : money(pSpent) + " spent") + "</span>";
+    var hist = (me.history || []).slice().sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).slice(-7);
+    var points = hist.map(function (h) { return { value: Number(h.spent) || 0, label: "Period ending " + _ovShortDate(h.date) }; });
+    points.push({ value: mySpent, label: "This period so far" });
+    tiles.push(_ovTile("budget", {
+      wide: true, label: myTarget ? "Left to spend this period" : "Spent this period", value: value, sub: sub,
+      bars: points.length > 1 ? _ovBars(points, money) : "", readout: points.length > 1 ? "Spending by pay period · " + escapeHtml(USER_DISPLAY_NAME) : ""
+    }));
+
+    // ── Next bill (an overdue one takes priority)
+    var bills = (budget.items || []).filter(function (it) { return it.category !== "savings" && it.dueDay !== "" && it.dueDay != null && !isCurrentlyPaid(it); });
+    var todayDay = new Date().getDate();
+    var overdue = bills.filter(function (it) { return Number(it.dueDay) < todayDay; });
+    var upcoming = bills.filter(function (it) { return Number(it.dueDay) >= todayDay; })
+      .sort(function (a, b) { return daysUntilDueDay(Number(a.dueDay)) - daysUntilDueDay(Number(b.dueDay)); });
+    var nb = overdue[0] || upcoming[0];
+    if (nb) {
+      var days = overdue[0] ? -1 : daysUntilDueDay(Number(nb.dueDay));
+      var when = overdue[0] ? '<span class="ov-status-bad">&#9888; Overdue</span>' + (overdue.length > 1 ? " · +" + (overdue.length - 1) + " more" : "")
+        : days === 0 ? "Due today" : days === 1 ? "Due tomorrow" : "Due in " + days + " days";
+      tiles.push(_ovTile("budget", { label: "Next bill", value: money(Number(nb.amount) || 0), sub: escapeHtml(nb.name) + "<br>" + when }));
+    } else {
+      tiles.push(_ovTile("budget", { label: "Next bill", value: '<span class="ov-status-good">&#10003;</span>', sub: "Every bill this month is paid" }));
+    }
+  } else {
+    tiles.push(_ovTile("budget", { wide: true, label: "Left to spend this period", value: empty, sub: "Loading…" }));
+  }
+
+  // ── Workouts this week
+  var wk = _ovData("dashboard-workouts-data");
+  if (wk) {
+    var byWeek = {};
+    (wk.items || []).forEach(function (it) { if (it.date) { var k = weekKeyForDate(it.date); byWeek[k] = (byWeek[k] || 0) + 1; } });
+    var goal = Number(wk.weeklyGoal) || 0;
+    var thisWeek = byWeek[todayWeekKey()] || 0;
+    var wkPoints = [];
+    for (var w = 7; w >= 0; w--) { var ks = _ovWeekStart(w); wkPoints.push({ value: byWeek[ks] || 0, label: w === 0 ? "This week" : "Week of " + _ovShortDate(ks) }); }
+    var plural = function (n) { return n + " workout" + (n === 1 ? "" : "s"); };
+    tiles.push(_ovTile("workouts", {
+      label: "Workouts this week", value: String(thisWeek),
+      sub: goal ? (thisWeek >= goal ? '<span class="ov-status-good">&#10003; Goal met</span> · ' + goal + "/week" : (goal - thisWeek) + " to go · goal " + goal + "/week") : "No weekly goal set",
+      bars: _ovBars(wkPoints, plural), readout: "Last 8 weeks"
+    }));
+  } else {
+    tiles.push(_ovTile("workouts", { label: "Workouts this week", value: empty, sub: "Loading…" }));
+  }
+
+  // ── Job search
+  var jd = _ovData("jobs-data");
+  if (jd) {
+    var jobs = jd.jobs || [];
+    var appliedByWeek = {};
+    jobs.forEach(function (j) { if (j.dateApplied) { var k = weekKeyForDate(j.dateApplied); appliedByWeek[k] = (appliedByWeek[k] || 0) + 1; } });
+    var appliedNow = appliedByWeek[todayWeekKey()] || 0;
+    var jobPoints = [];
+    for (var jw = 5; jw >= 0; jw--) { var jks = _ovWeekStart(jw); jobPoints.push({ value: appliedByWeek[jks] || 0, label: jw === 0 ? "This week" : "Week of " + _ovShortDate(jks) }); }
+    var counts = {};
+    jobs.forEach(function (j) { var s = j.stage || "saved"; counts[s] = (counts[s] || 0) + 1; });
+    var stages = JOB_STAGES.filter(function (s) { return counts[s.id]; }).map(function (s) {
+      return '<span class="ov-stage"><i style="background:' + s.color + ';"></i>' + counts[s.id] + " " + s.label.toLowerCase() + "</span>";
+    }).join("");
+    tiles.push(_ovTile("jobs", {
+      label: "Applied this week", value: String(appliedNow), sub: "goal " + JOB_WEEKLY_GOAL_MIN + "–" + JOB_WEEKLY_GOAL_MAX + " · " + jobs.length + " tracked",
+      extra: stages ? '<div class="ov-stages">' + stages + "</div>" : "",
+      bars: _ovBars(jobPoints, function (n) { return n + " applied"; }), readout: "Last 6 weeks"
+    }));
+  } else {
+    tiles.push(_ovTile("jobs", { label: "Applied this week", value: empty, sub: "Loading…" }));
+  }
+
+  // ── Projects
+  var pd = _ovData("projects-data");
+  if (pd) {
+    var projects = pd.projects || [];
+    var todayStr = todayISO();
+    var open = projects.filter(function (p) { return p.status !== "completed"; });
+    var inProg = projects.filter(function (p) { return p.status === "inprogress"; }).length;
+    var blocked = projects.filter(function (p) { return p.status === "blocked"; }).length;
+    var late = open.filter(function (p) { return p.dueDate && p.dueDate < todayStr; }).length;
+    var nextDue = open.filter(function (p) { return p.dueDate && p.dueDate >= todayStr; }).sort(function (a, b) { return a.dueDate.localeCompare(b.dueDate); })[0];
+    var bits = [];
+    if (blocked) bits.push('<span class="ov-status-warn">&#9940; ' + blocked + " blocked</span>");
+    if (late) bits.push('<span class="ov-status-bad">&#9888; ' + late + " overdue</span>");
+    if (!bits.length) bits.push(open.length ? "Nothing blocked or overdue" : "No open projects");
+    tiles.push(_ovTile("projects", {
+      label: "Projects in progress", value: String(inProg),
+      sub: bits.join(" · ") + (nextDue ? '<br><span class="ov-muted">Next due: ' + escapeHtml(nextDue.title) + " · " + _ovShortDate(nextDue.dueDate) + "</span>" : "")
+    }));
+  } else {
+    tiles.push(_ovTile("projects", { label: "Projects in progress", value: empty, sub: "Loading…" }));
+  }
+
+  el.innerHTML = tiles.join("");
+  // Respect pages hidden in Settings.
+  var hidden = (_settings && _settings.hiddenPages) || [];
+  el.querySelectorAll("[data-ov-page]").forEach(function (t) { if (hidden.indexOf(t.getAttribute("data-ov-page")) >= 0) t.style.display = "none"; });
+}
+
+(function () {
+  var grid = document.getElementById("overviewTiles");
+  if (!grid) return;
+  grid.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-ov-page]");
+    if (t) switchPage(t.getAttribute("data-ov-page"));
+  });
+  function readout(e, entering) {
+    var bar = e.target.closest && e.target.closest(".ov-bar");
+    if (!bar) return;
+    var out = bar.closest(".ov-tile").querySelector(".ov-readout");
+    if (out) out.textContent = entering ? bar.getAttribute("data-readout") : out.getAttribute("data-default");
+    bar.classList.toggle("hot", entering);
+  }
+  grid.addEventListener("pointerover", function (e) { readout(e, true); });
+  grid.addEventListener("pointerout", function (e) { readout(e, false); });
+})();
 
 /* ---------------- art portfolio edit mode ---------------- */
 
@@ -10537,6 +10771,7 @@ function applySettings() {
   if (_settings.partnerName) PARTNER_DISPLAY_NAME = _settings.partnerName;
   // Hidden pages
   applyHiddenPages();
+  if (currentPage === 'dashboard') renderOverviewTiles(); // names/hidden pages may have changed
   // Default landing page — apply once per session on first settings load
   if (!_defaultPageApplied && _settings.defaultPage) {
     _defaultPageApplied = true;
