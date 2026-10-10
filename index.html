@@ -3600,6 +3600,8 @@ function _goBack() {
      (bill paid, routine done, planned workout done, job moved to its next
      stage). Works on any row by pressing the row's own delete/complete
      button, so each list needs no gesture code of its own.
+   • Swipe sideways anywhere else on Overview / Budget / Workouts / Jobs (the
+     bottom-bar pages) to move to the next or previous one.
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
@@ -3613,6 +3615,19 @@ var SWIPE_DONE_ACTIONS = {
   "job-advance": function (b) { return "&#8594; " + escapeHtml(b.getAttribute("data-next-label") || "Next"); }
 };
 var _sw = null;
+var SWIPE_PAGES = ["dashboard", "budget", "workouts", "jobs"]; // bottom-bar order
+// A touch that starts inside something that scrolls or handles drags sideways
+// itself (tables, carousels, sliders, text fields, dialogs) never turns pages.
+function _pageSwipeBlocked(el) {
+  if (el.closest("input, textarea, select, [contenteditable='true'], [role='dialog'], [aria-modal], [class*='modal'], [class*='lightbox'], canvas, svg [draggable], [draggable='true']")) return true;
+  for (var n = el; n && n !== document.body; n = n.parentElement) {
+    if (n.scrollWidth > n.clientWidth + 2) {
+      var ox = getComputedStyle(n).overflowX;
+      if (ox === "auto" || ox === "scroll") return true;
+    }
+  }
+  return false;
+}
 function _swipeButton(row, actions) {
   return Array.prototype.find.call(row.querySelectorAll("[data-action]"), function (b) {
     return actions.indexOf(b.getAttribute("data-action")) >= 0 && b.closest(SWIPE_ROW) === row && b.offsetParent;
@@ -3659,12 +3674,20 @@ document.addEventListener("touchstart", function (e) {
   var row = e.target.closest && e.target.closest(SWIPE_ROW);
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
-  if (!row || e.target.closest(field + ", input") || row.querySelector(field)) return;
-  var del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
-  var done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
-  var doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
-  if (doneLabel == null) done = null;
-  if (!del && !done) return;
+  var del = null, done = null, doneLabel = null;
+  if (row && !e.target.closest(field + ", input") && !row.querySelector(field)) {
+    del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
+    done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
+    doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
+    if (doneLabel == null) done = null;
+  }
+  if (!del && !done) {
+    // Not a swipeable row: a sideways swipe turns the page instead.
+    var pi = SWIPE_PAGES.indexOf(currentPage);
+    if (pi < 0 || !e.target.closest || e.target.closest(".tabbar, .sidebar, #undoToast") || _pageSwipeBlocked(e.target)) return;
+    _sw = { mode: "page", idx: pi, x0: t.clientX, y0: t.clientY, t0: Date.now(), dx: 0 };
+    return;
+  }
   _sw = { mode: "row", row: row, del: del, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
 }, { passive: true });
 document.addEventListener("touchmove", function (e) {
@@ -3678,6 +3701,14 @@ document.addEventListener("touchmove", function (e) {
     if (s.mode === "row") _swipeBegin(s);
   }
   e.preventDefault();
+  if (s.mode === "page") {
+    // Follow the finger a little (full resistance where there's no next page).
+    var hasNext = dx < 0 ? s.idx < SWIPE_PAGES.length - 1 : s.idx > 0;
+    s.dx = dx;
+    var mc = document.querySelector(".main-content");
+    if (mc) { mc.style.transition = "none"; mc.style.transform = "translateX(" + Math.max(-70, Math.min(70, dx * (hasNext ? 0.3 : 0.08))) + "px)"; }
+    return;
+  }
   if (s.mode === "edge") {
     var ind = document.getElementById("edgeBackInd");
     if (!ind) { ind = document.createElement("div"); ind.id = "edgeBackInd"; ind.innerHTML = "&#8249;"; document.body.appendChild(ind); }
@@ -3708,13 +3739,23 @@ function _swipeRelease() {
     if (s.dx >= 90) _goBack();
     return;
   }
+  if (s.mode === "page") {
+    var mc = document.querySelector(".main-content");
+    var dxp = s.dx, fast = Math.abs(dxp) / Math.max(1, Date.now() - s.t0) > 0.5;
+    var target = (Math.abs(dxp) >= 80 || (Math.abs(dxp) >= 40 && fast)) ? SWIPE_PAGES[s.idx + (dxp < 0 ? 1 : -1)] : null;
+    if (target) { switchPage(target); } // the page-slide picks up from the nudged position; _switchPageNow clears it
+    else if (mc) { mc.style.transition = "transform .2s cubic-bezier(.2,.8,.2,1)"; mc.style.transform = ""; setTimeout(function () { mc.style.transition = ""; }, 220); }
+    return;
+  }
   var threshold = Math.min(110, s.width * 0.35);
   _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.done ? "done" : null);
 }
 document.addEventListener("touchend", _swipeRelease);
-document.addEventListener("touchcancel", _swipeRelease);
+document.addEventListener("touchcancel", function () { if (_sw) _sw.dx = 0; _swipeRelease(); }); // a cancelled touch never commits
 
 function _switchPageNow(page) {
+  var _mc = document.querySelector(".main-content");
+  if (_mc) { _mc.style.transition = ""; _mc.style.transform = ""; }
   currentPage = page;
   updateUrlHash(page, null);
   applyPageAccent(page);
