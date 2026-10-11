@@ -638,22 +638,19 @@
   .update-banner button[data-u="dismiss"] { background: transparent; color: var(--text-2); padding: 7px 8px; }
   @media (min-width: 701px) { .update-banner { bottom: 24px; } }
 
-  /* Row swipe (see _swipeBegin): the row's content slides over a colored
-     layer naming the action — green "Paid" on the left, red "Delete" on the
-     right — which brightens once the swipe passes the commit point. */
+  /* Row swipe (see _swipeBegin): swiping a row left slides its content over a
+     green layer naming the action ("Paid", "Done", "Next stage"), which
+     brightens once the swipe passes the commit point. */
   .swiping { position: relative; overflow: hidden; touch-action: pan-y; }
   .swipe-content { position: relative; z-index: 1; background: var(--bg-card); will-change: transform; }
   .swipe-bg {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;
     padding: 0 18px; font-size: 13px; font-weight: 700; color: #fff;
     background: color-mix(in srgb, #5BAE7A 70%, var(--bg-card)); transition: background-color .15s;
   }
-  .swiping.swipe-dir-r .swipe-bg { background: color-mix(in srgb, #D9534F 70%, var(--bg-card)); }
-  .swiping.swipe-armed-l .swipe-bg { background: #3E9A61; }
-  .swiping.swipe-armed-r .swipe-bg { background: #D9534F; }
+  .swiping.swipe-armed-r .swipe-bg { background: #3E9A61; }
   .swipe-lbl { transition: transform .2s cubic-bezier(.34,1.8,.5,1); }
-  .swiping.swipe-dir-r .swipe-lbl-l, .swiping:not(.swipe-dir-r) .swipe-lbl-r { visibility: hidden; }
-  .swiping.swipe-armed-l .swipe-lbl-l, .swiping.swipe-armed-r .swipe-lbl-r { transform: scale(1.12); }
+  .swiping.swipe-armed-r .swipe-lbl-r { transform: scale(1.12); }
   /* iPhone edge-swipe-back indicator */
   #edgeBackInd {
     position: fixed; left: 0; top: 50%; z-index: 1600; width: 44px; height: 44px; border-radius: 50%;
@@ -4001,16 +3998,15 @@ function _goBack() {
 }
 
 /* ---------------- swipe gestures (touch) ----------------
-   • Swipe a list row left to delete it (with Undo) and right to complete it
-     (bill paid, routine done, planned workout done, job moved to its next
-     stage). Works on any row by pressing the row's own delete/complete
-     button, so each list needs no gesture code of its own.
+   • Swipe a list row left to complete it (bill paid, routine done, planned
+     workout done, job moved to its next stage). Works on any row by pressing
+     the row's own complete button, so each list needs no gesture code of its
+     own. There is deliberately no swipe-to-delete: deleting stays a tap on ✕.
    • Swipe sideways anywhere else on Overview / Budget / Workouts / Jobs (the
      bottom-bar pages) to move to the next or previous one.
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
-var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove", "delete-set"];
 // Right-swipe ("complete") buttons -> the label to show, or null when that row
 // has nothing to complete right now (e.g. a routine already done today).
 var SWIPE_DONE_ACTIONS = {
@@ -4047,7 +4043,7 @@ function _swipeBegin(s) {
   while (row.firstChild) content.appendChild(row.firstChild);
   var bg = document.createElement("div");
   bg.className = "swipe-bg";
-  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.doneLabel || "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
+  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-r">' + (s.doneLabel || "") + '</span>';
   row.appendChild(bg); row.appendChild(content);
   row.classList.add("swiping");
   s.content = content; s.bg = bg;
@@ -4059,15 +4055,10 @@ function _swipeEnd(s, commit) {
     if (!row.isConnected) return;
     while (content.firstChild) row.insertBefore(content.firstChild, content);
     content.remove(); if (s.bg) s.bg.remove();
-    row.classList.remove("swiping", "swipe-armed-l", "swipe-armed-r");
+    row.classList.remove("swiping", "swipe-armed-r");
   }
-  if (commit === "delete") {
-    content.style.transform = "translateX(-110%)";
-    setTimeout(function () { unwrap(); s.del.click(); }, 200);
-  } else {
-    content.style.transform = "translateX(0)";
-    setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
-  }
+  content.style.transform = "translateX(0)";
+  setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
 }
 document.addEventListener("touchstart", function (e) {
   _sw = null;
@@ -4079,21 +4070,24 @@ document.addEventListener("touchstart", function (e) {
   var row = e.target.closest && e.target.closest(SWIPE_ROW);
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
-  var del = null, done = null, doneLabel = null;
+  var done = null, doneLabel = null;
   if (row && !e.target.closest(field + ", input") && !row.querySelector(field)) {
-    del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
     done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
     doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
-    if (doneLabel == null) done = null;
+    if (doneLabel == null) done = null; // e.g. a routine already done today: nothing to swipe
   }
-  if (!del && !done) {
+  // A list row with nothing to swipe (already done, being edited, only a delete
+  // button...) neither does anything nor turns the page; the drag is just
+  // absorbed so it can't become a browser "back" either.
+  if (row && !done) { _sw = { mode: "absorb", x0: t.clientX, y0: t.clientY }; return; }
+  if (!done) {
     // Not a swipeable row: a sideways swipe turns the page instead.
     var pages = _tabPages(), pi = pages.indexOf(currentPage);
     if (pi < 0 || !e.target.closest || e.target.closest(".tabbar, .sidebar, #undoToast") || _pageSwipeBlocked(e.target)) return;
     _sw = { mode: "page", pages: pages, idx: pi, x0: t.clientX, y0: t.clientY, t0: Date.now(), dx: 0 };
     return;
   }
-  _sw = { mode: "row", row: row, del: del, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
+  _sw = { mode: "row", row: row, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
 }, { passive: true });
 document.addEventListener("touchmove", function (e) {
   var s = _sw;
@@ -4106,6 +4100,7 @@ document.addEventListener("touchmove", function (e) {
     if (s.mode === "row") _swipeBegin(s);
   }
   e.preventDefault();
+  if (s.mode === "absorb") return;
   if (s.mode === "page") {
     // Follow the finger a little (full resistance where there's no next page).
     var hasNext = dx < 0 ? s.idx < s.pages.length - 1 : s.idx > 0;
@@ -4125,19 +4120,17 @@ document.addEventListener("touchmove", function (e) {
     s.dx = dx;
     return;
   }
-  // Resist directions this row has no action for.
-  if ((dx < 0 && !s.del) || (dx > 0 && !s.done)) dx *= 0.15;
+  // Only a left swipe does anything; the other direction just resists.
+  if (dx > 0) dx *= 0.15;
   s.dx = dx;
   s.content.style.transition = "none";
   s.content.style.transform = "translateX(" + dx + "px)";
   var threshold = Math.min(110, s.width * 0.35);
   s.row.classList.toggle("swipe-armed-r", dx <= -threshold);
-  s.row.classList.toggle("swipe-armed-l", dx >= threshold);
-  s.row.classList.toggle("swipe-dir-r", dx < 0);
 }, { passive: false });
 function _swipeRelease() {
   var s = _sw; _sw = null;
-  if (!s || !s.decided) return;
+  if (!s || !s.decided || s.mode === "absorb") return;
   if (s.mode === "edge") {
     var ind = document.getElementById("edgeBackInd");
     if (ind) { ind.style.opacity = "0"; ind.classList.remove("armed"); }
@@ -4153,7 +4146,7 @@ function _swipeRelease() {
     return;
   }
   var threshold = Math.min(110, s.width * 0.35);
-  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.done ? "done" : null);
+  _swipeEnd(s, s.dx <= -threshold && s.done ? "done" : null);
 }
 document.addEventListener("touchend", _swipeRelease);
 document.addEventListener("touchcancel", function () { if (_sw) _sw.dx = 0; _swipeRelease(); }); // a cancelled touch never commits
@@ -6707,7 +6700,7 @@ async function renderSpendTab(root, cfg) {
     var pct = bp.totalAmt ? Math.min(100, (bp.paidAmt / bp.totalAmt) * 100) : 0;
     el.innerHTML = '<div class="gauge-top"><span class="gauge-label mono">BILLS PAID THIS MONTH</span><span class="mono" style="color:#5BAE7A;">' + bp.paid + " of " + bp.total + '</span></div>' +
       '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:#5BAE7A;box-shadow:0 0 14px #5BAE7A55;"></div></div>' +
-      '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt) + " &middot; swipe a bill right to mark it paid</div>";
+      '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt) + " &middot; swipe a bill left to mark it paid</div>";
   }
   function renderBudgetViews() {
     if (!cfg.showSavingsGoal) return;
