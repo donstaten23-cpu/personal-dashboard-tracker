@@ -3027,10 +3027,28 @@ async function _fetchStoryDataFromNetwork(key, defaultData) {
   }
 }
 
+// Story keys whose latest edit hasn't reached Firestore yet. Kept in
+// localStorage so it survives a reload: a background refresh must never
+// overwrite such a copy with the older cloud one (that would silently undo the edit).
+function _storyDirtyGet() { try { return JSON.parse(localStorage.getItem("dashboard-story-dirty") || "{}"); } catch (e) { return {}; } }
+function _storyDirtySet(key, on) {
+  try {
+    var d = _storyDirtyGet();
+    if (on) d[key] = 1; else delete d[key];
+    localStorage.setItem("dashboard-story-dirty", JSON.stringify(d));
+  } catch (e) { /* storage unavailable */ }
+}
+
 function _bgRefreshStoryData(key, defaultData) {
   ensureFirebaseAuthed().then(function (connected) {
     if (!connected) return;
-    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) { if (data) _writeCache(key, data); });
+    if (_storyDirtyGet()[key]) {
+      // Local edit never made it up: push it rather than replacing it.
+      var local = _readCache(key);
+      if (local !== null && !_storyPendingSaves.hasOwnProperty(key)) saveStoryData(key, local);
+      return;
+    }
+    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) { if (data && !_storyDirtyGet()[key]) _writeCache(key, data); });
   }).catch(function () { /* silent — best-effort, same pattern as _bgRefreshTabData */ });
 }
 
@@ -3038,6 +3056,7 @@ var _storySaveDebounceTimers = {};
 var _storyPendingSaves = {};
 function saveStoryData(key, data) {
   _writeCache(key, data); // synchronous, durable regardless of Firebase connection state
+  _storyDirtySet(key, true);
   _storyPendingSaves[key] = data;
   if (_storySaveDebounceTimers[key]) clearTimeout(_storySaveDebounceTimers[key]);
   _storySaveDebounceTimers[key] = setTimeout(function () { _flushStoryDataSave(key); }, 500);
@@ -3049,7 +3068,7 @@ async function _flushStoryDataSave(key) {
   delete _storyPendingSaves[key];
   var connected = await ensureFirebaseAuthed();
   if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); return; }
-  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); _markSynced(); _markStorySynced(); }
+  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false); _markSynced(); _markStorySynced(); }
   catch (e) { console.error("Firestore save failed [" + key + "]", e); }
 }
 function _flushAllPendingStorySaves() {
