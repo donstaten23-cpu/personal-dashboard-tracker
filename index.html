@@ -116,27 +116,34 @@
      full charge it expands away like a tap used to. Letting go early springs
      back. The first-time sign-in ring stays a plain tap. */
   .auth-orb-hold {
-    position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; opacity: 0;
-    background: conic-gradient(var(--orb-glow) calc(var(--hold-p, 0) * 360deg), transparent 0);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-            mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-    transition: opacity .2s;
+    position: absolute; left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); overflow: visible;
+    transform: rotate(-90deg); pointer-events: none; opacity: 0; transition: opacity .2s;
   }
+  .auth-orb-hold circle { fill: none; stroke-linecap: round; }
+  .auth-orb-hold-bg { stroke: color-mix(in srgb, var(--orb-glow) 16%, transparent); stroke-width: 1.1; }
+  .auth-orb-hold-arc { stroke: var(--orb-glow); stroke-width: 1.7; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  .auth-orb-hold-glow { stroke: var(--orb-glow); stroke-width: 5.5; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  /* The ring is a stroked SVG circle (pathLength 1) whose dash offset JS sets
+     each frame: cheap to redraw, and a full lap really is a closed circle. */
   .auth-orb.holding .auth-orb-hold { opacity: 1; }
   /* While pressing, the comet (ring tail + glowing head) is rotated straight
      from JS (inline transform, see the hold code) so the head rides the
      leading edge of the charging ring — same speed — instead of orbiting on
      its own 3.6s loop. */
   .auth-scene.auth-gate .auth-orb.holding {
-    scale: 1.16; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--orb-glow) 55%, transparent));
-    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1), filter .3s;
+    scale: 1.16;
+    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1);
   }
+  /* Full charge: the ring closes and holds for a beat (a small pulse) before the entry opens. */
+  .auth-orb.charged .auth-orb-hold { animation: orbCharged .26s cubic-bezier(.2,.8,.2,1); }
+  .auth-orb.charged .auth-orb-hold-glow { opacity: .5; }
+  @keyframes orbCharged { 0% { transform: rotate(-90deg) scale(1); } 45% { transform: rotate(-90deg) scale(1.045); } 100% { transform: rotate(-90deg) scale(1); } }
   .auth-orb.holding .auth-orb-logo { scale: 1.1; }
   .auth-orb.holding .auth-orb-track { border-color: color-mix(in srgb, var(--orb-ink) 85%, transparent); }
   .auth-orb-hint.nudge { animation: authNudge .5s ease; }
   @keyframes authNudge { 0%, 100% { transform: none; color: var(--text-3); } 20% { transform: translateY(-5px); color: var(--text-1); } 55% { transform: translateY(2px); } }
   .auth-orb-hint {
-    position: absolute; left: 0; right: 0; top: calc(50% + var(--orb-size) / 2 + 26px); text-align: center; z-index: 2;
+    position: absolute; left: 0; right: 0; top: calc(50% + var(--orb-size) / 2 + 36px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
     transition: opacity .3s;
   }
@@ -155,8 +162,14 @@
   /* Momentary class used by _restartOrbAnimations() to kick frozen animations. */
   .auth-scene.anim-reset, .auth-scene.anim-reset::before, .auth-scene.anim-reset::after,
   .auth-scene.anim-reset *, .auth-scene.anim-reset *::after { animation: none !important; }
-  .auth-scene.auth-leaving { opacity: 0; pointer-events: none; transition: opacity .5s ease .25s; }
-  .auth-scene.auth-leaving .auth-orb { animation: none; transform: scale(9); opacity: 0; }
+  .auth-scene.auth-leaving { opacity: 0; pointer-events: none; transition: opacity .55s ease .22s; }
+  /* While the entry opens only transform and opacity animate (nothing that has
+     to be re-rasterised at 9x), and the drifting background blobs rest. */
+  .auth-scene.auth-leaving::before, .auth-scene.auth-leaving::after { animation-play-state: paused; }
+  .auth-scene.auth-leaving .auth-orb, .auth-scene.auth-leaving .auth-orb.holding {
+    animation: none; transform: scale(9); opacity: 0; filter: none; will-change: transform, opacity;
+    transition: transform .85s cubic-bezier(.22,.9,.24,1), opacity .5s ease .2s;
+  }
   .auth-scene.auth-leaving .auth-orb-hint { opacity: 0; }
   @media (prefers-reduced-motion: reduce) {
     .auth-scene::before, .auth-scene::after, .auth-orb, .auth-orb-head, .auth-orb-sweep, .auth-orb-track { animation: none !important; }
@@ -1258,7 +1271,11 @@
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
     <span class="auth-orb-head"></span>
-    <span class="auth-orb-hold"></span>
+    <svg class="auth-orb-hold" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="auth-orb-hold-bg" cx="50" cy="50" r="49" />
+      <circle class="auth-orb-hold-glow" cx="50" cy="50" r="49" pathLength="1" />
+      <circle class="auth-orb-hold-arc" cx="50" cy="50" r="49" pathLength="1" />
+    </svg>
     <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
   <div class="auth-orb-hint" id="authOrbHint" aria-hidden="true">Tap to sign in</div>
@@ -3307,6 +3324,8 @@ function openAuthPanel() {
   var HOLD_MS = reduced ? 300 : 650;
   var rafId = 0, t0 = 0, active = false, unwindId = 0;
   var sweep = orb.querySelector(".auth-orb-sweep"), head = orb.querySelector(".auth-orb-head");
+  var arc = orb.querySelector(".auth-orb-hold-arc"), glow = orb.querySelector(".auth-orb-hold-glow");
+  var finishTo = 0;
   var a0 = 0, lap = 0; // where the comet head was when the press began, and whether it must catch up a lap
 
   function inGate() { return scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving"); }
@@ -3315,6 +3334,9 @@ function openAuthPanel() {
   // charge travel together at the same speed.
   function setP(p) {
     orb.style.setProperty("--hold-p", String(p));
+    var off = String(1 - p), on = p > 0.004 ? "1" : "0"; // a zero-length round-capped stroke would show as a dot
+    arc.style.strokeDashoffset = off; glow.style.strokeDashoffset = off;
+    arc.style.opacity = on; glow.style.opacity = p > 0.004 ? (orb.classList.contains("charged") ? "0.5" : "0.28") : "0";
     if (reduced) return;
     var w = Math.min(1, (performance.now() - t0) / 160);
     w = w * w * (3 - 2 * w);
@@ -3340,8 +3362,9 @@ function openAuthPanel() {
   }
 
   window._resetOrbHold = function () {
-    active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId);
-    orb.classList.remove("holding"); orb.style.removeProperty("--hold-p"); cometSync(false);
+    active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId); clearTimeout(finishTo);
+    orb.classList.remove("holding", "charged"); orb.style.removeProperty("--hold-p"); cometSync(false);
+    arc.style.strokeDashoffset = ""; glow.style.strokeDashoffset = ""; arc.style.opacity = ""; glow.style.opacity = "";
   };
 
   function begin(e) {
@@ -3365,23 +3388,27 @@ function openAuthPanel() {
   }
   function finish() {
     active = false; cancelAnimationFrame(rafId);
-    orb.classList.remove("holding");
+    // The ring is closed: let that register (a short pulse) before the entry
+    // opens, and keep the press look (no un-swelling) while it expands.
+    orb.classList.add("charged");
+    setP(1);
     try { if (navigator.vibrate) navigator.vibrate(14); } catch (x) {}
-    passEntryGate();
+    finishTo = setTimeout(passEntryGate, reduced ? 0 : 170);
   }
   function release() {
     if (!active) return;
     var held = performance.now() - t0;
     active = false; cancelAnimationFrame(rafId);
-    orb.classList.remove("holding");
+    orb.classList.remove("holding", "charged");
     // Quick tap: say what to do. Early release: unwind the ring.
     if (held < 220) { hint.classList.remove("nudge"); void hint.offsetWidth; hint.classList.add("nudge"); }
     var from = parseFloat(orb.style.getPropertyValue("--hold-p")) || 0, u0 = performance.now();
     (function unwind() {
-      var k = Math.min(1, (performance.now() - u0) / 180);
+      var k = Math.min(1, (performance.now() - u0) / 220);
+      k = 1 - Math.pow(1 - k, 3); // ease-out: it springs back quickly, then settles
       setP(from * (1 - k));
       if (k < 1) unwindId = requestAnimationFrame(unwind);
-      else { orb.style.removeProperty("--hold-p"); cometSync(false); } // head is back at the top: the idle orbit resumes from there
+      else { orb.style.removeProperty("--hold-p"); cometSync(false); arc.style.strokeDashoffset = ""; glow.style.strokeDashoffset = ""; arc.style.opacity = ""; glow.style.opacity = ""; } // head is back at the top: the idle orbit resumes from there
     })();
   }
   hint.addEventListener("animationend", function () { hint.classList.remove("nudge"); });
