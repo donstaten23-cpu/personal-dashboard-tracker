@@ -3027,10 +3027,36 @@ async function _fetchStoryDataFromNetwork(key, defaultData) {
   }
 }
 
+// Story keys whose latest edit hasn't reached Firestore yet. Kept in
+// localStorage so it survives a reload: a background refresh must never
+// overwrite such a copy with the older cloud one (that would silently undo the edit).
+function _storyDirtyGet() { try { return JSON.parse(localStorage.getItem("dashboard-story-dirty") || "{}"); } catch (e) { return {}; } }
+function _storyDirtySet(key, on) {
+  try {
+    var d = _storyDirtyGet();
+    if (on) d[key] = 1; else delete d[key];
+    localStorage.setItem("dashboard-story-dirty", JSON.stringify(d));
+  } catch (e) { /* storage unavailable */ }
+}
+
 function _bgRefreshStoryData(key, defaultData) {
   ensureFirebaseAuthed().then(function (connected) {
     if (!connected) return;
-    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) { if (data) _writeCache(key, data); });
+    if (_storyDirtyGet()[key]) {
+      // Local edit never made it up: push it rather than replacing it.
+      var local = _readCache(key);
+      if (local !== null && !_storyPendingSaves.hasOwnProperty(key)) saveStoryData(key, local);
+      return;
+    }
+    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) {
+      if (!data || _storyDirtyGet()[key]) return;
+      // Keep the copy being replaced (one level) so a wrong overwrite is recoverable.
+      try {
+        var old = _readCache(key);
+        if (old !== null && JSON.stringify(old) !== JSON.stringify(data)) localStorage.setItem("dashboard-story-backup-" + key, JSON.stringify({ at: Date.now(), data: old }));
+      } catch (e) { /* storage full/unavailable */ }
+      _writeCache(key, data);
+    });
   }).catch(function () { /* silent — best-effort, same pattern as _bgRefreshTabData */ });
 }
 
@@ -3038,6 +3064,7 @@ var _storySaveDebounceTimers = {};
 var _storyPendingSaves = {};
 function saveStoryData(key, data) {
   _writeCache(key, data); // synchronous, durable regardless of Firebase connection state
+  _storyDirtySet(key, true);
   _storyPendingSaves[key] = data;
   if (_storySaveDebounceTimers[key]) clearTimeout(_storySaveDebounceTimers[key]);
   _storySaveDebounceTimers[key] = setTimeout(function () { _flushStoryDataSave(key); }, 500);
@@ -3049,7 +3076,7 @@ async function _flushStoryDataSave(key) {
   delete _storyPendingSaves[key];
   var connected = await ensureFirebaseAuthed();
   if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); return; }
-  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); _markSynced(); _markStorySynced(); }
+  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false); _markSynced(); _markStorySynced(); }
   catch (e) { console.error("Firestore save failed [" + key + "]", e); }
 }
 function _flushAllPendingStorySaves() {
@@ -12336,7 +12363,8 @@ var THEMES = [
   { id: 'dark',     name: 'Dark',          accent: '#e83b3b', bgColor: '#12151A', cardColor: '#1B2027', textColor: '#EDEAE3', text2Color: '#8A919C', text3Color: '#5A6168', sidebarColor: '#0E1117', borderColor: '#2A313A' },
   { id: 'warm',     name: 'Warm Dark',     accent: '#D4A853', bgColor: '#1A1410', cardColor: '#241C14', textColor: '#F0E6D3', text2Color: '#B3A08A', text3Color: '#7A6A56', sidebarColor: '#120E09', borderColor: '#3A2818' },
   { id: 'light',    name: 'Light',         accent: '#e83b3b', bgColor: '#F4F1ED', cardColor: '#FFFFFF', textColor: '#1A1410', text2Color: '#5C5650', text3Color: '#8A8478', sidebarColor: '#EDE8E2', borderColor: '#D4CEC8' },
-  { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', text2Color: '#B0B0B0', text3Color: '#707070', sidebarColor: '#050505', borderColor: '#2A2A2A' }
+  { id: 'contrast', name: 'High Contrast', accent: '#00E87A', bgColor: '#000000', cardColor: '#111111', textColor: '#FFFFFF', text2Color: '#B0B0B0', text3Color: '#707070', sidebarColor: '#050505', borderColor: '#2A2A2A' },
+  { id: 'hexalogy', name: 'Hexalogy',      accent: '#C65A34', bgColor: '#F2EEDC', cardColor: '#FBF9EF', textColor: '#262A1C', text2Color: '#5D6140', text3Color: '#8E9070', sidebarColor: '#E5E1CA', borderColor: '#D3CDAE' }
 ];
 
 var SETTINGS_DEFAULTS = {
