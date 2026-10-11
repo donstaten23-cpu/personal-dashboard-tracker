@@ -826,6 +826,46 @@
   .chapter-toolbar button { min-width: 32px; font-weight: 700; color: var(--text-2); background: none; border: 1px solid #2A313A; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
   .chapter-toolbar button:hover { color: var(--text-1); background: #2A313A; }
   .chapter-toolbar button i { font-style: italic; }
+  /* Story chapters read like a page on a desk: the tools (arc, status, bold,
+     move, delete) sit on the desk above, the chapter is a sheet of paper with
+     its number, a centred title and a book-style serif body. */
+  :root { --paper: #222831; --paper-ink: #E9E4D8; --page-font: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, Georgia, "Times New Roman", serif; }
+  .ch-wrap { min-width: 0; margin-bottom: 10px; }
+  .ch-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 2px 8px; max-width: 760px; margin-left: auto; margin-right: auto; }
+  .ch-sel { flex: 1; min-width: 0; max-width: 100%; }
+  .ch-spacer { flex: 1; }
+  .ch-page {
+    position: relative; max-width: 760px; margin: 0 auto; min-width: 0; box-sizing: border-box;
+    background: var(--paper); color: var(--paper-ink); border-radius: 4px 12px 12px 4px; padding: 30px 26px 20px 30px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 14px 34px rgba(0,0,0,.20), inset 0 0 0 1px rgba(128,128,128,.14);
+  }
+  .ch-page::before { /* the binding: a soft shaded strip down the left edge */
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 16px; border-radius: 4px 0 0 4px; pointer-events: none;
+    background: linear-gradient(90deg, rgba(0,0,0,.13), rgba(0,0,0,0));
+  }
+  .ch-page:focus-within { box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 14px 34px rgba(0,0,0,.20), 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .ch-num { text-align: center; font-size: 11px; letter-spacing: .26em; text-transform: uppercase; opacity: .55; font-family: var(--page-font); }
+  .ch-title {
+    display: block; width: 100%; box-sizing: border-box; resize: none; overflow: hidden; text-align: center; background: transparent; border: none; outline: none;
+    color: var(--paper-ink); font: 700 26px/1.25 var(--page-font); padding: 6px 0 2px; overflow-wrap: anywhere; word-break: normal;
+  }
+  .ch-title::placeholder { color: var(--paper-ink); opacity: .35; }
+  .ch-orn { text-align: center; opacity: .4; font-size: 16px; margin: 2px 0 18px; }
+  .ch-page .chapter-editor {
+    background: transparent; border: none; border-radius: 0; padding: 0; min-height: 280px; box-shadow: none; outline: none;
+    color: var(--paper-ink); font-family: var(--page-font); font-size: 18px; line-height: 1.85; letter-spacing: .005em;
+    overflow-wrap: anywhere; word-break: normal; hyphens: auto; -webkit-hyphens: auto; caret-color: var(--accent);
+  }
+  .ch-page .chapter-editor:focus { border: none; box-shadow: none; }
+  .ch-page .chapter-editor p { margin: 0 0 .6em; text-indent: 1.7em; }
+  .ch-page .chapter-editor p:first-child { text-indent: 0; }
+  .ch-page .chapter-editor.is-empty:before { color: var(--paper-ink); opacity: .35; font-style: italic; }
+  .ch-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--paper-ink) 14%, transparent); font-size: 12px; opacity: .6; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  @media (max-width: 700px) {
+    .ch-page { padding: 24px 18px 16px 22px; border-radius: 3px 10px 10px 3px; }
+    .ch-title { font-size: 23px; }
+    .ch-page .chapter-editor { font-size: 17px; line-height: 1.8; }
+  }
   .chapter-editor { min-height: 160px; line-height: 1.6; font-family: inherit; font-size: 14px; color: var(--text-1); background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; outline: none; }
   .chapter-editor:focus { border-color: var(--accent); }
   .chapter-editor p { margin: 0 0 0.9em; text-indent: 2em; }
@@ -1256,6 +1296,11 @@
       [['--accent', _sp.accent], ['--bg', _sp.bg], ['--bg-card', _sp.card], ['--text-1', _sp.text1], ['--text-2', _sp.text2],
        ['--text-3', _sp.text3], ['--bg-sidebar', _sp.sidebar], ['--border', _sp.border], ['--border-2', _sp.border]]
         .forEach(function (p) { if (p[1]) _r.setProperty(p[0], p[1]); });
+      // paper colours for the Story writing pages (same rule as _paperVars in the app script)
+      var _h = function (x) { x = String(x || "").replace("#", ""); if (x.length === 3) x = x.replace(/./g, "$&$&"); var n = parseInt(x, 16); return isNaN(n) ? [18, 21, 26] : [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+      var _b = _h(_sp.bg);
+      if ((0.299 * _b[0] + 0.587 * _b[1] + 0.114 * _b[2]) / 255 > 0.6) { _r.setProperty('--paper', '#FFFDF8'); _r.setProperty('--paper-ink', '#2B2620'); }
+      else { _r.setProperty('--paper', 'rgb(' + _h(_sp.card).map(function (v) { return Math.round(v + (255 - v) * 0.07); }).join(',') + ')'); _r.setProperty('--paper-ink', '#E9E4D8'); }
     }
   } catch (e) {}
 </script>
@@ -2432,6 +2477,16 @@ function chapterHtmlToMarkdown(html) {
 }
 
 // Wires Ctrl/Cmd+B, Ctrl/Cmd+I, paste-sanitizing, live model sync, and
+// Sets (replaces) the one handler of a given type on an element that outlives
+// its renders: a plain addEventListener inside a render function stacks another
+// copy every time the section re-renders, so one tap would run several times.
+function _setHandler(el, type, fn) {
+  var key = "_h_" + type;
+  if (el[key]) el.removeEventListener(type, el[key]);
+  el[key] = fn;
+  el.addEventListener(type, fn);
+}
+
 // save-on-blur for a .chapter-editor contenteditable surface.
 // onInput(rawHtml) fires on every keystroke so the in-memory model never goes
 // stale (e.g. clicking Download mid-edit) — mirrors the old textarea's
@@ -10395,25 +10450,28 @@ async function renderStoryPage(root) {
       }
       lastArcId = normArc;
       var cWords = wordCount(chapterPlainText(c.content));
-      return divider + '<div class="card" id="storyCh-' + c.id + '">' +
-        '<div class="row-gap" style="margin-bottom:8px;">' +
-          '<input class="form-input" style="flex:1;font-weight:600;" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
-          '<span class="mono" style="color:var(--text-3);font-size:12px;flex-shrink:0;">' + cWords + " words · " + readingTime(cWords) + "</span>" +
-          '<button class="icon-btn" data-action="focus-chapter" data-id="' + c.id + '" title="Focus mode">⛶</button>' +
-          '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '">✕</button>' +
+      var arcSel = chaptersData.arcs.length > 0 ? '<select class="edit-select ch-sel" data-chapter-field="arcId" data-id="' + c.id + '" aria-label="Arc">' + arcOptionsHtml(c.arcId) + "</select>" : "";
+      var stSel = chaptersData.statuses.length > 0 ? '<select class="edit-select ch-sel" data-chapter-field="statusId" data-id="' + c.id + '" aria-label="Status">' + statusOptionsHtml(c.statusId) + "</select>" : "";
+      return divider + '<div class="ch-wrap" id="storyCh-' + c.id + '">' +
+        (arcSel || stSel ? '<div class="ch-tools">' + arcSel + stSel + "</div>" : "") +
+        '<div class="ch-tools">' +
+          '<div class="chapter-toolbar" style="margin:0;">' +
+            '<button type="button" class="chapter-tb-btn" data-cmd="bold" data-id="' + c.id + '" title="Bold (Ctrl+B)" aria-label="Bold">B</button>' +
+            '<button type="button" class="chapter-tb-btn" data-cmd="italic" data-id="' + c.id + '" title="Italic (Ctrl+I)" aria-label="Italic"><i>I</i></button>' +
+          "</div>" +
+          '<span class="ch-spacer"></span>' +
+          '<button class="icon-btn" data-action="move-chapter-up" data-id="' + c.id + '" title="Move up" aria-label="Move chapter up">▴</button>' +
+          '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '" title="Move down" aria-label="Move chapter down">▾</button>' +
+          '<button class="icon-btn" data-action="focus-chapter" data-id="' + c.id + '" title="Full-screen writing" aria-label="Full-screen writing">⛶</button>' +
+          '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '" title="Delete chapter" aria-label="Delete chapter">✕</button>' +
         "</div>" +
-        '<div class="row-gap" style="margin-bottom:10px;">' +
-          (chaptersData.arcs.length > 0 ? '<select class="edit-select" data-chapter-field="arcId" data-id="' + c.id + '">' + arcOptionsHtml(c.arcId) + "</select>" : "") +
-          (chaptersData.statuses.length > 0 ? '<select class="edit-select" data-chapter-field="statusId" data-id="' + c.id + '">' + statusOptionsHtml(c.statusId) + "</select>" : "") +
-          '<span style="flex:1;"></span>' +
-          '<button class="icon-btn" data-action="move-chapter-up" data-id="' + c.id + '">▴</button>' +
-          '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '">▾</button>' +
+        '<div class="ch-page">' +
+          '<div class="ch-num">Chapter ' + (i + 1) + "</div>" +
+          '<textarea class="ch-title" rows="1" data-chapter-field="title" data-id="' + c.id + '" placeholder="Chapter title" aria-label="Chapter title">' + escapeHtml(c.title) + "</textarea>" +
+          '<div class="ch-orn" aria-hidden="true">&#10086;</div>' +
+          '<div class="chapter-editor" contenteditable="true" data-chapter-rich-field="content" data-id="' + c.id + '" data-placeholder="Write here…">' + sanitizeChapterHtml(c.content) + "</div>" +
+          '<div class="ch-foot"><span data-words-for="' + c.id + '">' + cWords.toLocaleString() + " words</span><span>" + readingTime(cWords) + "</span></div>" +
         "</div>" +
-        '<div class="chapter-toolbar">' +
-          '<button type="button" class="chapter-tb-btn" data-cmd="bold" data-id="' + c.id + '" title="Bold (Ctrl+B)">B</button>' +
-          '<button type="button" class="chapter-tb-btn" data-cmd="italic" data-id="' + c.id + '" title="Italic (Ctrl+I)"><i>I</i></button>' +
-        "</div>" +
-        '<div class="chapter-editor" contenteditable="true" data-chapter-rich-field="content" data-id="' + c.id + '" data-placeholder="Write here…">' + sanitizeChapterHtml(c.content) + "</div>" +
         comicAdaptationHtml(c.id) +
       "</div>";
     }).join("");
@@ -10485,7 +10543,8 @@ async function renderStoryPage(root) {
         if (isTextarea) autoGrowTextarea(e.target);
       });
       el.addEventListener("blur", saveChapters);
-      if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
+      if (isTextarea && el.classList.contains("ch-title")) el.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } }); // a title is one (wrapping) line
+      else if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
       if (isSelect) el.addEventListener("change", function (e) {
         var c = chaptersData.chapters.find(function (ch) { return ch.id === e.target.getAttribute("data-id"); });
         if (c) c[e.target.getAttribute("data-chapter-field")] = e.target.value;
@@ -10495,9 +10554,13 @@ async function renderStoryPage(root) {
     });
     bodyEl.querySelectorAll("[data-chapter-rich-field='content']").forEach(function (el) {
       function findChapter() { return chaptersData.chapters.find(function (ch) { return ch.id === el.getAttribute("data-id"); }); }
+      function showWords(html) {
+        var n = wordCount(chapterPlainText(html)), lab = bodyEl.querySelector('[data-words-for="' + el.getAttribute("data-id") + '"]');
+        if (lab) { lab.textContent = n.toLocaleString() + " words"; if (lab.nextElementSibling) lab.nextElementSibling.textContent = readingTime(n); }
+      }
       initChapterEditor(el,
-        function (html) { var c = findChapter(); if (c) c.content = html; },
-        function (html) { var c = findChapter(); if (c) c.content = html; saveChapters(); }
+        function (html) { var c = findChapter(); if (c) c.content = html; showWords(html); },
+        function (html) { var c = findChapter(); if (c) c.content = html; saveChapters(); showWords(html); }
       );
     });
     bodyEl.querySelectorAll(".chapter-tb-btn").forEach(function (btn) {
@@ -10524,7 +10587,7 @@ async function renderStoryPage(root) {
       el.addEventListener("blur", function () { saveChapters(); renderChaptersSection(); });
       el.addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
     });
-    bodyEl.addEventListener("click", function (e) {
+    _setHandler(bodyEl, "click", function (e) {
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-action");
@@ -10609,7 +10672,7 @@ async function renderStoryPage(root) {
         '<span class="mono" id="focusStats" style="color:var(--text-3);font-size:12px;flex-shrink:0;"></span>' +
         '<button class="small-btn" id="focusExitBtn" style="background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);flex-shrink:0;">Done (Esc)</button>' +
       "</div>" +
-      '<div id="focusChapterEditor" class="chapter-editor" contenteditable="true" data-placeholder="Write here…" style="flex:1;width:100%;box-sizing:border-box;background:var(--bg);border:none;border-radius:0;padding:36px max(20px, calc(50% - 340px));font-size:18px;line-height:1.8;overflow-y:auto;">' + sanitizeChapterHtml(c.content) + "</div>";
+      '<div id="focusChapterEditor" class="chapter-editor" contenteditable="true" data-placeholder="Write here…" style="flex:1;width:100%;box-sizing:border-box;background:var(--paper);color:var(--paper-ink);border:none;border-radius:0;padding:36px max(20px, calc(50% - 340px));font-family:var(--page-font);font-size:19px;line-height:1.85;overflow-y:auto;">' + sanitizeChapterHtml(c.content) + "</div>";
     document.body.appendChild(overlay);
     document.body.style.overflow = "hidden";
 
@@ -10751,7 +10814,7 @@ async function renderStoryPage(root) {
       });
       el.addEventListener("blur", saveComic);
     });
-    bodyEl.addEventListener("click", function (e) {
+    _setHandler(bodyEl, "click", function (e) {
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
       var action = btn.getAttribute("data-action");
@@ -11113,7 +11176,7 @@ async function renderStoryPage(root) {
       el.addEventListener("blur", saveCharacters);
       if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
-    bodyEl.addEventListener("click", function (e) {
+    _setHandler(bodyEl, "click", function (e) {
       var delBtn = e.target.closest("[data-action='delete-char']");
       if (delBtn) { handleDeleteChar(delBtn.getAttribute("data-id")); return; }
       var relBtn = e.target.closest("[data-action='delete-relationship']");
@@ -11200,7 +11263,7 @@ async function renderStoryPage(root) {
       el.addEventListener("blur", saveLore);
       if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
-    bodyEl.addEventListener("click", function (e) {
+    _setHandler(bodyEl, "click", function (e) {
       var btn = e.target.closest("[data-action='delete-lore']");
       if (btn) handleDeleteLore(btn.getAttribute("data-id"));
     });
@@ -11266,7 +11329,7 @@ async function renderStoryPage(root) {
       el.addEventListener("blur", saveLocations);
       if (isTextarea) el.addEventListener("keydown", handleIndentKeydown);
     });
-    bodyEl.addEventListener("click", function (e) {
+    _setHandler(bodyEl, "click", function (e) {
       var btn = e.target.closest("[data-action='delete-location']");
       if (btn) handleDeleteLocation(btn.getAttribute("data-id"));
     });
@@ -12317,9 +12380,19 @@ async function loadSettings() {
   renderTabNav();
 }
 
+// "Paper" colours for the Story writing pages: a warm white page with dark ink
+// on light themes, and a slightly lifted card colour with soft ink on dark ones.
+function _paperVars(bg, card) {
+  function rgb(h) { h = String(h || "").replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); var n = parseInt(h, 16); return isNaN(n) ? [18, 21, 26] : [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  var b = rgb(bg);
+  if ((0.299 * b[0] + 0.587 * b[1] + 0.114 * b[2]) / 255 > 0.6) return { paper: "#FFFDF8", ink: "#2B2620" };
+  return { paper: "rgb(" + rgb(card).map(function (v) { return Math.round(v + (255 - v) * 0.07); }).join(",") + ")", ink: "#E9E4D8" };
+}
 function applySettings() {
   if (!_settings) return;
   var r = document.documentElement;
+  var _pv = _paperVars(_settings.bgColor || SETTINGS_DEFAULTS.bgColor, _settings.cardColor || SETTINGS_DEFAULTS.cardColor);
+  r.style.setProperty('--paper', _pv.paper); r.style.setProperty('--paper-ink', _pv.ink);
   r.style.setProperty('--accent',       _settings.accent       || SETTINGS_DEFAULTS.accent);
   r.style.setProperty('--bg',           _settings.bgColor      || SETTINGS_DEFAULTS.bgColor);
   r.style.setProperty('--bg-card',      _settings.cardColor    || SETTINGS_DEFAULTS.cardColor);
