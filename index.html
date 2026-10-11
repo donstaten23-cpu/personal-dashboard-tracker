@@ -116,27 +116,34 @@
      full charge it expands away like a tap used to. Letting go early springs
      back. The first-time sign-in ring stays a plain tap. */
   .auth-orb-hold {
-    position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; opacity: 0;
-    background: conic-gradient(var(--orb-glow) calc(var(--hold-p, 0) * 360deg), transparent 0);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-            mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
-    transition: opacity .2s;
+    position: absolute; left: -6px; top: -6px; width: calc(100% + 12px); height: calc(100% + 12px); overflow: visible;
+    transform: rotate(-90deg); pointer-events: none; opacity: 0; transition: opacity .2s;
   }
+  .auth-orb-hold circle { fill: none; stroke-linecap: round; }
+  .auth-orb-hold-bg { stroke: color-mix(in srgb, var(--orb-glow) 16%, transparent); stroke-width: 1.1; }
+  .auth-orb-hold-arc { stroke: var(--orb-glow); stroke-width: 1.7; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  .auth-orb-hold-glow { stroke: var(--orb-glow); stroke-width: 5.5; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  /* The ring is a stroked SVG circle (pathLength 1) whose dash offset JS sets
+     each frame: cheap to redraw, and a full lap really is a closed circle. */
   .auth-orb.holding .auth-orb-hold { opacity: 1; }
   /* While pressing, the comet (ring tail + glowing head) is rotated straight
      from JS (inline transform, see the hold code) so the head rides the
      leading edge of the charging ring — same speed — instead of orbiting on
      its own 3.6s loop. */
   .auth-scene.auth-gate .auth-orb.holding {
-    scale: 1.16; filter: drop-shadow(0 0 22px color-mix(in srgb, var(--orb-glow) 55%, transparent));
-    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1), filter .3s;
+    scale: 1.16;
+    transition: transform .8s cubic-bezier(.7,0,.2,1), opacity .6s ease .15s, scale .65s cubic-bezier(.3,0,.2,1);
   }
+  /* Full charge: the ring closes and holds for a beat (a small pulse) before the entry opens. */
+  .auth-orb.charged .auth-orb-hold { animation: orbCharged .26s cubic-bezier(.2,.8,.2,1); }
+  .auth-orb.charged .auth-orb-hold-glow { opacity: .5; }
+  @keyframes orbCharged { 0% { transform: rotate(-90deg) scale(1); } 45% { transform: rotate(-90deg) scale(1.045); } 100% { transform: rotate(-90deg) scale(1); } }
   .auth-orb.holding .auth-orb-logo { scale: 1.1; }
   .auth-orb.holding .auth-orb-track { border-color: color-mix(in srgb, var(--orb-ink) 85%, transparent); }
   .auth-orb-hint.nudge { animation: authNudge .5s ease; }
   @keyframes authNudge { 0%, 100% { transform: none; color: var(--text-3); } 20% { transform: translateY(-5px); color: var(--text-1); } 55% { transform: translateY(2px); } }
   .auth-orb-hint {
-    position: absolute; left: 0; right: 0; top: calc(50% + var(--orb-size) / 2 + 26px); text-align: center; z-index: 2;
+    position: absolute; left: 0; right: 0; top: calc(50% + var(--orb-size) / 2 + 36px); text-align: center; z-index: 2;
     color: var(--text-3); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
     transition: opacity .3s;
   }
@@ -155,8 +162,14 @@
   /* Momentary class used by _restartOrbAnimations() to kick frozen animations. */
   .auth-scene.anim-reset, .auth-scene.anim-reset::before, .auth-scene.anim-reset::after,
   .auth-scene.anim-reset *, .auth-scene.anim-reset *::after { animation: none !important; }
-  .auth-scene.auth-leaving { opacity: 0; pointer-events: none; transition: opacity .5s ease .25s; }
-  .auth-scene.auth-leaving .auth-orb { animation: none; transform: scale(9); opacity: 0; }
+  .auth-scene.auth-leaving { opacity: 0; pointer-events: none; transition: opacity .55s ease .22s; }
+  /* While the entry opens only transform and opacity animate (nothing that has
+     to be re-rasterised at 9x), and the drifting background blobs rest. */
+  .auth-scene.auth-leaving::before, .auth-scene.auth-leaving::after { animation-play-state: paused; }
+  .auth-scene.auth-leaving .auth-orb, .auth-scene.auth-leaving .auth-orb.holding {
+    animation: none; transform: scale(9); opacity: 0; filter: none; will-change: transform, opacity;
+    transition: transform .85s cubic-bezier(.22,.9,.24,1), opacity .5s ease .2s;
+  }
   .auth-scene.auth-leaving .auth-orb-hint { opacity: 0; }
   @media (prefers-reduced-motion: reduce) {
     .auth-scene::before, .auth-scene::after, .auth-orb, .auth-orb-head, .auth-orb-sweep, .auth-orb-track { animation: none !important; }
@@ -625,22 +638,19 @@
   .update-banner button[data-u="dismiss"] { background: transparent; color: var(--text-2); padding: 7px 8px; }
   @media (min-width: 701px) { .update-banner { bottom: 24px; } }
 
-  /* Row swipe (see _swipeBegin): the row's content slides over a colored
-     layer naming the action — green "Paid" on the left, red "Delete" on the
-     right — which brightens once the swipe passes the commit point. */
+  /* Row swipe (see _swipeBegin): swiping a row left slides its content over a
+     green layer naming the action ("Paid", "Done", "Next stage"), which
+     brightens once the swipe passes the commit point. */
   .swiping { position: relative; overflow: hidden; touch-action: pan-y; }
   .swipe-content { position: relative; z-index: 1; background: var(--bg-card); will-change: transform; }
   .swipe-bg {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between;
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;
     padding: 0 18px; font-size: 13px; font-weight: 700; color: #fff;
     background: color-mix(in srgb, #5BAE7A 70%, var(--bg-card)); transition: background-color .15s;
   }
-  .swiping.swipe-dir-r .swipe-bg { background: color-mix(in srgb, #D9534F 70%, var(--bg-card)); }
-  .swiping.swipe-armed-l .swipe-bg { background: #3E9A61; }
-  .swiping.swipe-armed-r .swipe-bg { background: #D9534F; }
+  .swiping.swipe-armed-r .swipe-bg { background: #3E9A61; }
   .swipe-lbl { transition: transform .2s cubic-bezier(.34,1.8,.5,1); }
-  .swiping.swipe-dir-r .swipe-lbl-l, .swiping:not(.swipe-dir-r) .swipe-lbl-r { visibility: hidden; }
-  .swiping.swipe-armed-l .swipe-lbl-l, .swiping.swipe-armed-r .swipe-lbl-r { transform: scale(1.12); }
+  .swiping.swipe-armed-r .swipe-lbl-r { transform: scale(1.12); }
   /* iPhone edge-swipe-back indicator */
   #edgeBackInd {
     position: fixed; left: 0; top: 50%; z-index: 1600; width: 44px; height: 44px; border-radius: 50%;
@@ -1258,7 +1268,11 @@
     <span class="auth-orb-track"></span>
     <span class="auth-orb-sweep"></span>
     <span class="auth-orb-head"></span>
-    <span class="auth-orb-hold"></span>
+    <svg class="auth-orb-hold" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="auth-orb-hold-bg" cx="50" cy="50" r="49" />
+      <circle class="auth-orb-hold-glow" cx="50" cy="50" r="49" pathLength="1" />
+      <circle class="auth-orb-hold-arc" cx="50" cy="50" r="49" pathLength="1" />
+    </svg>
     <img class="auth-orb-logo" id="authOrbLogo" src="./sd-logo.svg" alt="" />
   </button>
   <div class="auth-orb-hint" id="authOrbHint" aria-hidden="true">Tap to sign in</div>
@@ -3307,6 +3321,8 @@ function openAuthPanel() {
   var HOLD_MS = reduced ? 300 : 650;
   var rafId = 0, t0 = 0, active = false, unwindId = 0;
   var sweep = orb.querySelector(".auth-orb-sweep"), head = orb.querySelector(".auth-orb-head");
+  var arc = orb.querySelector(".auth-orb-hold-arc"), glow = orb.querySelector(".auth-orb-hold-glow");
+  var finishTo = 0;
   var a0 = 0, lap = 0; // where the comet head was when the press began, and whether it must catch up a lap
 
   function inGate() { return scene.classList.contains("auth-gate") && !scene.classList.contains("auth-leaving"); }
@@ -3315,6 +3331,9 @@ function openAuthPanel() {
   // charge travel together at the same speed.
   function setP(p) {
     orb.style.setProperty("--hold-p", String(p));
+    var off = String(1 - p), on = p > 0.004 ? "1" : "0"; // a zero-length round-capped stroke would show as a dot
+    arc.style.strokeDashoffset = off; glow.style.strokeDashoffset = off;
+    arc.style.opacity = on; glow.style.opacity = p > 0.004 ? (orb.classList.contains("charged") ? "0.5" : "0.28") : "0";
     if (reduced) return;
     var w = Math.min(1, (performance.now() - t0) / 160);
     w = w * w * (3 - 2 * w);
@@ -3340,8 +3359,9 @@ function openAuthPanel() {
   }
 
   window._resetOrbHold = function () {
-    active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId);
-    orb.classList.remove("holding"); orb.style.removeProperty("--hold-p"); cometSync(false);
+    active = false; cancelAnimationFrame(rafId); cancelAnimationFrame(unwindId); clearTimeout(finishTo);
+    orb.classList.remove("holding", "charged"); orb.style.removeProperty("--hold-p"); cometSync(false);
+    arc.style.strokeDashoffset = ""; glow.style.strokeDashoffset = ""; arc.style.opacity = ""; glow.style.opacity = "";
   };
 
   function begin(e) {
@@ -3365,23 +3385,27 @@ function openAuthPanel() {
   }
   function finish() {
     active = false; cancelAnimationFrame(rafId);
-    orb.classList.remove("holding");
+    // The ring is closed: let that register (a short pulse) before the entry
+    // opens, and keep the press look (no un-swelling) while it expands.
+    orb.classList.add("charged");
+    setP(1);
     try { if (navigator.vibrate) navigator.vibrate(14); } catch (x) {}
-    passEntryGate();
+    finishTo = setTimeout(passEntryGate, reduced ? 0 : 170);
   }
   function release() {
     if (!active) return;
     var held = performance.now() - t0;
     active = false; cancelAnimationFrame(rafId);
-    orb.classList.remove("holding");
+    orb.classList.remove("holding", "charged");
     // Quick tap: say what to do. Early release: unwind the ring.
     if (held < 220) { hint.classList.remove("nudge"); void hint.offsetWidth; hint.classList.add("nudge"); }
     var from = parseFloat(orb.style.getPropertyValue("--hold-p")) || 0, u0 = performance.now();
     (function unwind() {
-      var k = Math.min(1, (performance.now() - u0) / 180);
+      var k = Math.min(1, (performance.now() - u0) / 220);
+      k = 1 - Math.pow(1 - k, 3); // ease-out: it springs back quickly, then settles
       setP(from * (1 - k));
       if (k < 1) unwindId = requestAnimationFrame(unwind);
-      else { orb.style.removeProperty("--hold-p"); cometSync(false); } // head is back at the top: the idle orbit resumes from there
+      else { orb.style.removeProperty("--hold-p"); cometSync(false); arc.style.strokeDashoffset = ""; glow.style.strokeDashoffset = ""; arc.style.opacity = ""; glow.style.opacity = ""; } // head is back at the top: the idle orbit resumes from there
     })();
   }
   hint.addEventListener("animationend", function () { hint.classList.remove("nudge"); });
@@ -3974,16 +3998,15 @@ function _goBack() {
 }
 
 /* ---------------- swipe gestures (touch) ----------------
-   • Swipe a list row left to delete it (with Undo) and right to complete it
-     (bill paid, routine done, planned workout done, job moved to its next
-     stage). Works on any row by pressing the row's own delete/complete
-     button, so each list needs no gesture code of its own.
+   • Swipe a list row left to complete it (bill paid, routine done, planned
+     workout done, job moved to its next stage). Works on any row by pressing
+     the row's own complete button, so each list needs no gesture code of its
+     own. There is deliberately no swipe-to-delete: deleting stays a tap on ✕.
    • Swipe sideways anywhere else on Overview / Budget / Workouts / Jobs (the
      bottom-bar pages) to move to the next or previous one.
    • iPhone home-screen app only: swipe in from the left edge to go back
      (Android has a system back gesture, which history entries now serve). */
 var SWIPE_ROW = ".item-row, .weight-log-row";
-var SWIPE_DELETE_ACTIONS = ["delete", "delete-debt", "delete-planned-item", "delete-period-entry", "delete-entry", "delete-course", "cert-delete", "job-delete", "plan-remove", "delete-set"];
 // Right-swipe ("complete") buttons -> the label to show, or null when that row
 // has nothing to complete right now (e.g. a routine already done today).
 var SWIPE_DONE_ACTIONS = {
@@ -4020,7 +4043,7 @@ function _swipeBegin(s) {
   while (row.firstChild) content.appendChild(row.firstChild);
   var bg = document.createElement("div");
   bg.className = "swipe-bg";
-  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-l">' + (s.doneLabel || "") + '</span><span class="swipe-lbl swipe-lbl-r">Delete &#128465;</span>';
+  bg.innerHTML = '<span class="swipe-lbl swipe-lbl-r">' + (s.doneLabel || "") + '</span>';
   row.appendChild(bg); row.appendChild(content);
   row.classList.add("swiping");
   s.content = content; s.bg = bg;
@@ -4032,15 +4055,10 @@ function _swipeEnd(s, commit) {
     if (!row.isConnected) return;
     while (content.firstChild) row.insertBefore(content.firstChild, content);
     content.remove(); if (s.bg) s.bg.remove();
-    row.classList.remove("swiping", "swipe-armed-l", "swipe-armed-r");
+    row.classList.remove("swiping", "swipe-armed-r");
   }
-  if (commit === "delete") {
-    content.style.transform = "translateX(-110%)";
-    setTimeout(function () { unwrap(); s.del.click(); }, 200);
-  } else {
-    content.style.transform = "translateX(0)";
-    setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
-  }
+  content.style.transform = "translateX(0)";
+  setTimeout(function () { unwrap(); if (commit === "done") s.done.click(); }, 220);
 }
 document.addEventListener("touchstart", function (e) {
   _sw = null;
@@ -4052,21 +4070,24 @@ document.addEventListener("touchstart", function (e) {
   var row = e.target.closest && e.target.closest(SWIPE_ROW);
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
-  var del = null, done = null, doneLabel = null;
+  var done = null, doneLabel = null;
   if (row && !e.target.closest(field + ", input") && !row.querySelector(field)) {
-    del = _swipeButton(row, SWIPE_DELETE_ACTIONS);
     done = _swipeButton(row, Object.keys(SWIPE_DONE_ACTIONS));
     doneLabel = done ? SWIPE_DONE_ACTIONS[done.getAttribute("data-action")](done) : null;
-    if (doneLabel == null) done = null;
+    if (doneLabel == null) done = null; // e.g. a routine already done today: nothing to swipe
   }
-  if (!del && !done) {
+  // A list row with nothing to swipe (already done, being edited, only a delete
+  // button...) neither does anything nor turns the page; the drag is just
+  // absorbed so it can't become a browser "back" either.
+  if (row && !done) { _sw = { mode: "absorb", x0: t.clientX, y0: t.clientY }; return; }
+  if (!done) {
     // Not a swipeable row: a sideways swipe turns the page instead.
     var pages = _tabPages(), pi = pages.indexOf(currentPage);
     if (pi < 0 || !e.target.closest || e.target.closest(".tabbar, .sidebar, #undoToast") || _pageSwipeBlocked(e.target)) return;
     _sw = { mode: "page", pages: pages, idx: pi, x0: t.clientX, y0: t.clientY, t0: Date.now(), dx: 0 };
     return;
   }
-  _sw = { mode: "row", row: row, del: del, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
+  _sw = { mode: "row", row: row, done: done, doneLabel: doneLabel, x0: t.clientX, y0: t.clientY, dx: 0, width: row.getBoundingClientRect().width };
 }, { passive: true });
 document.addEventListener("touchmove", function (e) {
   var s = _sw;
@@ -4079,6 +4100,7 @@ document.addEventListener("touchmove", function (e) {
     if (s.mode === "row") _swipeBegin(s);
   }
   e.preventDefault();
+  if (s.mode === "absorb") return;
   if (s.mode === "page") {
     // Follow the finger a little (full resistance where there's no next page).
     var hasNext = dx < 0 ? s.idx < s.pages.length - 1 : s.idx > 0;
@@ -4098,19 +4120,17 @@ document.addEventListener("touchmove", function (e) {
     s.dx = dx;
     return;
   }
-  // Resist directions this row has no action for.
-  if ((dx < 0 && !s.del) || (dx > 0 && !s.done)) dx *= 0.15;
+  // Only a left swipe does anything; the other direction just resists.
+  if (dx > 0) dx *= 0.15;
   s.dx = dx;
   s.content.style.transition = "none";
   s.content.style.transform = "translateX(" + dx + "px)";
   var threshold = Math.min(110, s.width * 0.35);
   s.row.classList.toggle("swipe-armed-r", dx <= -threshold);
-  s.row.classList.toggle("swipe-armed-l", dx >= threshold);
-  s.row.classList.toggle("swipe-dir-r", dx < 0);
 }, { passive: false });
 function _swipeRelease() {
   var s = _sw; _sw = null;
-  if (!s || !s.decided) return;
+  if (!s || !s.decided || s.mode === "absorb") return;
   if (s.mode === "edge") {
     var ind = document.getElementById("edgeBackInd");
     if (ind) { ind.style.opacity = "0"; ind.classList.remove("armed"); }
@@ -4126,7 +4146,7 @@ function _swipeRelease() {
     return;
   }
   var threshold = Math.min(110, s.width * 0.35);
-  _swipeEnd(s, s.dx <= -threshold && s.del ? "delete" : s.dx >= threshold && s.done ? "done" : null);
+  _swipeEnd(s, s.dx <= -threshold && s.done ? "done" : null);
 }
 document.addEventListener("touchend", _swipeRelease);
 document.addEventListener("touchcancel", function () { if (_sw) _sw.dx = 0; _swipeRelease(); }); // a cancelled touch never commits
@@ -6680,7 +6700,7 @@ async function renderSpendTab(root, cfg) {
     var pct = bp.totalAmt ? Math.min(100, (bp.paidAmt / bp.totalAmt) * 100) : 0;
     el.innerHTML = '<div class="gauge-top"><span class="gauge-label mono">BILLS PAID THIS MONTH</span><span class="mono" style="color:#5BAE7A;">' + bp.paid + " of " + bp.total + '</span></div>' +
       '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:#5BAE7A;box-shadow:0 0 14px #5BAE7A55;"></div></div>' +
-      '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt) + " &middot; swipe a bill right to mark it paid</div>";
+      '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + formatCurrency(bp.paidAmt) + " of " + formatCurrency(bp.totalAmt) + " &middot; swipe a bill left to mark it paid</div>";
   }
   function renderBudgetViews() {
     if (!cfg.showSavingsGoal) return;
