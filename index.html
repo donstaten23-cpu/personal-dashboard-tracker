@@ -3048,7 +3048,15 @@ function _bgRefreshStoryData(key, defaultData) {
       if (local !== null && !_storyPendingSaves.hasOwnProperty(key)) saveStoryData(key, local);
       return;
     }
-    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) { if (data && !_storyDirtyGet()[key]) _writeCache(key, data); });
+    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) {
+      if (!data || _storyDirtyGet()[key]) return;
+      // Keep the copy being replaced (one level) so a wrong overwrite is recoverable.
+      try {
+        var old = _readCache(key);
+        if (old !== null && JSON.stringify(old) !== JSON.stringify(data)) localStorage.setItem("dashboard-story-backup-" + key, JSON.stringify({ at: Date.now(), data: old }));
+      } catch (e) { /* storage full/unavailable */ }
+      _writeCache(key, data);
+    });
   }).catch(function () { /* silent — best-effort, same pattern as _bgRefreshTabData */ });
 }
 
