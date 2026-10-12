@@ -2846,6 +2846,11 @@ async function loadTabData(key, defaultData) {
     _bgRefreshTabData(key);
     return Object.assign({}, defaultData, cached);
   }
+  // Nothing cached because nothing's saved yet — if we already asked recently
+  // and got no row back, don't ask again on every render.
+  if (_bgRefreshedAt[key] && Date.now() - _bgRefreshedAt[key] < BG_REFRESH_MIN_MS) {
+    return JSON.parse(JSON.stringify(defaultData));
+  }
   return _fetchTabDataFromNetwork(key, defaultData);
 }
 
@@ -2856,6 +2861,7 @@ async function _fetchTabDataFromNetwork(key, defaultData) {
       console.error("Load error [" + key + "]:", result.error);
       return JSON.parse(JSON.stringify(defaultData));
     }
+    _bgRefreshedAt[key] = Date.now(); // just fetched — no need for a background refresh right behind it
     if (result.data && result.data.data) {
       _writeCache(key, result.data.data);
       return Object.assign({}, defaultData, result.data.data);
@@ -2868,9 +2874,23 @@ async function _fetchTabDataFromNetwork(key, defaultData) {
   }
 }
 
+// Background refreshes are throttled per tab_key: a key refreshed (or freshly
+// fetched) in the last few minutes is served from cache without another
+// Supabase read. Pages that re-render often (the Data Explorer reloads 8 keys
+// per render) would otherwise re-read the same rows over and over — pure
+// egress. Edits made on this device update the cache immediately, so only
+// changes from another device can lag, by at most BG_REFRESH_MIN_MS.
+var BG_REFRESH_MIN_MS = 5 * 60 * 1000;
+var _bgRefreshedAt = {};
 function _bgRefreshTabData(key) {
+  var now = Date.now();
+  if (_bgRefreshedAt[key] && now - _bgRefreshedAt[key] < BG_REFRESH_MIN_MS) return;
+  _bgRefreshedAt[key] = now;
   supabaseClient.from("dashboard_data").select("data").eq("user_id", currentUserId).eq("tab_key", key).maybeSingle()
     .then(function (result) {
+      // Don't let an older server copy overwrite an edit that's still waiting
+      // to save or whose save may still be in flight.
+      if (_pendingSaves[key] || Date.now() - (_lastLocalEditAt[key] || 0) < 10000) return;
       if (!result.error && result.data && result.data.data) _writeCache(key, result.data.data);
     })
     .catch(function () { /* silent — best-effort cache refresh, the cached value stays as-is */ });
@@ -2878,9 +2898,11 @@ function _bgRefreshTabData(key) {
 
 var _saveDebounceTimers = {};
 var _pendingSaves = {};
+var _lastLocalEditAt = {};
 function saveTabData(key, data) {
   _writeCache(key, data);
   _pendingSaves[key] = data;
+  _lastLocalEditAt[key] = Date.now();
   if (_saveDebounceTimers[key]) clearTimeout(_saveDebounceTimers[key]);
   _saveDebounceTimers[key] = setTimeout(function () { _flushTabDataSave(key); }, 500);
 }
