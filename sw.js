@@ -18,6 +18,8 @@ var PRECACHE_URLS = [
   "./Icon-192.png",
   "./icon-512.png",
   "./Asap_VariableFont_wdth_wght.ttf",
+  "./sql-wasm.js",
+  "./sql-wasm.wasm",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
   "https://accounts.google.com/gsi/client"
 ];

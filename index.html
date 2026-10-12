@@ -1135,6 +1135,18 @@
   .dx-sort:hover { color: var(--text-1); }
   .dx-bar { height: 8px; border-radius: 999px; background: var(--border-2); overflow: hidden; min-width: 80px; }
   .dx-bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
+  .dx-mode { display: flex; gap: 6px; margin-bottom: 14px; }
+  .sql-editor { width: 100%; min-height: 140px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; background: var(--bg); color: var(--text-1); border: 1px solid var(--border-2); border-radius: 10px; padding: 12px; tab-size: 2; box-sizing: border-box; }
+  .sql-editor:focus { outline: none; border-color: var(--accent); }
+  .sql-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sql-chip { background: transparent; border: 1px solid var(--border-2); color: var(--text-2); border-radius: 8px; padding: 5px 9px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .sql-chip.active { border-color: var(--accent); color: var(--accent); }
+  .sql-chip .sql-chip-n { opacity: .6; margin-left: 4px; }
+  .sql-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-3); font-weight: 700; margin: 12px 0 6px; }
+  .sql-err { background: color-mix(in srgb, #e5484d 12%, transparent); border: 1px solid color-mix(in srgb, #e5484d 45%, transparent); color: var(--text-1); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .sql-null { color: var(--text-3); font-style: italic; }
+  .sql-saved-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border-2); }
+  .sql-saved-row button.sql-saved-open { flex: 1; text-align: left; background: none; border: none; color: var(--text-1); font: inherit; font-size: 13px; padding: 4px 0; }
   .edit-input.grow { flex: 1; }
   .edit-input.amt { width: 88px; }
   .edit-input.date { width: 140px; }
@@ -15206,7 +15218,7 @@ async function renderProjectsPage() {
 // everything else — search, filters, sorting, grouping, CSV — is generic
 // over those rows. Nothing here ever calls saveTabData.
 var _dxRaw = {};
-var _dxState = { dataset: 'budget-bills', search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
+var _dxState = { mode: 'sql', dataset: 'budget-bills', search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
 try { Object.assign(_dxState, JSON.parse(localStorage.getItem('dx-state') || '{}')); } catch (e) {}
 var DX_ROW_LIMIT = 500;
 
@@ -15596,6 +15608,289 @@ function _dxExportCsv() {
   setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
 }
 
+
+/* ---------------- SQL playground ---------------- */
+
+// A real SQLite (sql.js, bundled next to index.html) holding one table per
+// dataset above. It's an in-memory copy rebuilt from your saved data each time
+// the page opens, so any SQL — including INSERT/UPDATE/DELETE/CREATE — is safe:
+// it can never reach what the dashboard actually saves.
+var _dxSqlJsPromise = null;
+var _dxSql = { db: null, tables: [], selected: '', result: null, error: '', ran: 0 };
+var DX_SQL_SHOW_LIMIT = 1000;
+
+function _dxLoadSqlJs() {
+  if (_dxSqlJsPromise) return _dxSqlJsPromise;
+  _dxSqlJsPromise = new Promise(function(resolve, reject) {
+    function boot() { window.initSqlJs({ locateFile: function(f) { return './' + f; } }).then(resolve, reject); }
+    if (window.initSqlJs) { boot(); return; }
+    var sc = document.createElement('script');
+    sc.src = './sql-wasm.js';
+    sc.onload = boot;
+    sc.onerror = function() { reject(new Error('Could not load the SQL engine.')); };
+    document.head.appendChild(sc);
+  }).catch(function(e) { _dxSqlJsPromise = null; throw e; });
+  return _dxSqlJsPromise;
+}
+
+function _dxTableName(ds) { return ds.id.replace(/-/g, '_'); }
+
+function _dxSqlBuild(SQL) {
+  if (_dxSql.db) { try { _dxSql.db.close(); } catch (e) {} }
+  var db = new SQL.Database();
+  var tables = [];
+  DX_DATASETS.forEach(function(ds) {
+    var cols = _dxColumns(ds), name = _dxTableName(ds);
+    var rows = ds.rows(_dxRaw);
+    db.run('CREATE TABLE "' + name + '" (' + cols.map(function(c) {
+      return '"' + c.key + '" ' + (c.type === 'number' || c.type === 'money' ? 'REAL' : c.type === 'bool' ? 'INTEGER' : 'TEXT');
+    }).join(', ') + ')');
+    var stmt = db.prepare('INSERT INTO "' + name + '" VALUES (' + cols.map(function() { return '?'; }).join(',') + ')');
+    rows.forEach(function(r) {
+      stmt.run(cols.map(function(c) {
+        var v = r[c.key];
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        if (v === '' || v == null) return c.type === 'text' ? '' : null;
+        return v;
+      }));
+    });
+    stmt.free();
+    tables.push({ name: name, label: ds.label, count: rows.length, cols: cols });
+  });
+  _dxSql.db = db;
+  _dxSql.tables = tables;
+}
+
+var DX_SQL_EXAMPLES = [
+  ['Spending by month', "SELECT substr(date, 1, 7) AS month, person, ROUND(SUM(amount), 2) AS spent\nFROM spend_entries\nGROUP BY 1, 2\nORDER BY 1 DESC;"],
+  ['Biggest bills', "SELECT name, category, amount, owner\nFROM budget_bills\nORDER BY amount DESC\nLIMIT 10;"],
+  ['Best lift per exercise', "SELECT exercise, MAX(weight) AS best_weight, COUNT(*) AS sets\nFROM lift_sets\nWHERE warmup = 0 AND weight IS NOT NULL\nGROUP BY exercise\nORDER BY best_weight DESC;"],
+  ['Workouts per week', "SELECT strftime('%Y-W%W', date) AS week, COUNT(*) AS workouts, SUM(volume) AS volume\nFROM workouts\nGROUP BY 1\nORDER BY 1 DESC;"],
+  ['Job pipeline', "SELECT stage, COUNT(*) AS jobs\nFROM jobs\nGROUP BY stage\nORDER BY jobs DESC;"],
+  ['Travel spend per trip', "SELECT trip, category, ROUND(SUM(amount), 2) AS total\nFROM travel\nGROUP BY trip, category\nORDER BY trip, total DESC;"],
+  ['Body weight over time', "SELECT date, weight,\n  ROUND(weight - LAG(weight) OVER (ORDER BY date), 1) AS change\nFROM body_weight\nORDER BY date DESC;"]
+];
+
+function _dxSqlStore(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; } }
+function _dxSqlStoreSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+
+function _dxSqlResultHtml() {
+  var r = _dxSql.result;
+  if (_dxSql.error) return '<div class="sql-err">' + escapeHtml(_dxSql.error) + '</div>';
+  if (!r) return '<div class="empty-state" style="padding:24px 8px;">Run a query to see results here.</div>';
+  if (!r.sets.length) return '<div class="dx-summary">Done in ' + r.ms + ' ms' + (r.changed ? ' · ' + r.changed + ' row' + (r.changed === 1 ? '' : 's') + ' changed (in this sandbox only)' : '') + '</div>';
+  return r.sets.map(function(set, si) {
+    var shown = set.values.slice(0, DX_SQL_SHOW_LIMIT);
+    var numeric = set.columns.map(function(c, i) { return set.values.length && set.values.every(function(row) { return row[i] == null || typeof row[i] === 'number'; }); });
+    return '<div class="dx-summary">' + set.values.length + ' row' + (set.values.length === 1 ? '' : 's') +
+        (set.values.length > DX_SQL_SHOW_LIMIT ? ' · showing the first ' + DX_SQL_SHOW_LIMIT + ' (export for all)' : '') +
+        ' · ' + r.ms + ' ms' + (r.sets.length > 1 ? ' · result ' + (si + 1) + ' of ' + r.sets.length : '') + '</div>' +
+      '<div class="dx-table-wrap" style="margin-bottom:12px;"><table class="dx-table"><thead><tr>' +
+        set.columns.map(function(c, i) { return '<th class="' + (numeric[i] ? 'dx-num' : '') + '">' + escapeHtml(c) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      (shown.length ? shown.map(function(row) {
+        return '<tr>' + row.map(function(v, i) {
+          if (v == null) return '<td class="' + (numeric[i] ? 'dx-num ' : '') + 'sql-null">NULL</td>';
+          var str = typeof v === 'number' ? String(Math.round(v * 1e6) / 1e6) : String(v);
+          return '<td class="' + (numeric[i] ? 'dx-num' : '') + '"' + (str.length > 40 ? ' title="' + escapeHtml(str) + '"' : '') + '>' + escapeHtml(str) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') : '<tr><td colspan="' + set.columns.length + '" style="color:var(--text-3);">No rows.</td></tr>') +
+      '</tbody></table></div>';
+  }).join('');
+}
+
+function _dxSqlSchemaHtml() {
+  var sel = _dxSql.tables.find(function(t) { return t.name === _dxSql.selected; });
+  return '<div class="sql-chips">' + _dxSql.tables.map(function(t) {
+      return '<button class="sql-chip' + (t.name === _dxSql.selected ? ' active' : '') + '" data-sql-table="' + t.name + '">' + t.name + '<span class="sql-chip-n">' + t.count + '</span></button>';
+    }).join('') + '</div>' +
+    (sel ? '<div class="sql-label">' + escapeHtml(sel.label) + ' — tap a column to insert it</div>' +
+      '<div class="sql-chips">' + sel.cols.map(function(c) {
+        return '<button class="sql-chip" data-sql-insert="' + c.key + '">' + c.key + ' <span class="sql-chip-n">' + (c.type === 'number' || c.type === 'money' ? 'num' : c.type === 'bool' ? '0/1' : c.type === 'date' ? 'date' : 'text') + '</span></button>';
+      }).join('') + '</div>' +
+      '<div class="dx-control-row" style="margin-top:10px;">' +
+        '<button class="port-edit-btn" data-sql-act="insert-table">Insert name</button>' +
+        '<button class="port-edit-btn" data-sql-act="peek">Peek at rows</button>' +
+      '</div>' : '<div style="color:var(--text-3);font-size:12px;margin-top:8px;">Tap a table to see its columns.</div>');
+}
+
+function _dxSqlSavedHtml() {
+  var saved = _dxSqlStore('dx-sql-saved', []), hist = _dxSqlStore('dx-sql-history', []);
+  var h = '';
+  if (saved.length) {
+    h += '<div class="sql-label">Saved queries</div>' + saved.map(function(q, i) {
+      return '<div class="sql-saved-row"><button class="sql-saved-open" data-sql-load-saved="' + i + '">' + escapeHtml(q.name) + '</button>' +
+        '<button class="icon-btn" data-sql-del-saved="' + i + '" title="Delete">✕</button></div>';
+    }).join('');
+  }
+  if (hist.length) {
+    h += '<div class="sql-label">Recent</div>' + hist.map(function(q, i) {
+      return '<div class="sql-saved-row"><button class="sql-saved-open" data-sql-load-hist="' + i + '" style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--text-2);">' + escapeHtml(q.replace(/\s+/g, ' ').slice(0, 90)) + '</button></div>';
+    }).join('');
+  }
+  return h;
+}
+
+function _dxSqlRun() {
+  var ta = document.getElementById('dxSqlText');
+  if (!ta || !_dxSql.db) return;
+  var sql = ta.value.trim();
+  _dxSqlStoreSet('dx-sql-text', ta.value);
+  if (!sql) return;
+  var t0 = performance.now();
+  try {
+    var sets = _dxSql.db.exec(sql);
+    _dxSql.result = { sets: sets, ms: Math.round((performance.now() - t0) * 10) / 10, changed: _dxSql.db.getRowsModified() };
+    _dxSql.error = '';
+    // CREATE/DROP add or remove tables: pick them up in the table list.
+    _dxSqlRefreshTables();
+  } catch (e) {
+    _dxSql.result = null;
+    _dxSql.error = String(e && e.message ? e.message : e);
+  }
+  var hist = _dxSqlStore('dx-sql-history', []).filter(function(q) { return q !== sql; });
+  hist.unshift(sql); _dxSqlStoreSet('dx-sql-history', hist.slice(0, 12));
+  _dxSql.ran++;
+  _dxSqlRenderParts();
+  // On a phone the results sit below the editor: bring them up if they'd be off-screen.
+  var resEl = document.getElementById('dxSqlResult');
+  if (resEl && resEl.getBoundingClientRect().top > window.innerHeight * 0.6) {
+    try { resEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { resEl.scrollIntoView(); }
+  }
+}
+
+function _dxSqlRefreshTables() {
+  var res = _dxSql.db.exec("SELECT name FROM sqlite_master WHERE type IN ('table','view') ORDER BY name");
+  var names = res.length ? res[0].values.map(function(r) { return r[0]; }) : [];
+  var known = {}; _dxSql.tables.forEach(function(t) { known[t.name] = t; });
+  _dxSql.tables = names.map(function(n) {
+    var cols = _dxSql.db.exec('PRAGMA table_info("' + n.replace(/"/g, '""') + '")');
+    var count = 0; try { count = _dxSql.db.exec('SELECT COUNT(*) FROM "' + n.replace(/"/g, '""') + '"')[0].values[0][0]; } catch (e) {}
+    return { name: n, label: known[n] ? known[n].label : n + ' (yours)', count: count,
+             cols: cols.length ? cols[0].values.map(function(c) { var t = String(c[2] || '').toUpperCase(); return { key: c[1], label: c[1], type: t === 'REAL' || t === 'INTEGER' || t === 'NUMERIC' ? 'number' : 'text' }; }) : [] };
+  });
+  if (!_dxSql.tables.some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
+}
+
+function _dxSqlRenderParts() {
+  var res = document.getElementById('dxSqlResult'); if (res) res.innerHTML = _dxSqlResultHtml();
+  var sc = document.getElementById('dxSqlSchema'); if (sc) sc.innerHTML = _dxSqlSchemaHtml();
+  var sv = document.getElementById('dxSqlSaved'); if (sv) sv.innerHTML = _dxSqlSavedHtml();
+  var ex = document.getElementById('dxSqlExport'); if (ex) ex.style.display = _dxSql.result && _dxSql.result.sets.length ? '' : 'none';
+}
+
+function _dxSqlInsert(text) {
+  var ta = document.getElementById('dxSqlText'); if (!ta) return;
+  var a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, b = ta.selectionEnd == null ? a : ta.selectionEnd;
+  var before = ta.value.slice(0, a), after = ta.value.slice(b);
+  var pad = before && !/[\s(]$/.test(before) && !/^[\s,;)]/.test(text) ? ' ' : '';
+  ta.value = before + pad + text + after;
+  var pos = (before + pad + text).length;
+  ta.focus(); try { ta.setSelectionRange(pos, pos); } catch (e) {}
+  _dxSqlStoreSet('dx-sql-text', ta.value);
+}
+
+function _dxSqlExportCsv() {
+  var r = _dxSql.result; if (!r || !r.sets.length) return;
+  var set = r.sets[r.sets.length - 1];
+  var csv = [set.columns].concat(set.values).map(function(l) { return l.map(_dxCsvCell).join(','); }).join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'query-' + todayISO() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+}
+
+function _dxSqlMount() {
+  var root = document.getElementById('dxSqlRoot'); if (!root) return;
+  root.innerHTML = '<div class="card"><div style="color:var(--text-2);font-size:14px;">Loading the SQL engine…</div></div>';
+  _dxLoadSqlJs().then(function(SQL) {
+    if (!document.getElementById('dxSqlRoot')) return;
+    _dxSqlBuild(SQL);
+    _dxSql.result = null; _dxSql.error = '';
+    var saved = _dxSqlStore('dx-sql-text', '');
+    var starter = saved || "SELECT *\nFROM budget_bills\nLIMIT 20;";
+    root.innerHTML =
+      '<div class="card dx-controls">' +
+        '<div class="sql-label" style="margin-top:0;">Tables</div><div id="dxSqlSchema"></div>' +
+      '</div>' +
+      '<div class="card dx-controls">' +
+        '<textarea id="dxSqlText" class="sql-editor" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="SELECT * FROM budget_bills;">' + escapeHtml(starter) + '</textarea>' +
+        '<div class="sql-chips" style="margin-top:8px;">' +
+          ['SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'LIMIT', 'COUNT(*)', 'SUM()', 'AVG()', '*', ',', '=', "''", '(', ')'].map(function(t) {
+            return '<button class="sql-chip" data-sql-insert="' + escapeHtml(t) + '" data-sql-token="1">' + escapeHtml(t) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="dx-control-row" style="margin-top:12px;">' +
+          '<button class="add-btn" data-sql-act="run" style="background:var(--accent);">▶ Run</button>' +
+          '<select class="edit-select" id="dxSqlExamples"><option value="">Examples…</option>' + DX_SQL_EXAMPLES.map(function(e, i) { return '<option value="' + i + '">' + escapeHtml(e[0]) + '</option>'; }).join('') + '</select>' +
+          '<button class="port-edit-btn" data-sql-act="save">Save</button>' +
+          '<button class="port-edit-btn" data-sql-act="clear">Clear</button>' +
+          '<button class="port-edit-btn" data-sql-act="reset" title="Throw away anything you created or changed and reload from your saved data">Reset data</button>' +
+        '</div>' +
+        '<div style="color:var(--text-3);font-size:11px;margin-top:8px;">Runs in a private copy of your data — INSERT, UPDATE, DELETE and CREATE TABLE are fine and never change what the dashboard saves. Cmd/Ctrl + Enter runs.</div>' +
+      '</div>' +
+      '<div class="dx-control-row" style="justify-content:flex-end;margin-bottom:6px;"><button class="port-edit-btn" id="dxSqlExport" data-sql-act="export" style="display:none;">&#8681; Export CSV</button></div>' +
+      '<div id="dxSqlResult" style="scroll-margin-top:12px;"></div>' +
+      '<div id="dxSqlSaved"></div>';
+    _dxSqlRenderParts();
+  }).catch(function(e) {
+    root.innerHTML = '<div class="card"><div class="sql-err">' + escapeHtml(e && e.message ? e.message : 'The SQL engine did not load.') + '</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:10px;">It needs to load once while you’re online. You can still use <b>Browse</b> in the meantime.</div></div>';
+  });
+}
+
+function _dxSqlAttach(inner) {
+  if (inner._dxSqlHandlersAttached) return;
+  inner._dxSqlHandlersAttached = true;
+  inner.addEventListener('click', function(e) {
+    var modeBtn = e.target.closest('[data-dx-mode]');
+    if (modeBtn) {
+      var m = modeBtn.getAttribute('data-dx-mode');
+      if (m !== (_dxState.mode === 'browse' ? 'browse' : 'sql')) { _dxState.mode = m; _dxSaveState(); renderExplorerPage(); }
+      return;
+    }
+    var t = e.target.closest('[data-sql-table]');
+    if (t) { _dxSql.selected = t.getAttribute('data-sql-table'); _dxSqlRenderParts(); return; }
+    var ins = e.target.closest('[data-sql-insert]');
+    if (ins) { _dxSqlInsert(ins.getAttribute('data-sql-insert')); return; }
+    var ld = e.target.closest('[data-sql-load-saved]');
+    if (ld) { var q = _dxSqlStore('dx-sql-saved', [])[Number(ld.getAttribute('data-sql-load-saved'))]; if (q) { document.getElementById('dxSqlText').value = q.sql; _dxSqlStoreSet('dx-sql-text', q.sql); } return; }
+    var lh = e.target.closest('[data-sql-load-hist]');
+    if (lh) { var hq = _dxSqlStore('dx-sql-history', [])[Number(lh.getAttribute('data-sql-load-hist'))]; if (hq) { document.getElementById('dxSqlText').value = hq; _dxSqlStoreSet('dx-sql-text', hq); } return; }
+    var dl = e.target.closest('[data-sql-del-saved]');
+    if (dl) { var arr = _dxSqlStore('dx-sql-saved', []); arr.splice(Number(dl.getAttribute('data-sql-del-saved')), 1); _dxSqlStoreSet('dx-sql-saved', arr); _dxSqlRenderParts(); return; }
+    var act = e.target.closest('[data-sql-act]');
+    if (!act) return;
+    var a = act.getAttribute('data-sql-act'), ta = document.getElementById('dxSqlText');
+    if (a === 'run') _dxSqlRun();
+    else if (a === 'clear') { ta.value = ''; _dxSqlStoreSet('dx-sql-text', ''); ta.focus(); }
+    else if (a === 'export') _dxSqlExportCsv();
+    else if (a === 'insert-table') { if (_dxSql.selected) _dxSqlInsert(_dxSql.selected); }
+    else if (a === 'peek') { if (_dxSql.selected) { ta.value = 'SELECT *\nFROM ' + _dxSql.selected + '\nLIMIT 50;'; _dxSqlRun(); } }
+    else if (a === 'reset') { _dxSqlMount(); }
+    else if (a === 'save') {
+      if (!ta.value.trim()) return;
+      var name = window.prompt('Name this query:', ta.value.trim().replace(/\s+/g, ' ').slice(0, 40));
+      if (!name) return;
+      var list = _dxSqlStore('dx-sql-saved', []); list.unshift({ name: name.trim(), sql: ta.value });
+      _dxSqlStoreSet('dx-sql-saved', list.slice(0, 40)); _dxSqlRenderParts();
+    }
+  });
+  inner.addEventListener('change', function(e) {
+    if (e.target.id !== 'dxSqlExamples') return;
+    var ex = DX_SQL_EXAMPLES[Number(e.target.value)];
+    e.target.value = '';
+    if (ex) { var ta = document.getElementById('dxSqlText'); ta.value = ex[1]; _dxSqlStoreSet('dx-sql-text', ex[1]); _dxSqlRun(); }
+  });
+  inner.addEventListener('keydown', function(e) {
+    if (e.target.id === 'dxSqlText' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); _dxSqlRun(); }
+  });
+  inner.addEventListener('input', function(e) {
+    if (e.target.id === 'dxSqlText') _dxSqlStoreSet('dx-sql-text', e.target.value);
+  });
+}
+
 async function renderExplorerPage() {
   var page = document.getElementById('page-explore');
   if (!page) return;
@@ -15650,12 +15945,27 @@ async function renderExplorerPage() {
     return '<option value="' + c.key + '"' + (_dxState.aggCol === c.key ? ' selected' : '') + '>' + escapeHtml(c.label) + '</option>';
   }).join('');
 
-  inner.innerHTML =
+  var _dxIsSql = _dxState.mode !== 'browse';
+  var _dxHeader =
     '<div style="padding-top:40px;padding-bottom:24px;border-bottom:1px solid var(--border-2);margin-bottom:20px;">' +
-      '<div class="port-eyebrow">Read-only</div>' +
+      '<div class="port-eyebrow">' + (_dxIsSql ? 'SQL playground' : 'Read-only') + '</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Data Explorer</div>' +
-      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">Search, filter, group, and export what you\'ve saved across the dashboard</div>' +
+      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">' + (_dxIsSql ? 'Write SQL against everything you\'ve saved across the dashboard' : 'Search, filter, group, and export what you\'ve saved across the dashboard') + '</div>' +
     '</div>' +
+    '<div class="dx-mode">' +
+      '<button class="dx-ds' + (_dxIsSql ? ' active' : '') + '" data-dx-mode="sql">SQL</button>' +
+      '<button class="dx-ds' + (!_dxIsSql ? ' active' : '') + '" data-dx-mode="browse">Browse</button>' +
+    '</div>';
+
+  if (_dxIsSql) {
+    inner.innerHTML = _dxHeader + '<div id="dxSqlRoot"></div><div style="padding-bottom:40px;"></div>';
+    _dxSqlAttach(inner);
+    _dxSqlMount();
+    animatePageHeading(page);
+    return;
+  }
+
+  inner.innerHTML = _dxHeader +
     '<div class="dx-datasets">' + datasetPicker + '</div>' +
     '<div class="card dx-controls">' +
       '<div class="dx-control-row">' +
@@ -15676,10 +15986,16 @@ async function renderExplorerPage() {
   if (!inner._dxHandlersAttached) {
     inner._dxHandlersAttached = true;
     inner.addEventListener('click', function(e) {
+      var modeBtn = e.target.closest('[data-dx-mode]');
+      if (modeBtn) {
+        var m = modeBtn.getAttribute('data-dx-mode');
+        if (m !== (_dxState.mode === 'browse' ? 'browse' : 'sql')) { _dxState.mode = m; _dxSaveState(); renderExplorerPage(); }
+        return;
+      }
       var dsBtn = e.target.closest('[data-dx-ds]');
       if (dsBtn) {
         if (dsBtn.getAttribute('data-dx-ds') !== _dxState.dataset) {
-          _dxState = { dataset: dsBtn.getAttribute('data-dx-ds'), search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
+          _dxState = { mode: 'browse', dataset: dsBtn.getAttribute('data-dx-ds'), search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
           _dxSaveState(); renderExplorerPage();
         }
         return;
@@ -15710,7 +16026,7 @@ async function renderExplorerPage() {
       } else if (a === 'export') {
         _dxExportCsv();
       } else if (a === 'reset') {
-        _dxState = { dataset: _dxState.dataset, search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
+        _dxState = { mode: 'browse', dataset: _dxState.dataset, search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
         _dxSaveState(); renderExplorerPage();
       }
     });
