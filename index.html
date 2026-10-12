@@ -1031,7 +1031,7 @@
   .item-amount { flex-shrink: 0; font-size: 15px; }
   .item-actions { display: flex; flex-shrink: 0; gap: 8px; }
   .icon-btn { color:var(--text-2); background: none; border: none; font-size: 16px; padding: 6px; border-radius: 6px; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; justify-content: center; }
-  .icon-btn:hover { color:var(--text-1); background: #2A313A; }
+  .icon-btn:hover { color:var(--text-1); background: var(--border); }
   .checkbox { flex-shrink: 0; height: 17px; width: 17px; }
 
   /* ---- reusable collapsible section (accordion) ---- */
@@ -8419,6 +8419,7 @@ async function renderWorkoutsTab(root) {
   var templateEditId = null;
   var confirmResetTemplates = false;
   var planEditingDay = null;
+  var planScrollToForm = false;
   var planDraftName = "";
   var planDraftCategory = "strength";
   var planDraftTemplateId = "";
@@ -9585,24 +9586,27 @@ async function renderWorkoutsTab(root) {
         '<div class="item-main"><div class="item-name">' + dayLabels[dk] + (isToday ? " · Today" : " · " + formatDateShort(dateISO)) + "</div>" +
         '<div class="item-sub">' + subText + "</div></div>" +
         '<div class="item-actions">' + actions + "</div>" +
-      "</div></div>";
+      "</div></div>" + (planEditingDay === dateISO ? '<div id="wkPlanFormSlot">' + planFormHtml(dateISO, dk) + "</div>" : "");
     }
 
-    var formHtml = "";
-    if (planEditingDay) {
-      var dIdx = weekDates.indexOf(planEditingDay);
-      var label = dIdx !== -1 ? dayLabels[dayKeys[dIdx]] : formatDateShort(planEditingDay);
-      formHtml = '<div class="card">' +
-        '<div class="gauge-label mono" style="margin-bottom:10px;">PLAN — ' + escapeHtml(label.toUpperCase()) + '</div>' +
-        '<div class="pills" id="wkPlanCatPills">' + WORKOUT_CATEGORIES.map(function (c) {
+    // Opens right under the day that was tapped (it used to render below the
+    // whole week, off-screen, which made the + look dead). Tapping a template
+    // plans that day in one go; the name box is for anything custom.
+    function planFormHtml(dateISO, dk) {
+      var tplHtml = templatesData.templates.length ?
+        '<div style="color:var(--text-3);font-size:12px;margin-bottom:6px;">Tap a template to plan ' + dayLabels[dk] + '</div>' +
+        '<div class="row-gap" style="flex-wrap:wrap;margin-bottom:12px;">' + templatesData.templates.map(function (t) {
+          var tc = categoryById(WORKOUT_CATEGORIES, t.category);
+          return '<button class="pill" data-plan-template="' + t.id + '" style="border-color:' + tc.color + ';color:' + tc.color + ';">' + tc.glyph + " " + escapeHtml(t.name) + "</button>";
+        }).join("") + "</div>" :
+        '<div style="color:var(--text-3);font-size:12px;margin-bottom:12px;">No templates yet — add some under Templates, or type a name below.</div>';
+      return '<div style="padding:14px 16px;border-bottom:1px solid var(--border-2);">' +
+        tplHtml +
+        '<div style="color:var(--text-3);font-size:12px;margin-bottom:6px;">Or something else</div>' +
+        '<div class="pills" id="wkPlanCatPills" style="margin-bottom:10px;">' + WORKOUT_CATEGORIES.map(function (c) {
           var active = c.id === planDraftCategory;
           return '<button class="pill" data-plan-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
         }).join("") + "</div>" +
-        (templatesData.templates.length ?
-          '<div class="row-gap" style="flex-wrap:wrap;margin:10px 0;">' + templatesData.templates.map(function (t) {
-            var active = t.id === planDraftTemplateId;
-            return '<button class="pill" data-plan-template="' + t.id + '" style="background:' + (active ? accent : "transparent") + ";border-color:" + accent + ";color:" + (active ? "#12151A" : accent) + ';">' + escapeHtml(t.name) + "</button>";
-          }).join("") + "</div>" : "") +
         '<div class="form-row"><span class="exercise-combo-wrap" style="position:relative;flex:1;"><input class="form-input" style="width:100%;" id="wkPlanNameInput" placeholder="Workout name, e.g. Push Day" value="' + escapeHtml(planDraftName) + '" data-exercise-combo="1" /></span></div>' +
         '<div class="form-actions"><span class="error-text" id="wkPlanError"></span>' +
           '<button class="link-btn" id="wkPlanCancelBtn" style="color:var(--text-2);">Cancel</button>' +
@@ -9612,8 +9616,9 @@ async function renderWorkoutsTab(root) {
 
     bodyEl.innerHTML =
       '<div style="color:var(--text-3);font-size:12px;margin-bottom:12px;">Plan what you’re training this week. Set your usual recurring split in <a href="#" id="wkPlanSplitLink" style="color:' + accent + ';">Calendar &amp; Splits</a>.</div>' +
-      '<div class="list-card" style="margin-bottom:16px;">' + weekDates.map(function (dISO, i) { return dayRowHtml(dISO, dayKeys[i]); }).join("") + "</div>" +
-      formHtml;
+      '<div class="list-card" style="margin-bottom:16px;">' + weekDates.map(function (dISO, i) { return dayRowHtml(dISO, dayKeys[i]); }).join("") + "</div>";
+    var _slot = document.getElementById("wkPlanFormSlot");
+    if (_slot && planScrollToForm) { planScrollToForm = false; try { _slot.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { _slot.scrollIntoView(); } }
 
     document.getElementById("wkPlanSplitLink").addEventListener("click", function (e) { e.preventDefault(); activeSection = "calendar"; renderSectionPills(); renderSection(); });
 
@@ -9621,6 +9626,7 @@ async function renderWorkoutsTab(root) {
       btn.addEventListener("click", function (e) {
         planEditingDay = e.currentTarget.getAttribute("data-date");
         planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = "";
+        planScrollToForm = true;
         renderPlanSection();
       });
     });
@@ -9631,6 +9637,7 @@ async function renderWorkoutsTab(root) {
         if (!plan) return;
         planEditingDay = d;
         planDraftName = plan.name; planDraftCategory = plan.category || "strength"; planDraftTemplateId = plan.templateId || "";
+        planScrollToForm = true;
         renderPlanSection();
       });
     });
@@ -9669,9 +9676,9 @@ async function renderWorkoutsTab(root) {
         btn.addEventListener("click", function (e) {
           var t = templatesData.templates.find(function (tpl) { return tpl.id === e.currentTarget.getAttribute("data-plan-template"); });
           if (!t) return;
-          planDraftTemplateId = t.id;
-          planDraftName = t.name;
-          planDraftCategory = t.category || planDraftCategory;
+          planData.days[planEditingDay] = { name: t.name, category: t.category || "strength", templateId: t.id };
+          savePlan();
+          planEditingDay = null;
           renderPlanSection();
         });
       });
@@ -9968,8 +9975,13 @@ async function renderWorkoutsTab(root) {
       '<div class="tab-eyebrow" style="margin-top:8px;">WEEKLY SPLIT</div>' +
       '<div class="card">' +
         dayKeys.map(function (dk) {
-          return '<div class="row-gap" style="margin-bottom:8px;"><span style="width:90px;flex-shrink:0;color:var(--text-2);font-size:13px;">' + dayLabels[dk] + "</span>" +
-            '<input class="form-input" data-split-day="' + dk + '" placeholder="e.g. Push, Legs, Rest" value="' + escapeHtml(splitsData.days[dk] || "") + '" /></div>';
+          var tpls = templatesData.templates || [];
+          return '<div style="margin-bottom:12px;"><div style="color:var(--text-2);font-size:13px;margin-bottom:4px;">' + dayLabels[dk] + "</div>" +
+            '<div class="row-gap">' +
+            '<input class="form-input" style="flex:1;min-width:0;" data-split-day="' + dk + '" placeholder="e.g. Push, Legs, Rest" value="' + escapeHtml(splitsData.days[dk] || "") + '" />' +
+            (tpls.length ? '<select class="form-input" style="flex:0 0 auto;width:auto;max-width:44%;" data-split-pick="' + dk + '"><option value="">Template…</option><option value="__rest">Rest</option>' +
+              tpls.map(function (t) { return '<option value="' + t.id + '">' + escapeHtml(t.name) + "</option>"; }).join("") + "</select>" : "") +
+            "</div></div>";
         }).join("") +
       "</div>";
 
@@ -9985,6 +9997,16 @@ async function renderWorkoutsTab(root) {
       inp.addEventListener("blur", function (e) {
         splitsData.days[e.target.getAttribute("data-split-day")] = e.target.value;
         saveSplits();
+      });
+    });
+    bodyEl.querySelectorAll("[data-split-pick]").forEach(function (sel) {
+      sel.addEventListener("change", function (e) {
+        var dk = e.target.getAttribute("data-split-pick"), v = e.target.value;
+        if (!v) return;
+        var t = (templatesData.templates || []).find(function (tpl) { return tpl.id === v; });
+        splitsData.days[dk] = v === "__rest" ? "Rest" : (t ? t.name : "");
+        saveSplits();
+        renderCalendarSplitSection();
       });
     });
   }
