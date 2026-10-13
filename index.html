@@ -1133,6 +1133,19 @@
   .dx-table .dx-num { text-align: right; font-variant-numeric: tabular-nums; }
   .dx-sort { background: none; border: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
   .dx-sort:hover { color: var(--text-1); }
+  /* Browse editing: dotted cells are editable, faded ones are calculated. */
+  .dx-edit-on { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+  .dx-edit-hint { font-size: 12px; color: var(--text-2); margin-top: 10px; }
+  .dx-table td.dx-editable { cursor: pointer; text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent); text-underline-offset: 3px; }
+  .dx-table td.dx-editable:hover, .dx-table td.dx-editable:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); outline: none; }
+  .dx-table td.dx-readonly { opacity: .55; }
+  .dx-table td.dx-cell-editing { padding: 4px 6px; overflow: visible; max-width: none; }
+  .dx-cell-input { width: 100%; min-width: 110px; font: inherit; font-size: 13px; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--accent); background: var(--bg); color: var(--text-1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .dx-cell-input:focus { outline: none; }
+  .dx-cell-invalid { border-color: #D9534F; box-shadow: 0 0 0 3px color-mix(in srgb, #D9534F 22%, transparent); }
+  .dx-cell-err { font-size: 11px; color: #D9534F; margin-top: 3px; white-space: normal; }
+  .dx-cell-check { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+  .dx-cell-empty { color: var(--text-3); }
   .dx-bar { height: 8px; border-radius: 999px; background: var(--border-2); overflow: hidden; min-width: 80px; }
   .dx-bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
   .dx-mode { display: flex; gap: 6px; margin-bottom: 14px; }
@@ -1850,7 +1863,7 @@
       <div class="page-inner"></div>
     </div>
 
-    <!-- Page: Data Explorer (read-only) -->
+    <!-- Page: Data Explorer (browse + SQL) -->
     <div class="page" id="page-explore">
       <div class="page-inner"></div>
     </div>
@@ -15267,10 +15280,10 @@ async function renderProjectsPage() {
 
 /* ---------------- data explorer ---------------- */
 
-// Read-only explorer over the data every other page saves. Each dataset
+// Explorer over the data every other page saves. Each dataset
 // flattens one tab_key (or several) into plain rows with typed columns;
 // everything else — search, filters, sorting, grouping, CSV — is generic
-// over those rows. Nothing here ever calls saveTabData.
+// over those rows. Browse edits go through DX_EDIT below.
 var _dxRaw = {};
 var _dxState = { mode: 'sql', dataset: 'budget-bills', search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
 try { Object.assign(_dxState, JSON.parse(localStorage.getItem('dx-state') || '{}')); } catch (e) {}
@@ -15307,7 +15320,7 @@ var DX_DATASETS = [
               ['owner', 'Owner', 'text'], ['paidOn', 'Last paid', 'date'], ['notes', 'Notes', 'text']],
     rows: function(d) {
       return (d['dashboard-budget-data'].items || []).map(function(it) {
-        return { name: it.name || '', category: _dxCat(BUDGET_CATEGORIES, it.category), amount: _dxNum(it.amount), dueDay: _dxNum(it.dueDay),
+        return { _ref: it, name: it.name || '', category: _dxCat(BUDGET_CATEGORIES, it.category), amount: _dxNum(it.amount), dueDay: _dxNum(it.dueDay),
                  owner: _dxPerson(it.owner), paidOn: it.paidOn || '', notes: it.notes || '' };
       });
     } },
@@ -15318,11 +15331,11 @@ var DX_DATASETS = [
       ['me', 'partner'].forEach(function(p) {
         var pd = ps[p] || {};
         (pd.entries || []).forEach(function(e) {
-          out.push({ date: _dxLocalDate(e.addedAt), person: _dxPerson(p), amount: _dxNum(e.amount), note: e.note || '', period: 'Current' });
+          out.push({ _ref: e, date: _dxLocalDate(e.addedAt), person: _dxPerson(p), amount: _dxNum(e.amount), note: e.note || '', period: 'Current' });
         });
         (pd.history || []).forEach(function(h) {
           (h.entries || []).forEach(function(e) {
-            out.push({ date: _dxLocalDate(e.addedAt) || h.date || '', person: _dxPerson(p), amount: _dxNum(e.amount), note: e.note || '', period: 'Closed ' + (h.date || '') });
+            out.push({ _ref: e, date: _dxLocalDate(e.addedAt) || h.date || '', person: _dxPerson(p), amount: _dxNum(e.amount), note: e.note || '', period: 'Closed ' + (h.date || '') });
           });
         });
       });
@@ -15354,7 +15367,7 @@ var DX_DATASETS = [
             volume += (_dxNum(s.weight) || 0) * (_dxNum(s.reps) || 0);
           });
         });
-        return { date: it.date || '', name: it.name || '', category: _dxCat(WORKOUT_CATEGORIES, it.category), duration: _dxNum(it.duration),
+        return { _ref: it, date: it.date || '', name: it.name || '', category: _dxCat(WORKOUT_CATEGORIES, it.category), duration: _dxNum(it.duration),
                  exercises: (it.lifts || []).length, sets: sets, volume: volume || null, notes: it.notes || '' };
       });
     } },
@@ -15366,7 +15379,7 @@ var DX_DATASETS = [
       (d['dashboard-workouts-data'].items || []).forEach(function(it) {
         (it.lifts || []).forEach(function(l) {
           (l.sets || []).forEach(function(s) {
-            out.push({ date: it.date || '', workout: it.name || '', exercise: l.name || '', muscle: l.muscleGroup || '',
+            out.push({ _ref: s, date: it.date || '', workout: it.name || '', exercise: l.name || '', muscle: l.muscleGroup || '',
                        weight: _dxNum(s.weight), reps: _dxNum(s.reps), minutes: _dxNum(s.duration), distance: s.distance || '', warmup: !!s.isWarmup });
           });
         });
@@ -15376,14 +15389,14 @@ var DX_DATASETS = [
   { id: 'body-weight', group: 'Fitness', label: 'Body weight', keys: ['dashboard-workouts-data'],
     columns: [['date', 'Date', 'date'], ['weight', 'Weight', 'number']],
     rows: function(d) {
-      return (d['dashboard-workouts-data'].bodyWeightLog || []).map(function(e) { return { date: e.date || '', weight: _dxNum(e.weight) }; });
+      return (d['dashboard-workouts-data'].bodyWeightLog || []).map(function(e) { return { _ref: e, date: e.date || '', weight: _dxNum(e.weight) }; });
     } },
   { id: 'jobs', group: 'Career', label: 'Jobs', keys: ['jobs-data'],
     columns: [['company', 'Company', 'text'], ['role', 'Role', 'text'], ['stage', 'Stage', 'text'], ['dateApplied', 'Applied', 'date'],
               ['salary', 'Salary', 'text'], ['location', 'Location', 'text'], ['fit', 'Fit', 'text'], ['createdAt', 'Added', 'date'], ['notes', 'Notes', 'text']],
     rows: function(d) {
       return (d['jobs-data'].jobs || []).map(function(j) {
-        return { company: j.company || '', role: j.role || '', stage: _dxCat(JOB_STAGES, j.stage || 'saved'), dateApplied: j.dateApplied || '',
+        return { _ref: j, company: j.company || '', role: j.role || '', stage: _dxCat(JOB_STAGES, j.stage || 'saved'), dateApplied: j.dateApplied || '',
                  salary: j.salary || '', location: j.location || '', fit: j.fit || '', createdAt: j.createdAt || '', notes: j.notes || '' };
       });
     } },
@@ -15394,7 +15407,7 @@ var DX_DATASETS = [
     rows: function(d) {
       return (d['projects-data'].projects || []).map(function(p) {
         var tasks = p.tasks || [], done = tasks.filter(function(t) { return t.done; }).length;
-        return { title: p.title || '', status: _dxCat(PROJECT_STATUSES, p.status || 'backlog'), priority: _dxCat(PROJECT_PRIORITIES, p.priority),
+        return { _ref: p, title: p.title || '', status: _dxCat(PROJECT_STATUSES, p.status || 'backlog'), priority: _dxCat(PROJECT_PRIORITIES, p.priority),
                  dueDate: p.dueDate || '', milestones: tasks.length, done: done, pct: tasks.length ? Math.round(done / tasks.length * 100) : null,
                  links: (p.links || []).length, createdAt: p.createdAt || '', completedAt: p.completedAt || '' };
       });
@@ -15405,7 +15418,7 @@ var DX_DATASETS = [
       var out = [];
       (d['projects-data'].projects || []).forEach(function(p) {
         (p.tasks || []).forEach(function(t) {
-          out.push({ project: p.title || '', status: _dxCat(PROJECT_STATUSES, p.status || 'backlog'), milestone: t.text || '', done: !!t.done, notes: t.notes || '' });
+          out.push({ _ref: t, project: p.title || '', status: _dxCat(PROJECT_STATUSES, p.status || 'backlog'), milestone: t.text || '', done: !!t.done, notes: t.notes || '' });
         });
       });
       return out;
@@ -15415,7 +15428,7 @@ var DX_DATASETS = [
               ['targetDate', 'Target date', 'date'], ['cost', 'Cost', 'money'], ['notes', 'Notes', 'text']],
     rows: function(d) {
       return (d['certs-data'].certs || []).map(function(c) {
-        return { name: c.name || '', provider: c.provider || '', examCode: c.examCode || '', status: _dxStatusLabel(typeof CERT_STATUSES !== 'undefined' ? CERT_STATUSES : null, c.status),
+        return { _ref: c, name: c.name || '', provider: c.provider || '', examCode: c.examCode || '', status: _dxStatusLabel(typeof CERT_STATUSES !== 'undefined' ? CERT_STATUSES : null, c.status),
                  targetDate: c.targetDate || '', cost: _dxNum(c.cost), notes: c.notes || '' };
       });
     } },
@@ -15426,7 +15439,7 @@ var DX_DATASETS = [
       var out = [];
       (d['education-data'].groups || []).forEach(function(g) {
         (g.courses || []).forEach(function(c) {
-          out.push({ code: c.code || '', name: c.name || '', group: g.name || '', credits: _dxNum(c.credits), semester: c.semester || '',
+          out.push({ _ref: c, code: c.code || '', name: c.name || '', group: g.name || '', credits: _dxNum(c.credits), semester: c.semester || '',
                      status: (c.status || '').replace(/-/g, ' '), grade: c.grade || '' });
         });
       });
@@ -15438,7 +15451,7 @@ var DX_DATASETS = [
       var out = [];
       (d['dashboard-travel-data'].trips || []).forEach(function(t) {
         (t.items || []).forEach(function(it) {
-          out.push({ trip: t.title || 'Trip', date: it.date || '', category: _dxCat(TRAVEL_CATEGORIES, it.category), name: it.name || '', amount: _dxNum(it.amount), notes: it.notes || '' });
+          out.push({ _ref: it, trip: t.title || 'Trip', date: it.date || '', category: _dxCat(TRAVEL_CATEGORIES, it.category), name: it.name || '', amount: _dxNum(it.amount), notes: it.notes || '' });
         });
       });
       return out;
@@ -15450,7 +15463,7 @@ var DX_DATASETS = [
       (d['dashboard-routines-data'].routines || []).forEach(function(r) {
         (r.completions || []).forEach(function(c) {
           var when = typeof c === 'object' ? (c.date || c.week || '') : c;
-          out.push({ routine: r.name || '', frequency: r.frequency || 'daily', date: /^\d{4}-\d{2}-\d{2}$/.test(when) ? when : '', note: (c && c.note) || '' });
+          out.push({ _ref: c && typeof c === 'object' ? c : null, routine: r.name || '', frequency: r.frequency || 'daily', date: /^\d{4}-\d{2}-\d{2}$/.test(when) ? when : '', note: (c && c.note) || '' });
         });
       });
       return out;
@@ -15572,6 +15585,147 @@ function _dxGroups(rows, ds) {
   return groups;
 }
 
+/* ---- Browse editing ----
+   Each Browse row carries _ref: the actual saved item it came from (see the
+   row builders above). DX_EDIT says which columns can be edited, with what
+   kind of input, and which field of _ref they write to — labels shown in
+   Browse (e.g. "Housing") map back to the stored ids ("housing"). Columns
+   that are calculated (volume, % done, period totals…) aren't listed, so
+   they stay read-only. After a change, the section is saved like any other
+   edit and the page that owns it is told to reload. */
+function _dxOptList(list) { return function() { return list.map(function(x) { return { value: x.id, label: x.label }; }); }; }
+var DX_EDIT = {
+  'budget-bills': { key: 'dashboard-budget-data', cols: {
+    name: { kind: 'text', field: 'name' }, category: { kind: 'select', field: 'category', options: _dxOptList(BUDGET_CATEGORIES) },
+    amount: { kind: 'number', field: 'amount' }, dueDay: { kind: 'number', field: 'dueDay', min: 1, max: 31, whole: true },
+    owner: { kind: 'select', field: 'owner', options: function() { return [{ value: 'me', label: USER_DISPLAY_NAME }, { value: 'partner', label: PARTNER_DISPLAY_NAME }, { value: '', label: 'Both' }]; } },
+    paidOn: { kind: 'date', field: 'paidOn' }, notes: { kind: 'text', field: 'notes' } } },
+  'spend-entries': { key: 'dashboard-budget-data', cols: {
+    amount: { kind: 'number', field: 'amount' }, note: { kind: 'text', field: 'note' },
+    // Stored as a timestamp: changing the day keeps the original time of day.
+    date: { kind: 'date', get: function(r) { return _dxLocalDate(r.addedAt); }, set: function(r, v) {
+      var d = r.addedAt ? new Date(r.addedAt) : new Date(); var p = v.split('-');
+      d.setFullYear(+p[0], +p[1] - 1, +p[2]); r.addedAt = d.toISOString(); } } } },
+  'workouts': { key: 'dashboard-workouts-data', cols: {
+    date: { kind: 'date', field: 'date' }, name: { kind: 'text', field: 'name' }, category: { kind: 'select', field: 'category', options: _dxOptList(WORKOUT_CATEGORIES) },
+    duration: { kind: 'number', field: 'duration', min: 0 }, notes: { kind: 'text', field: 'notes' } } },
+  'lift-sets': { key: 'dashboard-workouts-data', cols: {
+    weight: { kind: 'number', field: 'weight', min: 0 }, reps: { kind: 'number', field: 'reps', min: 0, whole: true },
+    minutes: { kind: 'number', field: 'duration', min: 0 }, distance: { kind: 'text', field: 'distance' }, warmup: { kind: 'bool', field: 'isWarmup' } } },
+  'body-weight': { key: 'dashboard-workouts-data', cols: { date: { kind: 'date', field: 'date' }, weight: { kind: 'number', field: 'weight', min: 0 } } },
+  'jobs': { key: 'jobs-data', cols: {
+    company: { kind: 'text', field: 'company' }, role: { kind: 'text', field: 'role' }, stage: { kind: 'select', field: 'stage', options: _dxOptList(JOB_STAGES) },
+    dateApplied: { kind: 'date', field: 'dateApplied' }, salary: { kind: 'text', field: 'salary' }, location: { kind: 'text', field: 'location' },
+    fit: { kind: 'text', field: 'fit' }, notes: { kind: 'text', field: 'notes' } } },
+  'projects': { key: 'projects-data', cols: {
+    title: { kind: 'text', field: 'title' },
+    status: { kind: 'select', options: _dxOptList(PROJECT_STATUSES), get: function(r) { return r.status || 'backlog'; },
+              set: function(r, v) { _projSetStatus(r, v); } }, // keeps completedAt in step, as the board does
+    priority: { kind: 'select', field: 'priority', options: function() { return [{ value: '', label: '—' }].concat(_dxOptList(PROJECT_PRIORITIES)()); } },
+    dueDate: { kind: 'date', field: 'dueDate' } } },
+  'milestones': { key: 'projects-data', cols: { milestone: { kind: 'text', field: 'text' }, done: { kind: 'bool', field: 'done' }, notes: { kind: 'text', field: 'notes' } } },
+  'certs': { key: 'certs-data', cols: {
+    name: { kind: 'text', field: 'name' }, provider: { kind: 'text', field: 'provider' }, examCode: { kind: 'text', field: 'examCode' },
+    status: { kind: 'select', field: 'status', options: _dxOptList(CERT_STATUSES) }, targetDate: { kind: 'date', field: 'targetDate' },
+    cost: { kind: 'text', field: 'cost' }, notes: { kind: 'text', field: 'notes' } } },
+  'courses': { key: 'education-data', cols: {
+    code: { kind: 'text', field: 'code' }, name: { kind: 'text', field: 'name' }, credits: { kind: 'number', field: 'credits', min: 0 },
+    semester: { kind: 'text', field: 'semester' }, status: { kind: 'select', field: 'status', options: _dxOptList(EDU_STATUSES) }, grade: { kind: 'text', field: 'grade' } } },
+  'travel': { key: 'dashboard-travel-data', cols: {
+    date: { kind: 'date', field: 'date' }, category: { kind: 'select', field: 'category', options: _dxOptList(TRAVEL_CATEGORIES) },
+    name: { kind: 'text', field: 'name' }, amount: { kind: 'number', field: 'amount' }, notes: { kind: 'text', field: 'notes' } } },
+  'routines': { key: 'dashboard-routines-data', cols: { note: { kind: 'text', field: 'note' } } }
+};
+function _dxEditSpec(dsId, colKey) { var e = DX_EDIT[dsId]; return e && e.cols[colKey] ? e.cols[colKey] : null; }
+function _dxEditGet(spec, ref) { var v = spec.get ? spec.get(ref) : ref[spec.field]; return v == null ? '' : v; }
+
+var _dxShownRows = [];   // rows currently in the Browse table (index = data-dx-row)
+var _dxEditing = null;   // { row, col } of the cell open for editing
+
+// The page that owns this data may be holding an older copy in memory;
+// make it reload from the (now updated) cache the next time it opens.
+function _dxInvalidatePage(key) {
+  if (key === 'jobs-data') _jobData = null;
+  else if (key === 'projects-data') _projData = null;
+  else if (key === 'certs-data') _certData = null;
+  else if (key === 'education-data') _educationData = null;
+  else if (key === 'dashboard-workouts-data') { var wk = document.getElementById('workoutPageRoot'); if (wk) wk._loaded = false; }
+  else if (key === 'dashboard-routines-data') { var rt = document.getElementById('routinesRoot'); if (rt && typeof renderRoutinesTab === 'function') renderRoutinesTab(rt); }
+}
+
+// Validates and writes one edited value. Returns an error message, or ''.
+function _dxCommitEdit(ds, rowIdx, colKey, raw) {
+  var spec = _dxEditSpec(ds.id, colKey), row = _dxShownRows[rowIdx];
+  if (!spec || !row || !row._ref) return 'This value can’t be edited here.';
+  var ref = row._ref, key = DX_EDIT[ds.id].key, old = spec.get ? spec.get(ref) : ref[spec.field], val = raw;
+  if (spec.kind === 'number') {
+    var s = String(raw).replace(/[$,\s]/g, '');
+    if (s === '') val = '';
+    else {
+      val = Number(s);
+      if (!isFinite(val)) return 'Enter a number.';
+      if (spec.whole && Math.round(val) !== val) return 'Enter a whole number.';
+      if (spec.min != null && val < spec.min) return 'Must be at least ' + spec.min + '.';
+      if (spec.max != null && val > spec.max) return 'Must be at most ' + spec.max + '.';
+    }
+  } else if (spec.kind === 'date') {
+    if (raw !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return 'Pick a date.';
+    if (raw === '' && spec.set) return 'A date is required here.';
+  } else if (spec.kind === 'bool') {
+    val = !!raw;
+  } else {
+    val = String(raw).trim();
+  }
+  if (String(val) === String(old == null ? '' : old)) return '';
+  var before = JSON.stringify(ref);
+  if (spec.set) spec.set(ref, val); else ref[spec.field] = val;
+  saveTabData(key, _dxRaw[key]);
+  _dxInvalidatePage(key);
+  var col = _dxCol(ds, colKey);
+  _offerUndo((col ? col.label : colKey) + ' updated', function() {
+    var prev = JSON.parse(before);
+    Object.keys(ref).forEach(function(k) { if (!(k in prev)) delete ref[k]; });
+    Object.assign(ref, prev);
+    saveTabData(key, _dxRaw[key]);
+    _dxInvalidatePage(key);
+    _dxRenderResults();
+  });
+  return '';
+}
+
+// Saves (or cancels) the open cell editor. On a validation problem the
+// editor stays open with the message under it.
+function _dxFinishEdit(inner, input, save) {
+  if (!_dxEditing || input._dxDone) return;
+  var row = Number(input.getAttribute('data-dx-row')), col = input.getAttribute('data-dx-col');
+  if (_dxEditing.row !== row || _dxEditing.col !== col) return;
+  if (save) {
+    var err = _dxCommitEdit(_dxDataset(_dxState.dataset), row, col, input.value);
+    if (err) {
+      input.classList.add('dx-cell-invalid');
+      var msg = input.parentNode.querySelector('.dx-cell-err');
+      if (!msg) { msg = document.createElement('div'); msg.className = 'dx-cell-err'; input.parentNode.appendChild(msg); }
+      msg.textContent = err;
+      return;
+    }
+  }
+  input._dxDone = true;
+  _dxEditing = null;
+  _dxRenderResults();
+}
+
+function _dxEditorHtml(ds, rowIdx, colKey) {
+  var spec = _dxEditSpec(ds.id, colKey), cur = _dxEditGet(spec, _dxShownRows[rowIdx]._ref);
+  var attrs = ' class="dx-cell-input" data-dx-input="1" data-dx-row="' + rowIdx + '" data-dx-col="' + colKey + '"';
+  if (spec.kind === 'select') {
+    var opts = spec.options(), known = opts.some(function(o) { return String(o.value) === String(cur); });
+    return '<select' + attrs + '>' + (known ? '' : '<option value="' + escapeHtml(cur) + '" selected>' + escapeHtml(cur || '—') + '</option>') +
+      opts.map(function(o) { return '<option value="' + escapeHtml(o.value) + '"' + (String(o.value) === String(cur) ? ' selected' : '') + '>' + escapeHtml(o.label) + '</option>'; }).join('') + '</select>';
+  }
+  var type = spec.kind === 'date' ? 'date' : spec.kind === 'number' ? 'text" inputmode="decimal' : 'text';
+  return '<input type="' + type + '"' + attrs + ' value="' + escapeHtml(cur) + '"' + (spec.kind === 'text' ? ' autocomplete="off"' : '') + ' />';
+}
+
 function _dxResultsHtml(ds) {
   var cols = _dxColumns(ds);
   var rows = _dxFilteredRows(ds);
@@ -15607,10 +15761,21 @@ function _dxResultsHtml(ds) {
     return '<th class="' + (c.type === 'number' || c.type === 'money' ? 'dx-num' : '') + '"><button class="dx-sort" data-dx-sort="' + c.key + '">' +
       escapeHtml(c.label) + (active ? (_dxState.sortDir === 1 ? ' &#9650;' : ' &#9660;') : '') + '</button></th>';
   }).join('');
-  var body = shown.map(function(r) {
+  _dxShownRows = shown;
+  var editing = !!_dxState.editing && !!DX_EDIT[ds.id];
+  var body = shown.map(function(r, ri) {
     return '<tr>' + cols.map(function(c) {
       var isNum = c.type === 'number' || c.type === 'money';
-      return '<td class="' + (isNum ? 'dx-num' : '') + '"' + (c.type === 'text' && String(r[c.key] || '').length > 60 ? ' title="' + escapeHtml(r[c.key]) + '"' : '') + '>' + escapeHtml(_dxFormat(r[c.key], c.type)) + '</td>';
+      var spec = editing && r._ref ? _dxEditSpec(ds.id, c.key) : null;
+      if (spec && _dxEditing && _dxEditing.row === ri && _dxEditing.col === c.key) {
+        return '<td class="dx-cell-editing">' + _dxEditorHtml(ds, ri, c.key) + '</td>';
+      }
+      var cls = (isNum ? 'dx-num' : '') + (spec ? ' dx-editable' : editing ? ' dx-readonly' : '');
+      var content = spec && spec.kind === 'bool'
+        ? '<input type="checkbox" class="dx-cell-check" data-dx-toggle="1" data-dx-row="' + ri + '" data-dx-col="' + c.key + '"' + (_dxEditGet(spec, r._ref) ? ' checked' : '') + ' aria-label="' + escapeHtml(c.label) + '" />'
+        : escapeHtml(_dxFormat(r[c.key], c.type)) || (spec ? '<span class="dx-cell-empty">—</span>' : '');
+      return '<td class="' + cls + '"' + (spec && spec.kind !== 'bool' ? ' data-dx-cell="1" data-dx-row="' + ri + '" data-dx-col="' + c.key + '" tabindex="0"' : '') +
+        (editing && !spec ? ' title="Calculated or fixed — not editable here"' : (c.type === 'text' && String(r[c.key] || '').length > 60 ? ' title="' + escapeHtml(r[c.key]) + '"' : '')) + '>' + content + '</td>';
     }).join('') + '</tr>';
   }).join('');
   var foot = numCols.length && rows.length
@@ -16842,9 +17007,9 @@ async function renderExplorerPage() {
   var _dxIsSql = _dxState.mode !== 'browse';
   var _dxHeader =
     '<div style="padding-top:40px;padding-bottom:24px;border-bottom:1px solid var(--border-2);margin-bottom:20px;">' +
-      '<div class="port-eyebrow">' + (_dxIsSql ? 'SQL playground' : 'Read-only') + '</div>' +
+      '<div class="port-eyebrow">' + (_dxIsSql ? 'SQL playground' : 'All your data') + '</div>' +
       '<div class="serif" style="font-size:30px;color:var(--text-1);line-height:1.1;">Data Explorer</div>' +
-      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">' + (_dxIsSql ? 'Write SQL against everything you\'ve saved across the dashboard' : 'Search, filter, group, and export what you\'ve saved across the dashboard') + '</div>' +
+      '<div style="color:var(--text-2);font-size:14px;margin-top:4px;">' + (_dxIsSql ? 'Write SQL against everything you\'ve saved across the dashboard' : 'Search, sort, edit, and export what you\'ve saved across the dashboard') + '</div>' +
     '</div>' +
     '<div class="dx-mode">' +
       '<button class="dx-ds' + (_dxIsSql ? ' active' : '') + '" data-dx-mode="sql">SQL</button>' +
@@ -16866,13 +17031,18 @@ async function renderExplorerPage() {
         '<input class="form-input" id="dxSearch" type="search" placeholder="Search ' + escapeHtml(ds.label.toLowerCase()) + '" value="' + escapeHtml(_dxState.search || '') + '" style="flex:1;min-width:180px;" />' +
         '<button class="port-edit-btn" data-dx-action="add-filter">+ Filter</button>' +
         '<button class="port-edit-btn" data-dx-action="export" title="Download what\'s shown as a CSV file">&#8681; Export CSV</button>' +
+        (DX_EDIT[ds.id] ? '<button class="port-edit-btn' + (_dxState.editing ? ' dx-edit-on' : '') + '" data-dx-action="toggle-edit" aria-pressed="' + !!_dxState.editing + '">' + (_dxState.editing ? '&#10003; Done editing' : '&#9998; Edit') + '</button>' : '') +
         ((_dxState.filters.length || _dxState.search || _dxState.groupBy || _dxState.sortCol) ? '<button class="port-edit-btn" data-dx-action="reset">Reset</button>' : '') +
       '</div>' +
       (filtersHtml ? '<div class="dx-filters">' + filtersHtml + '</div>' : '') +
       '<div class="dx-control-row" style="margin-top:10px;">' +
+        '<label class="dx-inline-label">Sort by <select class="edit-select" id="dxSortBy"><option value="">None</option>' +
+          cols.map(function(c) { return '<option value="' + c.key + '"' + (_dxState.sortCol === c.key ? ' selected' : '') + '>' + escapeHtml(c.label) + '</option>'; }).join('') + '</select></label>' +
+        (_dxState.sortCol ? '<button class="port-edit-btn" data-dx-action="sort-dir" title="Flip sort direction">' + (_dxState.sortDir === 1 ? '&#9650; Ascending' : '&#9660; Descending') + '</button>' : '') +
         '<label class="dx-inline-label">Group by <select class="edit-select" id="dxGroupBy">' + groupOpts + '</select></label>' +
         (_dxState.groupBy && numCols.length ? '<label class="dx-inline-label">Total <select class="edit-select" id="dxAgg">' + aggOpts + '</select></label>' : '') +
       '</div>' +
+      (_dxState.editing && DX_EDIT[ds.id] ? '<div class="dx-edit-hint">' + (_dxState.groupBy ? 'Turn off grouping to edit individual rows.' : 'Tap a dotted cell to change it — Enter or tapping away saves, Esc cancels. Faded columns are calculated, so they can’t be edited here.') + '</div>' : '') +
     '</div>' +
     '<div id="dxResults">' + _dxResultsHtml(ds) + '</div>' +
     '<div style="padding-bottom:40px;"></div>';
@@ -16889,11 +17059,21 @@ async function renderExplorerPage() {
       var dsBtn = e.target.closest('[data-dx-ds]');
       if (dsBtn) {
         if (dsBtn.getAttribute('data-dx-ds') !== _dxState.dataset) {
-          _dxState = { mode: 'browse', dataset: dsBtn.getAttribute('data-dx-ds'), search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
+          _dxState = { mode: 'browse', dataset: dsBtn.getAttribute('data-dx-ds'), search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '', editing: _dxState.editing };
+          _dxEditing = null;
           _dxSaveState(); renderExplorerPage();
         }
         return;
       }
+      var cell = e.target.closest('[data-dx-cell]');
+      if (cell && !e.target.closest('[data-dx-input]')) {
+        _dxEditing = { row: Number(cell.getAttribute('data-dx-row')), col: cell.getAttribute('data-dx-col') };
+        _dxRenderResults();
+        var inp = inner.querySelector('[data-dx-input]');
+        if (inp) { inp.focus(); if (inp.tagName === 'INPUT' && inp.type === 'text') inp.select(); }
+        return;
+      }
+      if (e.target.closest('[data-dx-input]')) return;
       var sortBtn = e.target.closest('[data-dx-sort]');
       if (sortBtn) {
         var key = sortBtn.getAttribute('data-dx-sort');
@@ -16904,7 +17084,7 @@ async function renderExplorerPage() {
         if (_dxState.sortCol !== key) { _dxState.sortCol = key; _dxState.sortDir = firstDir; }
         else if (_dxState.sortDir === firstDir) _dxState.sortDir = -firstDir;
         else { _dxState.sortCol = ''; _dxState.sortDir = 1; }
-        _dxSaveState(); _dxRenderResults();
+        _dxEditing = null; _dxSaveState(); renderExplorerPage();
         return;
       }
       var rm = e.target.closest('[data-dx-fremove]');
@@ -16917,12 +17097,29 @@ async function renderExplorerPage() {
         _dxState.filters.push({ col: first.key, op: _dxOpsFor(first.type)[0][0], value: '' });
         _dxSaveState(); renderExplorerPage();
         var vals = inner.querySelectorAll('[data-dx-fval]'); if (vals.length) vals[vals.length - 1].focus();
+      } else if (a === 'toggle-edit') {
+        _dxState.editing = !_dxState.editing; _dxEditing = null; _dxSaveState(); renderExplorerPage();
+      } else if (a === 'sort-dir') {
+        _dxState.sortDir = -(_dxState.sortDir || 1); _dxSaveState(); renderExplorerPage();
       } else if (a === 'export') {
         _dxExportCsv();
       } else if (a === 'reset') {
-        _dxState = { mode: 'browse', dataset: _dxState.dataset, search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '' };
+        _dxState = { mode: 'browse', dataset: _dxState.dataset, search: '', filters: [], sortCol: '', sortDir: 1, groupBy: '', aggCol: '', editing: _dxState.editing };
         _dxSaveState(); renderExplorerPage();
       }
+    });
+    inner.addEventListener('keydown', function(e) {
+      var t = e.target;
+      if (t.hasAttribute && t.hasAttribute('data-dx-input')) {
+        if (e.key === 'Enter') { e.preventDefault(); _dxFinishEdit(inner, t, true); }
+        else if (e.key === 'Escape') { e.preventDefault(); _dxFinishEdit(inner, t, false); }
+      } else if (t.hasAttribute && t.hasAttribute('data-dx-cell') && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault(); t.click();
+      }
+    });
+    inner.addEventListener('focusout', function(e) {
+      var t = e.target;
+      if (t.hasAttribute && t.hasAttribute('data-dx-input') && t.tagName !== 'SELECT' && t.isConnected) _dxFinishEdit(inner, t, true);
     });
     // Typing re-renders only the results, so inputs keep focus.
     inner.addEventListener('input', function(e) {
@@ -16933,6 +17130,18 @@ async function renderExplorerPage() {
     // Structural changes (which column/operator, grouping) rebuild the controls too.
     inner.addEventListener('change', function(e) {
       var t = e.target;
+      if (t.hasAttribute('data-dx-toggle')) {
+        var tErr = _dxCommitEdit(_dxDataset(_dxState.dataset), Number(t.getAttribute('data-dx-row')), t.getAttribute('data-dx-col'), t.checked);
+        if (tErr) t.checked = !t.checked;
+        _dxRenderResults(); return;
+      }
+      if (t.hasAttribute('data-dx-input') && t.tagName === 'SELECT') { _dxFinishEdit(inner, t, true); return; }
+      if (t.id === 'dxSortBy') {
+        var sc = _dxCol(_dxDataset(_dxState.dataset), t.value);
+        _dxState.sortCol = t.value;
+        _dxState.sortDir = sc && (sc.type === 'date' || sc.type === 'number' || sc.type === 'money') ? -1 : 1;
+        _dxEditing = null; _dxSaveState(); renderExplorerPage(); return;
+      }
       if (t.hasAttribute('data-dx-fcol')) {
         var f = _dxState.filters[Number(t.getAttribute('data-dx-fcol'))];
         f.col = t.value; f.op = _dxOpsFor(_dxCol(_dxDataset(_dxState.dataset), t.value).type)[0][0]; f.value = '';
