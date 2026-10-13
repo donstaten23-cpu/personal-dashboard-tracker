@@ -1145,6 +1145,20 @@
   .sql-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-3); font-weight: 700; margin: 12px 0 6px; }
   .sql-err { background: color-mix(in srgb, #e5484d 12%, transparent); border: 1px solid color-mix(in srgb, #e5484d 45%, transparent); color: var(--text-1); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
   .sql-null { color: var(--text-3); font-style: italic; }
+  /* SQL explainer: plain-English error help, heads-up warnings, syntax cards */
+  .sql-explain { margin-top: 10px; border: 1px solid var(--border-2); border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px 14px; background: var(--bg-card); }
+  .sql-explain-title { font-weight: 700; font-size: 14px; color: var(--text-1); margin-bottom: 4px; }
+  .sql-explain-text { font-size: 13.5px; line-height: 1.55; color: var(--text-1); }
+  .sql-lint { margin: 10px 0; border: 1px solid color-mix(in srgb, #C9862B 45%, transparent); background: color-mix(in srgb, #C9862B 10%, transparent); border-radius: 10px; padding: 10px 14px; }
+  .sql-lint-title { font-weight: 700; font-size: 13px; color: var(--text-1); margin-bottom: 4px; }
+  .sql-lint ul, .sql-ex-why { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--text-1); }
+  .sql-lint li, .sql-ex-why li { margin-bottom: 4px; }
+  .sql-cards { margin-top: 10px; }
+  .sql-cards > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); padding: 4px 0; list-style-position: inside; }
+  .sql-card { border: 1px solid var(--border-2); border-radius: 10px; padding: 10px 12px; margin-top: 8px; background: var(--bg); }
+  .sql-card-title { font-weight: 700; font-size: 13.5px; color: var(--text-1); }
+  .sql-card-text { font-size: 13px; line-height: 1.5; color: var(--text-2); margin: 3px 0 8px; }
+  .sql-card-code { margin: 4px 0 0; padding: 8px 10px; background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 8px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-1); }
   /* Practice panel */
   .sql-ex-progress { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
   .sql-ex-blurb { color: var(--text-2); font-size: 13px; line-height: 1.55; margin-top: 10px; }
@@ -15943,82 +15957,82 @@ function _dxPracticeSql(engine) {
    order counts when checking. Everything else compares as a set of rows,
    ignoring column names. */
 var DX_EXERCISES = [
-  { id: 'e1', level: 'Easy', title: 'Engineering payroll', ordered: true,
+  { id: 'e1', concepts: ['join','where','order-by'], level: 'Easy', title: 'Engineering payroll', ordered: true,
     prompt: 'List every employee in the Engineering department: first name, last name and salary, highest salary first.',
     hints: ['Employees only store department_id — JOIN departments to filter on its name.', 'ORDER BY salary DESC.'],
     sql: "SELECT e.first_name, e.last_name, e.salary\nFROM employees e\nJOIN departments d ON d.id = e.department_id\nWHERE d.name = 'Engineering'\nORDER BY e.salary DESC, e.last_name, e.first_name;" },
-  { id: 'e2', level: 'Easy', title: 'Pricey products', ordered: false,
+  { id: 'e2', concepts: ['where'], level: 'Easy', title: 'Pricey products', ordered: false,
     prompt: 'Show the name, category and price of every product that costs more than $150.',
     hints: ['A simple WHERE on price.'],
     sql: "SELECT name, category, price\nFROM products\nWHERE price > 150;" },
-  { id: 'e3', level: 'Easy', title: 'Headcount by department', ordered: false,
+  { id: 'e3', concepts: ['left-join','count','group-by'], level: 'Easy', title: 'Headcount by department', ordered: false,
     prompt: 'How many employees does each department have? Return department name and headcount — include departments with nobody in them (they should show 0).',
     hints: ['Start FROM departments so every department appears.', 'LEFT JOIN employees, then COUNT(e.id) — COUNT(*) would count the empty department as 1.'],
     sql: "SELECT d.name, COUNT(e.id) AS headcount\nFROM departments d\nLEFT JOIN employees e ON e.department_id = d.id\nGROUP BY d.name;" },
-  { id: 'e4', level: 'Easy', title: 'Order status mix', ordered: true,
+  { id: 'e4', concepts: ['group-by','count','order-by'], level: 'Easy', title: 'Order status mix', ordered: true,
     prompt: 'How many orders are in each status? Most common status first.',
     hints: ['GROUP BY status, then ORDER BY the count.'],
     sql: "SELECT status, COUNT(*) AS orders\nFROM orders\nGROUP BY status\nORDER BY orders DESC, status;" },
-  { id: 'e5', level: 'Easy', title: '2025 sign-ups by state', ordered: false,
+  { id: 'e5', concepts: ['where','dates','group-by'], level: 'Easy', title: '2025 sign-ups by state', ordered: false,
     prompt: 'How many customers signed up in 2025, per state? Return state and the count.',
     hints: ['Filter signup_date to 2025 — a date range works in any dialect.', "WHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'"],
     sql: "SELECT state, COUNT(*) AS signups\nFROM customers\nWHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'\nGROUP BY state;" },
-  { id: 'm1', level: 'Medium', title: 'Revenue by category', ordered: true,
+  { id: 'm1', concepts: ['join','where','group-by','round'], level: 'Medium', title: 'Revenue by category', ordered: true,
     prompt: 'Total revenue per product category, counting only delivered and shipped orders. Revenue = quantity × unit_price. Return category and revenue (rounded to cents), highest first.',
     hints: ['You need order_items, products (for category) and orders (for status).', "WHERE o.status IN ('delivered', 'shipped')", 'SUM(oi.quantity * oi.unit_price)'],
     sql: "SELECT p.category, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nJOIN products p ON p.id = oi.product_id\nWHERE o.status IN ('delivered', 'shipped')\nGROUP BY p.category\nORDER BY revenue DESC;" },
-  { id: 'm2', level: 'Medium', title: 'Top 5 customers', ordered: true,
+  { id: 'm2', concepts: ['join','group-by','order-by','limit'], level: 'Medium', title: 'Top 5 customers', ordered: true,
     prompt: 'Who are the top 5 customers by total spend on non-cancelled orders? Return customer name and total spent (rounded to cents), biggest first.',
     hints: ["Exclude cancelled orders: o.status <> 'cancelled'.", 'GROUP BY the customer, ORDER BY the total DESC, LIMIT 5.'],
     sql: "SELECT c.name, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS total_spent\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status <> 'cancelled'\nGROUP BY c.id, c.name\nORDER BY total_spent DESC, c.name\nLIMIT 5;" },
-  { id: 'm3', level: 'Medium', title: 'Above their department average', ordered: false,
+  { id: 'm3', concepts: ['cte','group-by','join'], level: 'Medium', title: 'Above their department average', ordered: false,
     prompt: "Which employees earn more than the average salary of their own department? Return first name, last name, salary and the department average (rounded to cents).",
     hints: ['Work out each department’s average first (a subquery or a CTE).', 'Then join employees to it on department_id and compare.'],
     sql: "WITH dept_avg AS (\n  SELECT department_id, AVG(salary) AS avg_salary\n  FROM employees\n  GROUP BY department_id\n)\nSELECT e.first_name, e.last_name, e.salary, ROUND(a.avg_salary, 2) AS dept_avg\nFROM employees e\nJOIN dept_avg a ON a.department_id = e.department_id\nWHERE e.salary > a.avg_salary;" },
-  { id: 'm4', level: 'Medium', title: 'Who’s my manager?', ordered: false,
+  { id: 'm4', concepts: ['self-join','left-join','nulls'], level: 'Medium', title: 'Who’s my manager?', ordered: false,
     prompt: "List every employee's full name next to their manager's full name. The CEO has no manager — keep them in the list with an empty (NULL) manager.",
     hints: ['Join employees to itself: one copy for the employee, one for the manager.', 'LEFT JOIN so the CEO (manager_id IS NULL) is kept.', "Full name: first_name || ' ' || last_name"],
     sql: "SELECT e.first_name || ' ' || e.last_name AS employee,\n  m.first_name || ' ' || m.last_name AS manager\nFROM employees e\nLEFT JOIN employees m ON m.id = e.manager_id;" },
-  { id: 'm5', level: 'Medium', title: 'Customers who never ordered', ordered: false,
+  { id: 'm5', concepts: ['anti-join','left-join'], level: 'Medium', title: 'Customers who never ordered', ordered: false,
     prompt: 'Find customers who have never placed an order. Return their id and name.',
     hints: ['Either LEFT JOIN orders and keep rows where the order is NULL…', '…or use WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id).'],
     sql: "SELECT c.id, c.name\nFROM customers c\nWHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id);" },
-  { id: 'm6', level: 'Medium', title: 'Duplicate emails', ordered: false,
+  { id: 'm6', concepts: ['group-by','having'], level: 'Medium', title: 'Duplicate emails', ordered: false,
     prompt: 'Some customers signed up twice with the same email. Find each duplicated email and how many customer rows share it.',
     hints: ['GROUP BY email.', 'HAVING COUNT(*) > 1 keeps only the duplicates.'],
     sql: "SELECT email, COUNT(*) AS accounts\nFROM customers\nGROUP BY email\nHAVING COUNT(*) > 1;" },
-  { id: 'm7', level: 'Medium', title: 'Monthly revenue in 2025', ordered: true,
+  { id: 'm7', concepts: ['dates','group-by','order-by','round'], level: 'Medium', title: 'Monthly revenue in 2025', ordered: true,
     prompt: "Revenue per month for 2025 (delivered and shipped orders only). Return the month as text like '2025-01' and the revenue rounded to cents, in month order.",
     hints: ["Postgres: to_char(order_date, 'YYYY-MM'). SQLite: strftime('%Y-%m', order_date).", 'Filter to 2025 with a date range, GROUP BY the month, ORDER BY it.'],
     sql: "SELECT to_char(o.order_date, 'YYYY-MM') AS month,\n  ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM orders o\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status IN ('delivered', 'shipped')\n  AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\nGROUP BY 1\nORDER BY 1;",
     sqlite: "SELECT strftime('%Y-%m', o.order_date) AS month,\n  ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM orders o\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status IN ('delivered', 'shipped')\n  AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\nGROUP BY 1\nORDER BY 1;" },
-  { id: 'h1', level: 'Hard', title: 'Salary rank within department', ordered: true,
+  { id: 'h1', concepts: ['window','join','order-by'], level: 'Hard', title: 'Salary rank within department', ordered: true,
     prompt: 'Rank employees by salary within each department (highest = 1; ties share a rank). Return department name, employee last name, salary and rank, ordered by department then rank.',
     hints: ['A window function: RANK() OVER (PARTITION BY … ORDER BY …).', 'PARTITION BY the department, ORDER BY salary DESC.', 'Break ties in the final ORDER BY with last_name so the order is stable.'],
     sql: "SELECT d.name AS department, e.last_name, e.salary,\n  RANK() OVER (PARTITION BY e.department_id ORDER BY e.salary DESC) AS salary_rank\nFROM employees e\nJOIN departments d ON d.id = e.department_id\nORDER BY department, salary_rank, e.last_name, e.first_name;" },
-  { id: 'h2', level: 'Hard', title: 'Second-highest salary', ordered: false,
+  { id: 'h2', concepts: ['window','cte'], level: 'Hard', title: 'Second-highest salary', ordered: false,
     prompt: 'For each department, what is the second-highest distinct salary? Return department name and that salary. (Departments with fewer than two distinct salaries can be left out.)',
     hints: ['Rank the distinct salaries per department with DENSE_RANK().', 'Then keep rank = 2 — filter in an outer query, since you can’t use a window function in WHERE.'],
     sql: "WITH ranked AS (\n  SELECT department_id, salary,\n    DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS r\n  FROM employees\n)\nSELECT DISTINCT d.name, ranked.salary\nFROM ranked\nJOIN departments d ON d.id = ranked.department_id\nWHERE r = 2;" },
-  { id: 'h3', level: 'Hard', title: 'Running revenue total', ordered: true,
+  { id: 'h3', concepts: ['cte','window','dates'], level: 'Hard', title: 'Running revenue total', ordered: true,
     prompt: "For 2025, show each month's revenue (delivered + shipped) and the running total through that month. Month as 'YYYY-MM'; both amounts rounded to cents; in month order.",
     hints: ['Get monthly revenue first (a CTE — the same query as “Monthly revenue in 2025”).', 'Then SUM(revenue) OVER (ORDER BY month) gives the running total.'],
     sql: "WITH monthly AS (\n  SELECT to_char(o.order_date, 'YYYY-MM') AS month, SUM(oi.quantity * oi.unit_price) AS revenue\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.id\n  WHERE o.status IN ('delivered', 'shipped')\n    AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\n  GROUP BY 1\n)\nSELECT month, ROUND(revenue, 2) AS revenue,\n  ROUND(SUM(revenue) OVER (ORDER BY month), 2) AS running_total\nFROM monthly\nORDER BY month;",
     sqlite: "WITH monthly AS (\n  SELECT strftime('%Y-%m', o.order_date) AS month, SUM(oi.quantity * oi.unit_price) AS revenue\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.id\n  WHERE o.status IN ('delivered', 'shipped')\n    AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\n  GROUP BY 1\n)\nSELECT month, ROUND(revenue, 2) AS revenue,\n  ROUND(SUM(revenue) OVER (ORDER BY month), 2) AS running_total\nFROM monthly\nORDER BY month;" },
-  { id: 'h4', level: 'Hard', title: 'Each customer’s latest order', ordered: false,
+  { id: 'h4', concepts: ['window','cte','distinct'], level: 'Hard', title: 'Each customer’s latest order', ordered: false,
     prompt: 'For every customer who has ordered, return their name, their most recent order date and that order’s status. (If two orders share the latest date, pick the one with the higher order id.)',
     hints: ['ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, id DESC) numbers each customer’s orders newest-first.', 'Keep row number 1 in an outer query. (Postgres also has DISTINCT ON for exactly this.)'],
     sql: "WITH latest AS (\n  SELECT o.*, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, id DESC) AS rn\n  FROM orders o\n)\nSELECT c.name, l.order_date, l.status\nFROM latest l\nJOIN customers c ON c.id = l.customer_id\nWHERE l.rn = 1;" },
-  { id: 'h5', level: 'Hard', title: 'Never-bought products', ordered: false,
+  { id: 'h5', concepts: ['anti-join','subquery'], level: 'Hard', title: 'Never-bought products', ordered: false,
     prompt: 'Which products have never appeared on a delivered order? Return product name and category.',
     hints: ['Find the product ids that DO appear on delivered orders…', '…then keep products NOT IN / NOT EXISTS that set.'],
     sql: "SELECT p.name, p.category\nFROM products p\nWHERE NOT EXISTS (\n  SELECT 1 FROM order_items oi\n  JOIN orders o ON o.id = oi.order_id\n  WHERE oi.product_id = p.id AND o.status = 'delivered'\n);" },
   // Your own data — the answer is worked out live from your tables, so these change as you log things.
-  { id: 'y1', level: 'Your data', title: 'Your job pipeline', ordered: true,
+  { id: 'y1', concepts: ['group-by','count','order-by'], level: 'Your data', title: 'Your job pipeline', ordered: true,
     prompt: 'Using your jobs table: how many jobs are at each stage? Most first; break ties alphabetically by stage.',
     hints: ['GROUP BY stage, ORDER BY the count DESC, then stage.'],
     sql: "SELECT stage, COUNT(*) AS jobs\nFROM jobs\nGROUP BY stage\nORDER BY jobs DESC, stage;" },
-  { id: 'y2', level: 'Your data', title: 'Your heaviest working sets', ordered: false,
+  { id: 'y2', concepts: ['where','group-by'], level: 'Your data', title: 'Your heaviest working sets', ordered: false,
     prompt: 'Using your lift_sets table: for each exercise, what is the heaviest weight you lifted on a working (non-warm-up) set?',
     hints: ['Filter out warm-ups first.', 'Postgres: WHERE NOT warmup. SQLite stores it as 0/1: WHERE warmup = 0.', 'GROUP BY exercise with MAX(weight).'],
     sql: "SELECT exercise, MAX(weight) AS heaviest\nFROM lift_sets\nWHERE NOT warmup AND weight IS NOT NULL\nGROUP BY exercise;",
@@ -16042,20 +16056,35 @@ function _dxCompareResults(mine, ref, ordered) {
   // "no result" has to count as an empty answer on either side.
   var empty = function(r) { return !r || !r.values.length; };
   if (empty(mine) && empty(ref)) return { ok: true };
-  if (!mine) return { ok: false, msg: 'Your query didn’t return any rows to check — make sure it ends with a SELECT.' };
-  if (!ref) return { ok: false, msg: 'Expected no rows, you returned ' + mine.values.length + '.' };
+  if (!mine) return { ok: false, kind: 'rows', mine: 0, expected: ref.values.length, msg: 'Your query didn’t return any rows — make sure it ends with a SELECT that matches something.' };
+  if (!ref) return { ok: false, kind: 'rows', mine: mine.values.length, expected: 0, msg: 'Expected no rows, you returned ' + mine.values.length + '.' };
   if (mine.columns.length !== ref.columns.length) {
-    return { ok: false, msg: 'Expected ' + ref.columns.length + ' column' + (ref.columns.length === 1 ? '' : 's') + ', you returned ' + mine.columns.length + '.' };
+    return { ok: false, kind: 'columns', mine: mine.columns.length, expected: ref.columns.length,
+             msg: 'Expected ' + ref.columns.length + ' column' + (ref.columns.length === 1 ? '' : 's') + ', you returned ' + mine.columns.length + '.' };
   }
   var a = mine.values.map(function(r) { return r.map(_dxNormCell); }), b = ref.values.map(function(r) { return r.map(_dxNormCell); });
-  if (a.length !== b.length) return { ok: false, msg: 'Expected ' + b.length + ' row' + (b.length === 1 ? '' : 's') + ', you returned ' + a.length + '.' };
+  var expectedHasNull = b.some(function(r) { return r.indexOf('NULL') >= 0; });
+  if (a.length !== b.length) return { ok: false, kind: 'rows', mine: a.length, expected: b.length, expectedHasNull: expectedHasNull,
+    msg: 'Expected ' + b.length + ' row' + (b.length === 1 ? '' : 's') + ', you returned ' + a.length + '.' };
   var key = function(r) { return JSON.stringify(r); };
+  // Same text cells, numbers within ~1%: almost certainly a rounding difference.
+  var close = function(x, y) {
+    return x.length === y.length && x.every(function(v, i) {
+      if (v === y[i]) return true;
+      var p = Number(v), q = Number(y[i]);
+      return !isNaN(p) && !isNaN(q) && v !== 'NULL' && y[i] !== 'NULL' && Math.abs(p - q) <= Math.max(0.05, Math.abs(q) * 0.01);
+    });
+  };
   if (!ordered) {
     var count = {};
     b.forEach(function(r) { count[key(r)] = (count[key(r)] || 0) + 1; });
     for (var i = 0; i < a.length; i++) {
       var k = key(a[i]);
-      if (!count[k]) return { ok: false, msg: 'This row isn’t in the expected answer: ' + a[i].join(' | ') + ' — check your filters, joins and column order.' };
+      if (!count[k]) {
+        var near = b.some(function(r) { return close(a[i], r); });
+        return { ok: false, kind: 'row', close: near, expectedHasNull: expectedHasNull, row: a[i],
+                 msg: 'This row isn’t in the expected answer: ' + a[i].join(' | ') + ' — check your filters, joins and column order.' };
+      }
       count[k]--;
     }
     return { ok: true };
@@ -16063,22 +16092,334 @@ function _dxCompareResults(mine, ref, ordered) {
   for (var j = 0; j < a.length; j++) {
     if (key(a[j]) !== key(b[j])) {
       var sameSet = a.map(key).sort().join() === b.map(key).sort().join();
-      return { ok: false, msg: sameSet ? 'Right rows, wrong order — check your ORDER BY. Row ' + (j + 1) + ' should be: ' + b[j].join(' | ')
-                                       : 'Row ' + (j + 1) + ' differs. Expected: ' + b[j].join(' | ') + ' — got: ' + a[j].join(' | ') };
+      return sameSet
+        ? { ok: false, kind: 'order', msg: 'Right rows, wrong order — check your ORDER BY. Row ' + (j + 1) + ' should be: ' + b[j].join(' | ') }
+        : { ok: false, kind: 'row', close: close(a[j], b[j]), expectedHasNull: expectedHasNull, row: a[j],
+            msg: 'Row ' + (j + 1) + ' differs. Expected: ' + b[j].join(' | ') + ' — got: ' + a[j].join(' | ') };
     }
   }
   return { ok: true };
 }
 
+/* ---- SQL explainer: plain-English help for errors and wrong answers ----
+   All rule-based and local (no AI, works offline). Three parts:
+   • _dxExplainError: turns an engine error into what it means + how to fix,
+     using the query itself (clause order, commas, quotes, "did you mean").
+   • _dxLintSql: "heads-up" warnings for mistakes that don't raise an error
+     but give wrong answers (= NULL, "text" in double quotes, + for text…).
+   • _dxExplainMismatch: when a practice answer runs but is wrong, explains
+     the likely concept behind it (LEFT vs INNER JOIN, COUNT(*), HAVING…).
+   Plus DX_SQL_CONCEPTS: short syntax cards with examples in each dialect. */
+
+var DX_SQL_CONCEPTS = {
+  'clause-order': { title: 'Clause order', syntax: 'SELECT columns\nFROM table\n  JOIN other ON …\nWHERE row filters\nGROUP BY columns\nHAVING group filters\nORDER BY columns\nLIMIT n;',
+    text: 'The clauses always go in this order. You can leave any out, but the ones you use can’t be shuffled — WHERE before GROUP BY, ORDER BY near the end, LIMIT last.' },
+  'select-list': { title: 'The SELECT list', syntax: 'SELECT col1, col2 AS nickname, expression AS name\nFROM table;',
+    text: 'Columns are separated by commas, with no comma after the last one. AS gives a result column a name. Return exactly the columns the question asks for.' },
+  'quotes': { title: 'Single vs double quotes', syntax: "WHERE status = 'delivered'     -- text value: single quotes\nSELECT \"Weird Name\" FROM t     -- names: double quotes (rarely needed)",
+    text: 'Text values always use single quotes. Double quotes are for table/column names. In Postgres, "delivered" means a column called delivered — not the word.' },
+  'where': { title: 'WHERE (filtering rows)', syntax: "WHERE status IN ('delivered', 'shipped')\n  AND price BETWEEN 10 AND 50\n  AND manager_id IS NULL",
+    text: 'WHERE keeps only rows that match, before any grouping. Combine conditions with AND / OR (use parentheses when mixing them). IN (…) matches any value in a list.' },
+  'nulls': { title: 'NULL (missing values)', syntax: "WHERE manager_id IS NULL       -- not = NULL\nCOALESCE(manager, 'none')      -- fallback value\nfirst_name || ' ' || last_name -- NULL if either part is NULL",
+    text: 'NULL means “unknown”, so = NULL is never true — use IS NULL / IS NOT NULL. Any math or || with NULL gives NULL; CONCAT() instead treats NULL as empty text.' },
+  'join': { title: 'JOIN (inner)', syntax: 'SELECT e.first_name, d.name\nFROM employees e\nJOIN departments d ON d.id = e.department_id;',
+    text: 'JOIN matches rows from two tables using the ON condition and keeps only rows that have a match on both sides. Short aliases (e, d) save typing; prefix columns with them.' },
+  'left-join': { title: 'LEFT JOIN', syntax: 'SELECT d.name, COUNT(e.id)\nFROM departments d\nLEFT JOIN employees e ON e.department_id = d.id\nGROUP BY d.name;',
+    text: 'LEFT JOIN keeps every row from the left (first) table, even with no match — the right side’s columns come back NULL. Use it when the question says “include … with none”.' },
+  'self-join': { title: 'Self join', syntax: "SELECT e.first_name AS employee, m.first_name AS manager\nFROM employees e\nLEFT JOIN employees m ON m.id = e.manager_id;",
+    text: 'Join a table to itself with two different aliases — here one copy plays “employee”, the other “manager”.' },
+  'group-by': { title: 'GROUP BY + aggregates', syntax: 'SELECT category, COUNT(*), AVG(price)\nFROM products\nGROUP BY category;',
+    text: 'GROUP BY collapses rows into one per group. Every selected column must either be in GROUP BY or wrapped in an aggregate: COUNT, SUM, AVG, MIN, MAX.' },
+  'having': { title: 'HAVING (filtering groups)', syntax: 'SELECT email, COUNT(*)\nFROM customers\nGROUP BY email\nHAVING COUNT(*) > 1;',
+    text: 'WHERE filters rows before grouping and can’t use aggregates. HAVING filters the groups afterwards, so it can: HAVING COUNT(*) > 1.' },
+  'count': { title: 'COUNT variations', syntax: 'COUNT(*)            -- every row\nCOUNT(e.id)         -- rows where e.id is not NULL\nCOUNT(DISTINCT city) -- unique values',
+    text: 'After a LEFT JOIN, a group with no matches still has one row (of NULLs): COUNT(*) gives 1, COUNT(e.id) correctly gives 0.' },
+  'order-by': { title: 'ORDER BY', syntax: 'ORDER BY total DESC, name   -- biggest first, ties by name\nORDER BY 2 DESC             -- by the 2nd selected column',
+    text: 'ASC (smallest first) is the default; DESC reverses it. Add more columns to break ties. Without ORDER BY, row order is not guaranteed.' },
+  'limit': { title: 'LIMIT (top N)', syntax: 'ORDER BY total_spent DESC\nLIMIT 5;',
+    text: 'LIMIT keeps the first N rows — so pair it with ORDER BY to get “top 5”. It goes last.' },
+  'round': { title: 'ROUND and decimals', syntax: { postgres: 'ROUND(SUM(amount), 2)\nROUND(AVG(weight)::numeric, 1)  -- double precision needs ::numeric\n100.0 * part / total            -- 100.0 avoids integer division', sqlite: 'ROUND(SUM(amount), 2)\n100.0 * part / total   -- 100.0 avoids integer division' },
+    text: 'ROUND(x, 2) rounds to cents. Integer ÷ integer drops the decimals (5 / 2 = 2), so multiply by 100.0 or 1.0 first for percentages.' },
+  'cte': { title: 'CTE (WITH …)', syntax: 'WITH dept_avg AS (\n  SELECT department_id, AVG(salary) AS avg_salary\n  FROM employees GROUP BY department_id\n)\nSELECT e.*, a.avg_salary\nFROM employees e JOIN dept_avg a USING (department_id);',
+    text: 'A CTE is a named subquery you define first and then use like a table. It keeps multi-step queries readable — compute something, then query the result.' },
+  'subquery': { title: 'Subqueries', syntax: "WHERE department_id IN (SELECT id FROM departments WHERE location = 'Atlanta')\nWHERE salary > (SELECT AVG(salary) FROM employees)   -- must return ONE value",
+    text: 'A query inside a query. With = it must return exactly one value; for a list of values use IN.' },
+  'anti-join': { title: 'Finding rows with no match', syntax: 'SELECT c.id, c.name FROM customers c\nWHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id);\n-- or: LEFT JOIN orders o ON … WHERE o.id IS NULL',
+    text: '“Customers who never ordered” = rows with no match in another table. NOT EXISTS or LEFT JOIN … IS NULL both work. (Be careful with NOT IN: one NULL in the list makes it match nothing.)' },
+  'window': { title: 'Window functions', syntax: 'RANK()       OVER (PARTITION BY department_id ORDER BY salary DESC)\nROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC)\nSUM(x)       OVER (ORDER BY month)   -- running total\nLAG(x)       OVER (ORDER BY date)    -- previous row',
+    text: 'A window function computes per row while seeing other rows: PARTITION BY = “per group”, ORDER BY = order inside it. RANK leaves gaps after ties, DENSE_RANK doesn’t, ROW_NUMBER never ties. You can’t filter on one in WHERE — wrap it in a CTE/subquery first.' },
+  'dates': { title: 'Working with dates', syntax: { postgres: "date_trunc('month', order_date)   -- first day of the month\nto_char(order_date, 'YYYY-MM')    -- as text\nEXTRACT(YEAR FROM order_date)\norder_date + INTERVAL '7 days'\nCURRENT_DATE - order_date         -- days between", sqlite: "strftime('%Y-%m', order_date)     -- '2025-01'\nstrftime('%Y', order_date)\ndate(order_date, '+7 days')\njulianday('now') - julianday(order_date)  -- days between" },
+    text: 'Date functions are where dialects differ most. A plain range works everywhere: order_date >= \'2025-01-01\' AND order_date < \'2026-01-01\'.' },
+  'distinct': { title: 'DISTINCT', syntax: { postgres: 'SELECT DISTINCT state FROM customers;\nSELECT DISTINCT ON (stage) stage, company   -- Postgres: first row per stage\nFROM jobs ORDER BY stage, date_applied DESC;', sqlite: 'SELECT DISTINCT state FROM customers;' },
+    text: 'DISTINCT removes duplicate rows from the result. Postgres also has DISTINCT ON (…): one row per group, picked by ORDER BY.' },
+  'like': { title: 'Pattern matching', syntax: { postgres: "WHERE name LIKE 'Smart%'    -- case-sensitive\nWHERE role ILIKE '%manager%' -- case-insensitive", sqlite: "WHERE role LIKE '%manager%'  -- SQLite LIKE ignores case for A–Z" },
+    text: '% matches any run of characters, _ matches one character.' },
+  'aliases': { title: 'Aliases and where you can use them', syntax: 'SELECT salary * 12 AS yearly\nFROM employees\nWHERE salary * 12 > 100000   -- repeat the expression…\nORDER BY yearly;              -- …but ORDER BY can use the alias',
+    text: 'SQL runs WHERE before SELECT, so a column alias from SELECT doesn’t exist yet in WHERE (or GROUP BY in strict databases). Repeat the expression, or put it in a CTE.' },
+  'types': { title: 'Types and casting', syntax: { postgres: "WHERE id = 42                -- numbers: no quotes\nWHERE order_date >= '2025-01-01'\nSELECT price::text, '42'::int", sqlite: "WHERE id = 42\nCAST(x AS REAL)" },
+    text: 'Compare numbers to numbers and text to text. Postgres is strict about it; ::type (or CAST(x AS type)) converts.' }
+};
+
+var DX_SQL_KEYWORDS = ['SELECT', 'FROM', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'JOIN', 'LEFT', 'INNER', 'ON', 'AS', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'DISTINCT', 'COUNT', 'SUM', 'AVG', 'BETWEEN', 'LIKE', 'WITH', 'UNION', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'TABLE', 'VALUES', 'INTO', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'OVER', 'PARTITION', 'DESC', 'ASC', 'EXISTS'];
+
+function _dxLev(a, b) {
+  a = a.toLowerCase(); b = b.toLowerCase();
+  var m = a.length, n = b.length, d = [], i, j;
+  for (i = 0; i <= m; i++) d[i] = [i];
+  for (j = 0; j <= n; j++) d[0][j] = j;
+  for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+function _dxClosest(word, candidates, max) {
+  var best = null, bestD = Infinity;
+  candidates.forEach(function(c) {
+    var dd = _dxLev(word, c);
+    if (c.toLowerCase().replace(/_/g, '') === word.toLowerCase().replace(/_/g, '')) dd = 0.5; // dateApplied ↔ date_applied
+    if (dd < bestD) { bestD = dd; best = c; }
+  });
+  return bestD <= (max == null ? Math.max(2, Math.floor(word.length / 3)) : max) ? best : null;
+}
+
+// Blank out comments and quoted strings (keeping length) so the query's
+// structure can be scanned without being fooled by their contents.
+function _dxSqlSkeleton(sql) {
+  return sql.replace(/--[^\n]*/g, function(m) { return ' '.repeat(m.length); })
+            .replace(/'(?:[^']|'')*'/g, function(m) { return "'" + ' '.repeat(Math.max(0, m.length - 2)) + "'"; });
+}
+// Positions of the main clauses at the top nesting level (outside parentheses).
+function _dxTopClauses(sql) {
+  var sk = _dxSqlSkeleton(sql), depth = 0, flat = '';
+  for (var i = 0; i < sk.length; i++) { var ch = sk[i]; if (ch === '(') depth++; flat += depth > 0 ? ' ' : ch; if (ch === ')') depth = Math.max(0, depth - 1); }
+  var found = [], re = /\b(SELECT|FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT)\b/gi, m;
+  while ((m = re.exec(flat))) found.push({ name: m[1].toUpperCase().replace(/\s+/g, ' '), at: m.index });
+  return found;
+}
+var DX_CLAUSE_RANK = { 'SELECT': 0, 'FROM': 1, 'WHERE': 2, 'GROUP BY': 3, 'HAVING': 4, 'ORDER BY': 5, 'LIMIT': 6 };
+function _dxClauseOrderProblem(sql) {
+  // Only the first statement's top-level clauses (a CTE body is inside parentheses).
+  var cl = _dxTopClauses(sql.split(';')[0]);
+  for (var i = 1; i < cl.length; i++) {
+    if (cl[i].name === 'SELECT') break;
+    if (DX_CLAUSE_RANK[cl[i].name] < DX_CLAUSE_RANK[cl[i - 1].name]) return { first: cl[i].name, after: cl[i - 1].name };
+  }
+  return null;
+}
+
+function _dxSchemaNames() {
+  var tables = typeof _dxSqlAllTables === 'function' ? _dxSqlAllTables() : [];
+  var cols = {};
+  tables.forEach(function(t) { (t.cols || []).forEach(function(c) { (cols[c.key] = cols[c.key] || []).push(t.name); }); });
+  return { tables: tables.map(function(t) { return t.name; }), cols: cols, colNames: Object.keys(cols) };
+}
+
+// Returns { title, text, fix (code, optional), concepts: [...] }.
+function _dxExplainError(msg, sql, engine) {
+  var pg = engine === 'postgres', m, s = _dxSchemaNames(), q = sql || '';
+  var out = function(title, text, fix, concepts) { return { title: title, text: text, fix: fix || '', concepts: concepts || [] }; };
+
+  if ((m = msg.match(/must appear in the GROUP BY clause/))) {
+    var col = (msg.match(/column "([^"]+)"/) || [])[1] || 'that column';
+    return out('Every selected column must be grouped or aggregated',
+      'You selected ' + col + ' but didn’t GROUP BY it or wrap it in COUNT/SUM/AVG/MIN/MAX. With GROUP BY, each result row is a whole group — so for any other column the database can’t tell which row’s value to show.' +
+      (/HAVING/i.test(q) && !/GROUP\s+BY/i.test(q) ? ' Your query uses HAVING without GROUP BY — HAVING filters groups, so you need GROUP BY first.' : ''),
+      'SELECT category, COUNT(*)      -- category is grouped, COUNT is an aggregate\nFROM products\nGROUP BY category;', ['group-by']);
+  }
+  if (/aggregate functions are not allowed in WHERE|misuse of aggregate/.test(msg)) {
+    return out('Use HAVING to filter on COUNT/SUM/AVG', 'WHERE runs on individual rows before they’re grouped, so totals like COUNT(*) don’t exist yet. Move that condition to HAVING, after GROUP BY.',
+      'SELECT category, COUNT(*)\nFROM products\nGROUP BY category\nHAVING COUNT(*) > 3;', ['having', 'clause-order']);
+  }
+  if (/HAVING clause on a non-aggregate query/.test(msg)) {
+    return out('HAVING needs GROUP BY', 'HAVING filters groups, so the query has to GROUP BY something first. If you meant to filter individual rows, use WHERE instead.', 'SELECT category, COUNT(*)\nFROM products\nGROUP BY category\nHAVING COUNT(*) > 2;', ['having', 'group-by']);
+  }
+  if (/window functions are not allowed in WHERE|misuse of window function/.test(msg)) {
+    return out('Filter window results in an outer query', 'Window functions (RANK, ROW_NUMBER…) are calculated after WHERE, so WHERE can’t see them. Compute the window function in a CTE or subquery, then filter that.',
+      'WITH ranked AS (\n  SELECT *, RANK() OVER (ORDER BY salary DESC) AS r\n  FROM employees\n)\nSELECT * FROM ranked WHERE r = 1;', ['window', 'cte']);
+  }
+  if ((m = msg.match(/ambiguous column name: (\S+)|column reference "([^"]+)" is ambiguous/))) {
+    var amb = m[1] || m[2], owners = s.cols[amb] || [];
+    return out('“' + amb + '” exists in more than one table', 'Both joined tables have a column called ' + amb + ', so you have to say which one: put the table’s alias in front' + (owners.length ? ' (it’s in ' + owners.join(', ') + ')' : '') + '.',
+      'SELECT e.id, d.name          -- e.id, not just id\nFROM employees e\nJOIN departments d ON d.id = e.department_id;', ['join', 'aliases']);
+  }
+  if ((m = msg.match(/missing FROM-clause entry for table "([^"]+)"/))) {
+    return out('“' + m[1] + '.” isn’t a table or alias in this query', 'You wrote ' + m[1] + '.something, but nothing in FROM/JOIN is called ' + m[1] + '. Use the alias you actually gave the table (e.g. FROM employees e → e.first_name), or JOIN that table first.', '', ['join', 'aliases']);
+  }
+  if ((m = msg.match(/no such column: ([\w.]+)|column "([^"]+)" does not exist/))) {
+    var raw = m[1] || m[2], name = raw.split('.').pop();
+    // Postgres: "delivered" in double quotes is a column name, not text.
+    if (pg && new RegExp('"' + name + '"', 'i').test(q) && !s.cols[name]) {
+      return out('Text needs single quotes', 'In Postgres, double quotes mean a column/table name — so "' + name + '" was read as a column. For the text value, use single quotes.', "WHERE status = '" + name + "'", ['quotes']);
+    }
+    var aliasRe = new RegExp('\\bAS\\s+"?' + name + '"?\\b', 'i');
+    if (aliasRe.test(q)) {
+      return out('“' + name + '” is an alias you can’t use there yet', 'SQL works out WHERE (and GROUP BY in Postgres) before the SELECT list, so the alias ' + name + ' doesn’t exist at that point. Repeat the original expression there — ORDER BY can use the alias.', '', ['aliases', 'clause-order']);
+    }
+    var camel = q.match(new RegExp('\\b(' + name.replace(/_/g, '_?') + ')\\b', 'i'));
+    var guess = _dxClosest(name, s.colNames);
+    if (pg && camel && /[A-Z]/.test(camel[1]) && guess && guess.indexOf('_') >= 0) {
+      return out('Postgres columns here are snake_case', 'Postgres lowercases names you don’t quote, so ' + camel[1] + ' became ' + name + '. The column is called ' + guess + '.', 'SELECT ' + guess + ' FROM …', ['types']);
+    }
+    var owners2 = guess ? s.cols[guess] : null;
+    return out('There’s no column called “' + name + '”', (guess ? 'Did you mean ' + guess + (owners2 ? ' (in ' + owners2.slice(0, 3).join(', ') + ')' : '') + '? ' : '') +
+      'Check the spelling, and that the column belongs to a table in your FROM/JOIN. Tap a table above to see its columns.' + (raw.indexOf('.') > 0 ? ' Also check the alias before the dot.' : ''), '', ['select-list']);
+  }
+  if ((m = msg.match(/no such table: ([\w.]+)|relation "([^"]+)" does not exist/))) {
+    var tn = (m[1] || m[2]).split('.').pop(), tg = _dxClosest(tn, s.tables);
+    return out('There’s no table called “' + tn + '”', (tg ? 'Did you mean ' + tg + '? ' : '') + 'Table names must match exactly — the chips above list every table you can use.', '', []);
+  }
+  if ((m = msg.match(/function (\w+)\(([^)]*)\) does not exist/))) {
+    var fn = m[1].toLowerCase();
+    if (fn === 'round' && /double precision/.test(m[2])) {
+      return out('ROUND(x, 2) needs a numeric value in Postgres', 'This column is DOUBLE PRECISION, and Postgres only rounds to decimal places for NUMERIC. Cast it first with ::numeric.', 'ROUND(AVG(weight)::numeric, 1)', ['round', 'types']);
+    }
+    if (fn === 'strftime' || fn === 'julianday' || fn === 'date') {
+      return out(fn + '() is SQLite, not Postgres', 'Postgres has its own date functions:', "to_char(order_date, 'YYYY-MM')     -- like strftime('%Y-%m', …)\ndate_trunc('month', order_date)\nEXTRACT(YEAR FROM order_date)\nCURRENT_DATE - order_date          -- days between", ['dates']);
+    }
+    if (fn === 'ifnull') return out('Use COALESCE in Postgres', 'IFNULL is SQLite/MySQL. Postgres uses COALESCE(value, fallback).', "COALESCE(manager, 'none')", ['nulls']);
+    return out('Postgres has no ' + m[1] + '() that takes those arguments', 'Either the function name is misspelled, or the argument types don’t fit (e.g. text where a number is expected). The types it received were: ' + m[2] + '.', '', ['types']);
+  }
+  if ((m = msg.match(/no such function: (\w+)/))) {
+    var f2 = m[1].toLowerCase();
+    var sqliteFor = { date_trunc: "strftime('%Y-%m', order_date)", to_char: "strftime('%Y-%m', order_date)", extract: "strftime('%Y', order_date)", now: "date('now')", age: "julianday('now') - julianday(d)", concat_ws: "a || ' ' || b" };
+    return out(m[1] + '() isn’t available in SQLite', sqliteFor[f2] ? 'That’s a Postgres function. In SQLite, write it like this (or switch the engine to Postgres):' : 'Check the spelling, or whether it’s a Postgres-only function (switch the engine to Postgres to use it).', sqliteFor[f2] || '', f2 in sqliteFor ? ['dates'] : []);
+  }
+  if ((m = msg.match(/operator does not exist: (\w[\w ]*?) (\S+) (\w[\w ]*)/))) {
+    if (m[2] === '+' && /text|unknown/.test(m[1] + m[3])) {
+      return out('Use || to join text', 'In SQL, + is only for numbers. Glue text together with ||.', "first_name || ' ' || last_name", ['nulls']);
+    }
+    return out('Those two values have different types', 'You’re comparing or combining a ' + m[1] + ' with a ' + m[3] + '. Make both sides the same type — no quotes around numbers, quotes around text — or cast with ::type.', '', ['types']);
+  }
+  if ((m = msg.match(/invalid input syntax for type (\w+[\w ]*): "(.*)"/))) {
+    return out('“' + m[2] + '” isn’t a valid ' + m[1], 'That value is being compared with (or stored in) a ' + m[1] + ' column. Check you’re comparing the right column, and that numbers aren’t in quotes / dates look like \'2025-01-31\'.', '', ['types', 'quotes']);
+  }
+  if (/more than one row returned by a subquery|sub-select returns/.test(msg)) {
+    return out('That subquery returns several rows', 'With = the subquery must produce a single value. To match any of several values, use IN.', 'WHERE department_id IN (SELECT id FROM departments WHERE …)', ['subquery']);
+  }
+  if (/division by zero/.test(msg)) {
+    return out('Division by zero', 'Something is divided by a value that’s 0. Wrap the divisor in NULLIF(x, 0) to get NULL instead of an error.', 'part * 100.0 / NULLIF(total, 0)', ['round']);
+  }
+  if (/unterminated quoted string|unrecognized token: "'/.test(msg)) {
+    return out('A quote isn’t closed', 'Every text value needs an opening and a closing single quote. (A quote inside text is written twice: \'Don\'\'s\'.)', "WHERE status = 'delivered'", ['quotes']);
+  }
+  if (/incomplete input|at end of input/.test(msg)) {
+    return out('The query ends too early', 'The database reached the end while still expecting more — e.g. a table name after FROM, a closing parenthesis, or a condition after WHERE/AND.', '', ['clause-order']);
+  }
+  if ((m = msg.match(/near "([^"]*)": syntax error|syntax error at or near "([^"]*)"/))) {
+    var tok = m[1] != null ? m[1] : m[2], TOK = tok.toUpperCase(), sk = _dxSqlSkeleton(q);
+    var open = (sk.match(/\(/g) || []).length, close = (sk.match(/\)/g) || []).length;
+    var order = _dxClauseOrderProblem(q);
+    var kw = _dxClosest(tok, DX_SQL_KEYWORDS, 2);
+    if (TOK === 'ILIKE' && !pg) return out('SQLite has no ILIKE', 'ILIKE (case-insensitive LIKE) is Postgres. In SQLite, plain LIKE already ignores case for letters A–Z.', "WHERE role LIKE '%manager%'", ['like']);
+    if (TOK === 'ON' && !pg && /DISTINCT\s+ON/i.test(q)) return out('DISTINCT ON is Postgres-only', 'In SQLite, number the rows with ROW_NUMBER() and keep the first, or switch the engine to Postgres.', 'WITH r AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY stage ORDER BY date_applied DESC) AS rn FROM jobs)\nSELECT * FROM r WHERE rn = 1;', ['window', 'distinct']);
+    if (order) return out(order.first + ' must come before ' + order.after, 'SQL clauses have a fixed order, and ' + order.first + ' appears after ' + order.after + ' in your query.', DX_SQL_CONCEPTS['clause-order'].syntax, ['clause-order']);
+    if (open !== close) return out('Parentheses don’t match', 'You have ' + open + ' “(” and ' + close + ' “)”. Every opening parenthesis needs a closing one — e.g. COUNT(*) or IN (…).', '', []);
+    if (/,\s*(FROM|WHERE|GROUP|ORDER|HAVING|LIMIT|\))/i.test(_dxSqlSkeleton(q))) return out('Extra comma', 'There’s a comma right before ' + (q.match(/,\s*(FROM|WHERE|GROUP|ORDER|HAVING|LIMIT|\))/i) || ['', tok])[1].toUpperCase() + '. The last item in a list doesn’t get a comma after it.', 'SELECT name, price   -- no comma before FROM\nFROM products;', ['select-list']);
+    if (TOK === ';' && /\bJOIN\b/i.test(q) && !/\bON\b|\bUSING\b/i.test(q)) return out('Your JOIN needs ON', 'A JOIN has to say how rows match up: JOIN table alias ON alias.column = other.column.', 'FROM employees e\nJOIN departments d ON d.id = e.department_id', ['join']);
+    if (kw && kw !== TOK && TOK.length > 2 && !s.cols[tok] && s.tables.indexOf(tok) < 0) return out('Typo? “' + tok + '” looks like ' + kw, 'The database didn’t recognise “' + tok + '”. Did you mean ' + kw + '?', '', ['clause-order']);
+    var before = _dxSqlSkeleton(q).slice(0, Math.max(0, _dxSqlSkeleton(q).search(new RegExp('\\b' + tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b'))));
+    if (/\bSELECT\b[^,;]*\b\w+\s+\w+\s*$/i.test(before) && !/\bFROM\b/i.test(before.split(/\bSELECT\b/i).pop())) {
+      return out('Missing comma between columns?', 'Right before “' + tok + '” there are two names in a row. Separate columns in the SELECT list with commas.', 'SELECT name, price, category\nFROM products;', ['select-list']);
+    }
+    return out('Syntax error near “' + tok + '”', 'The database got confused at “' + tok + '” (or just before it). Common causes: a misspelled keyword, a missing or extra comma, a clause in the wrong order, or a missing quote/parenthesis. Clause order for reference:', DX_SQL_CONCEPTS['clause-order'].syntax, ['clause-order', 'select-list']);
+  }
+  return null;
+}
+
+// Mistakes that run without an error but quietly give the wrong answer.
+function _dxLintSql(sql, engine) {
+  var w = [], sk = _dxSqlSkeleton(sql || '');
+  if (/(=|<>|!=)\s*NULL\b/i.test(sk)) w.push({ text: '= NULL (or <> NULL) is never true — NULL means “unknown”. Use IS NULL / IS NOT NULL.', concept: 'nulls' });
+  if (engine !== 'postgres' && /(=|<>|!=|IN\s*\(|,)\s*"[^"]*"/i.test(sql)) w.push({ text: 'Text values should be in single quotes: \'delivered\'. SQLite lets "delivered" slide, but Postgres (and most databases) treat double quotes as a column name.', concept: 'quotes' });
+  if (/'\s*\+|\+\s*'/.test(sql)) w.push({ text: '+ adds numbers; it doesn’t join text (SQLite quietly gives 0). Use || to join strings.', concept: 'nulls' });
+  var joins = (sk.match(/\bJOIN\b/gi) || []).length - (sk.match(/\b(CROSS|NATURAL)\s+JOIN\b/gi) || []).length;
+  var ons = (sk.match(/\b(ON|USING)\b/gi) || []).length - (sk.match(/\bDISTINCT\s+ON\b/gi) || []).length;
+  if (joins > 0 && ons < joins) w.push({ text: 'A JOIN is missing its ON condition, so every row gets paired with every other row (a huge, wrong result).', concept: 'join' });
+  if (/\bCOUNT\s*\([^)]*\)\s*\/|\/\s*\(?\s*(SELECT\s+)?COUNT\s*\(/i.test(sk) && !/100\.0|1\.0|::\s*(numeric|float|real|double)|CAST\s*\(/i.test(sk)) {
+    w.push({ text: 'Integer ÷ integer drops the decimals (3 / 4 = 0). Multiply by 100.0 (or 1.0) first for a percentage.', concept: 'round' });
+  }
+  if (engine !== 'postgres' && /\bGROUP\s+BY\b/i.test(sk)) {
+    // SQLite allows non-grouped bare columns; flag the obvious case: SELECT a, b … GROUP BY a with b not aggregated.
+    var sel = (sk.match(/\bSELECT\b([\s\S]*?)\bFROM\b/i) || [])[1] || '', grp = ((sk.match(/\bGROUP\s+BY\b([\s\S]*?)(\bHAVING\b|\bORDER\b|\bLIMIT\b|;|$)/i) || [])[1] || '').toLowerCase();
+    var bare = sel.split(',').map(function(x) { return x.trim(); }).filter(function(x) {
+      return x && !/\(/.test(x) && x !== '*' && !/^\d+$/.test(x) && grp.indexOf(x.split(/\s+as\s+|\s+/i)[0].toLowerCase()) < 0 && !/^\d/.test(grp.trim());
+    });
+    if (bare.length) w.push({ text: 'You select ' + bare[0].split(/\s+/)[0] + ' without grouping by it or aggregating it. SQLite allows that and just picks a random row’s value; Postgres would raise an error.', concept: 'group-by' });
+  }
+  return w;
+}
+
+// Practice answers that run but don't match: explain the likely concept.
+// r is the result of _dxCompareResults; refSql/refCols describe the answer.
+function _dxExplainMismatch(r, userSql, ex, refSql, refCols) {
+  // Cards for the concepts behind the tips come first, then the exercise's own.
+  var tips = [], tipConcepts = [], u = _dxSqlSkeleton(userSql || '').toUpperCase(), R = (refSql || '').toUpperCase();
+  var has = function(s, re) { return re.test(s); };
+  var add = function(t, c) { if (tips.indexOf(t) < 0) tips.push(t); if (c && tipConcepts.indexOf(c) < 0) tipConcepts.push(c); };
+  if (r.kind === 'columns') {
+    add('The answer has these columns: ' + refCols.join(', ') + '. Your SELECT list returns ' + r.mine + '.', 'select-list');
+  } else if (r.kind === 'rows' && r.mine > r.expected) {
+    if (has(R, /\bLIMIT\b/) && !has(u, /\bLIMIT\b/)) add('The question asks for a top N — add ORDER BY … DESC and LIMIT.', 'limit');
+    if (has(R, /\bGROUP BY\b/) && !has(u, /\bGROUP BY\b/)) add('You get one row per record; the question wants one row per group. Add GROUP BY (and aggregate the other columns).', 'group-by');
+    if (has(R, /\bHAVING\b/) && !has(u, /\bHAVING\b/)) add('Filter the groups with HAVING (e.g. HAVING COUNT(*) > 1) — only some groups should be in the answer.', 'having');
+    if (has(R, /\bWHERE\b/) && !has(u, /\bWHERE\b/)) add('You’re not filtering rows. Re-read the question for a condition (a status, a date range, a price…).', 'where');
+    if (has(u, /\bJOIN\b/) && !has(u, /\bGROUP BY|DISTINCT\b/) && has(R, /\bGROUP BY|DISTINCT\b/)) add('Joining a “one” table to a “many” table repeats rows (one per match). Group or DISTINCT them.', 'group-by');
+    if (has(R, /\bWHERE\b/) && has(u, /\bWHERE\b/)) add('Too many rows usually means a filter is missing or too loose — compare your WHERE with every condition in the question.', 'where');
+  } else if (r.kind === 'rows' && r.mine < r.expected) {
+    if (has(R, /\bLEFT JOIN\b/) && !has(u, /\bLEFT\s+JOIN\b/)) add('A plain JOIN drops rows with no match. The question wants them kept (with NULL/0) — use LEFT JOIN.', 'left-join');
+    if (has(u, /\bLIMIT\b/) && !has(R, /\bLIMIT\b/)) add('Your LIMIT cuts the list short; the question wants every row.', 'limit');
+    if (has(u, /\bHAVING\b/) && !has(R, /\bHAVING\b/)) add('Your HAVING removes groups the answer keeps.', 'having');
+    add('Too few rows usually means a filter is too strict, or a JOIN is dropping rows without a match.', 'where');
+  } else if (r.kind === 'order') {
+    if (!has(u, /\bORDER BY\b/)) add('Without ORDER BY the row order isn’t guaranteed — the question asks for a specific order.', 'order-by');
+    else if (has(R, /\bDESC\b/) && !has(u, /\bDESC\b/)) add('The question wants biggest/most recent first — add DESC to that ORDER BY column.', 'order-by');
+    else add('Check which column(s) you sort by, the direction (ASC/DESC), and add a second column to break ties the way the question says.', 'order-by');
+  } else {
+    if (has(R, /COUNT\(\s*[A-Z_]+\.[A-Z_]+\s*\)/) && has(u, /COUNT\(\s*\*\s*\)/) && has(R, /LEFT JOIN/)) add('After a LEFT JOIN, COUNT(*) counts the empty row too, so “none” shows as 1. COUNT(the joined table’s id) gives 0.', 'count');
+    if (r.close) add('Your numbers are very close but not equal — usually rounding. Use ROUND(…, 2), and round only the final result.', 'round');
+    if (has(u, /\bCONCAT\s*\(/) && r.expectedHasNull) add('CONCAT() turns a missing value into empty text, but the answer keeps it NULL. Use || instead, which stays NULL when a part is NULL.', 'nulls');
+    var statusList = (R.match(/STATUS\s+IN\s*\(([^)]*)\)|STATUS\s*(<>|=)\s*'([A-Z]+)'/) || null);
+    if (statusList && !has(u, /STATUS/)) add('The question only counts some orders by status (re-read which ones) — your query includes every order.', 'where');
+    if (has(R, /\bWHERE\b/) && !has(u, /\bWHERE\b/)) add('Some values are off because rows that should be filtered out are being included. Check the question for a condition.', 'where');
+    if (!tips.length) add('The rows don’t match the expected answer. Check each filter, join condition and calculation against the question — the hints can help.', null);
+  }
+  var concepts = tipConcepts.concat(ex.concepts || []);
+  return { tips: tips, concepts: concepts.filter(function(c, i) { return c && DX_SQL_CONCEPTS[c] && concepts.indexOf(c) === i; }).slice(0, 4) };
+}
+
+function _dxConceptSyntax(c, engine) { var sx = DX_SQL_CONCEPTS[c].syntax; return typeof sx === 'string' ? sx : (sx[engine] || sx.postgres); }
+
 function _dxSqlStore(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; } }
 function _dxSqlStoreSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
 
+// Explainer UI pieces (logic in _dxExplainError / _dxLintSql / _dxExplainMismatch).
+function _dxConceptCardHtml(c) {
+  var k = DX_SQL_CONCEPTS[c];
+  return '<div class="sql-card"><div class="sql-card-title">' + escapeHtml(k.title) + '</div><div class="sql-card-text">' + escapeHtml(k.text) + '</div>' +
+    '<pre class="sql-card-code">' + escapeHtml(_dxConceptSyntax(c, _dxSql.engine)) + '</pre></div>';
+}
+function _dxConceptCardsHtml(list, label, open) {
+  list = (list || []).filter(function(c) { return DX_SQL_CONCEPTS[c]; });
+  return list.length ? '<details class="sql-cards"' + (open ? ' open' : '') + '><summary>' + label + '</summary>' + list.map(_dxConceptCardHtml).join('') + '</details>' : '';
+}
+function _dxExplainHtml(ex) {
+  if (!ex) return '';
+  return '<div class="sql-explain"><div class="sql-explain-title">What this means: ' + escapeHtml(ex.title) + '</div>' +
+    '<div class="sql-explain-text">' + escapeHtml(ex.text) + '</div>' +
+    (ex.fix ? '<div class="sql-label">Try this</div><pre class="sql-card-code">' + escapeHtml(ex.fix) + '</pre>' : '') +
+    _dxConceptCardsHtml(ex.concepts, 'Syntax refresher') + '</div>';
+}
+function _dxLintHtml(sql) {
+  var w = _dxLintSql(sql || '', _dxSql.engine);
+  if (!w.length) return '';
+  return '<div class="sql-lint"><div class="sql-lint-title">&#9888; Heads-up</div><ul>' + w.map(function(x) { return '<li>' + escapeHtml(x.text) + '</li>'; }).join('') + '</ul></div>';
+}
+
 function _dxSqlResultHtml() {
   var r = _dxSql.result;
-  if (_dxSql.error) return '<div class="sql-err">' + escapeHtml(_dxSql.error) + '</div>';
+  if (_dxSql.error) return '<div class="sql-err">' + escapeHtml(_dxSql.error) + '</div>' + _dxExplainHtml(_dxExplainError(_dxSql.error, _dxSql.lastSql, _dxSql.engine)) + _dxLintHtml(_dxSql.lastSql);
   if (!r) return '<div class="empty-state" style="padding:24px 8px;">Run a query to see results here.</div>';
-  if (!r.sets.length) return '<div class="dx-summary">Done in ' + r.ms + ' ms' + (r.changed ? ' · ' + r.changed + ' row' + (r.changed === 1 ? '' : 's') + ' changed (in this sandbox only)' : '') + '</div>';
-  return r.sets.map(function(set, si) {
+  var lintHtml = _dxLintHtml(_dxSql.lastSql);
+  if (!r.sets.length) return lintHtml + '<div class="dx-summary">Done in ' + r.ms + ' ms' + (r.changed ? ' · ' + r.changed + ' row' + (r.changed === 1 ? '' : 's') + ' changed (in this sandbox only)' : '') + '</div>';
+  return lintHtml + r.sets.map(function(set, si) {
     var shown = set.values.slice(0, DX_SQL_SHOW_LIMIT);
     var numeric = set.columns.map(function(c, i) { return set.values.length && set.values.every(function(row) { return row[i] == null || typeof row[i] === 'number'; }); });
     return '<div class="dx-summary">' + set.values.length + ' row' + (set.values.length === 1 ? '' : 's') +
@@ -16146,6 +16487,7 @@ async function _dxSqlRun() {
   var sql = ta.value.trim();
   _dxSqlStoreSet('dx-sql-text', ta.value);
   if (!sql) return;
+  _dxSql.lastSql = sql;
   var t0 = performance.now();
   _dxSql.running = true;
   try {
@@ -16217,7 +16559,10 @@ function _dxSqlPracticeHtml() {
       (cur.ordered ? '<div class="sql-ex-note">Row order matters for this one.</div>' : '') +
       (hints.length ? '<ol class="sql-ex-hints">' + hints.map(function(h) { return '<li>' + escapeHtml(h) + '</li>'; }).join('') + '</ol>' : '') +
       (_dxSql.showSolution ? '<div class="sql-label">Solution (' + (_dxSql.engine === 'postgres' ? 'Postgres' : 'SQLite') + ')</div><pre class="sql-ex-sol">' + escapeHtml(_dxExerciseSql(cur, _dxSql.engine)) + '</pre>' : '') +
-      (fb ? '<div class="sql-ex-feedback ' + (fb.ok ? 'ok' : 'bad') + '" role="status">' + escapeHtml(fb.msg) + '</div>' : '') +
+      (fb ? '<div class="sql-ex-feedback ' + (fb.ok ? 'ok' : 'bad') + '" role="status">' + escapeHtml(fb.msg) +
+        (fb.tips && fb.tips.length ? '<div class="sql-label" style="margin-top:10px;">Why it’s probably wrong</div><ul class="sql-ex-why">' + fb.tips.map(function(t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul>' : '') +
+        '</div>' + (fb.explain ? _dxExplainHtml(fb.explain) : '') + (fb.concepts ? _dxConceptCardsHtml(fb.concepts, 'Syntax that will help', true) : '') : '') +
+      (!fb || fb.ok ? _dxConceptCardsHtml(cur.concepts, 'Syntax for this question') : '') +
       '<div class="dx-control-row" style="margin-top:12px;">' +
         '<button class="add-btn" data-sql-ex="check" style="background:var(--accent);">&#10003; Check my answer</button>' +
         (allHints.length ? '<button class="port-edit-btn" data-sql-ex="hint"' + (hints.length >= allHints.length ? ' disabled' : '') + '>Hint ' + hints.length + '/' + allHints.length + '</button>' : '') +
@@ -16247,7 +16592,10 @@ async function _dxSqlCheck() {
   var cur = _dxExerciseById(_dxSql.exercise);
   if (!cur) return;
   await _dxSqlRun();
-  if (_dxSql.error) { _dxSql.feedback = { ok: false, msg: 'Your query has an error — fix that first (it’s shown under the editor).' }; _dxSqlRenderPractice(); return; }
+  if (_dxSql.error) {
+    _dxSql.feedback = { ok: false, msg: '✗ Your query has an error: ' + _dxSql.error, explain: _dxExplainError(_dxSql.error, _dxSql.lastSql, _dxSql.engine) };
+    _dxSqlRenderPractice(); return;
+  }
   var mine = _dxSql.result && _dxSql.result.sets.length ? _dxSql.result.sets[_dxSql.result.sets.length - 1] : null;
   var ref;
   try {
@@ -16263,7 +16611,8 @@ async function _dxSqlCheck() {
     var sv = _dxSolved(); sv[cur.id] = true; _dxSqlStoreSet('dx-sql-solved', sv);
     _dxSql.feedback = { ok: true, msg: '✓ Correct!' + (DX_EXERCISES.every(function(e) { return sv[e.id]; }) ? ' That’s every exercise solved.' : ' Tap Next for another.') };
   } else {
-    _dxSql.feedback = { ok: false, msg: '✗ Not quite. ' + r.msg };
+    var why = _dxExplainMismatch(r, _dxSql.lastSql, cur, _dxExerciseSql(cur, _dxSql.engine), ref ? ref.columns : []);
+    _dxSql.feedback = { ok: false, msg: '✗ Not quite. ' + r.msg, tips: why.tips, concepts: why.concepts };
   }
   _dxSqlRenderPractice();
   var el = document.getElementById('dxSqlPractice');
