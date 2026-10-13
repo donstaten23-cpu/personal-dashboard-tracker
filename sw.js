@@ -61,12 +61,20 @@ self.addEventListener("activate", function (event) {
   event.waitUntil(
     caches.keys().then(function (names) {
       return Promise.all(
-        names.filter(function (n) { return n !== CACHE_NAME; }).map(function (n) { return caches.delete(n); })
+        names.filter(function (n) { return n !== CACHE_NAME && n !== PGLITE_CACHE; }).map(function (n) { return caches.delete(n); })
       );
     }).then(function () { return self.clients.claim(); })
       .catch(function () { return self.clients.claim(); })
   );
 });
+
+/* Postgres engine for the Data Explorer's SQL playground (PGlite, ~5.5 MB
+   compressed). Not precached — only downloaded the first time someone picks
+   Postgres — then kept in its own cache, cache-first: the URL pins an exact
+   version, so its files never change. A new PGlite version means a new prefix
+   and cache name; the activate handler keeps the current one and drops old. */
+var PGLITE_PREFIX = "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.9/";
+var PGLITE_CACHE = "pglite-0.5.9";
 
 var PRECACHE_ABSOLUTE_URLS = PRECACHE_URLS.map(function (u) { return new URL(u, self.location.href).href; });
 
@@ -77,6 +85,19 @@ function isPrecachedRequest(request) {
 
 self.addEventListener("fetch", function (event) {
   var request = event.request;
+  if (request.method === "GET" && request.url.indexOf(PGLITE_PREFIX) === 0) {
+    event.respondWith(
+      caches.open(PGLITE_CACHE).then(function (cache) {
+        return cache.match(request).then(function (cached) {
+          return cached || fetch(request).then(function (response) {
+            if (response && response.ok) cache.put(request, response.clone());
+            return response;
+          });
+        });
+      })
+    );
+    return;
+  }
   if (!isPrecachedRequest(request)) return; // not in our shell list — let it hit the network normally, untouched
 
   event.respondWith(

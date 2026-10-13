@@ -15638,7 +15638,8 @@ function _dxExportCsv() {
 // the page opens, so any SQL — including INSERT/UPDATE/DELETE/CREATE — is safe:
 // it can never reach what the dashboard actually saves.
 var _dxSqlJsPromise = null;
-var _dxSql = { db: null, tables: [], selected: '', result: null, error: '', ran: 0 };
+var _dxSql = { db: null, pg: null, pgVersion: '', tables: [], selected: '', result: null, error: '', ran: 0,
+               engine: (function() { try { return localStorage.getItem('dx-sql-engine') === 'postgres' ? 'postgres' : 'sqlite'; } catch (e) { return 'sqlite'; } })() };
 var DX_SQL_SHOW_LIMIT = 1000;
 
 function _dxLoadSqlJs() {
@@ -15693,6 +15694,110 @@ var DX_SQL_EXAMPLES = [
   ['Body weight over time', "SELECT date, weight,\n  ROUND(weight - LAG(weight) OVER (ORDER BY date), 1) AS change\nFROM body_weight\nORDER BY date DESC;"]
 ];
 
+/* ---- Postgres engine (PGlite: real Postgres compiled to WebAssembly) ----
+   Same sandbox idea as SQLite: an in-memory database rebuilt from your saved
+   data, nothing ever written back. Loaded only when Postgres is picked — a
+   one-time ~5.5 MB download from jsDelivr (pinned version), then served from
+   the service worker's own cache (see PGLITE_* in sw.js), so it also works
+   offline afterwards. Columns use snake_case here (date_applied, due_date),
+   as a real Postgres schema would, since Postgres folds unquoted names to
+   lowercase. */
+var PGLITE_URL = 'https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.5.9/dist/index.js';
+var _dxPgPromise = null;
+function _dxLoadPglite() {
+  if (_dxPgPromise) return _dxPgPromise;
+  _dxPgPromise = import(PGLITE_URL)
+    .then(function(m) { return m.PGlite.create(); })
+    .catch(function(e) { _dxPgPromise = null; throw new Error('Could not load the Postgres engine' + (navigator.onLine === false ? ' — you appear to be offline, and it needs one online load first.' : '.')); });
+  return _dxPgPromise;
+}
+var DX_PG_RENAMES = { group: 'requirement_group' }; // "group" is a reserved word in Postgres
+function _dxPgCol(key) { return DX_PG_RENAMES[key] || key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase(); }
+function _dxPgType(t) { return t === 'money' ? 'NUMERIC(12,2)' : t === 'number' ? 'DOUBLE PRECISION' : t === 'date' ? 'DATE' : t === 'bool' ? 'BOOLEAN' : 'TEXT'; }
+function _dxPgParam(v, t) {
+  if (v === '' || v == null) return t === 'text' ? '' : null;
+  if (t === 'bool') return !!v;
+  if (t === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : null;
+  if (t === 'number' || t === 'money') { var n = Number(v); return isFinite(n) ? n : null; }
+  return String(v);
+}
+// Results come back as JS values; turn them into what the table shows.
+function _dxPgValue(v, typeId) {
+  if (v == null) return null;
+  if (v instanceof Date) {
+    if (typeId === 1082) return v.toISOString().slice(0, 10); // DATE arrives as UTC midnight
+    var p = function(n) { return (n < 10 ? '0' : '') + n; };
+    return v.getFullYear() + '-' + p(v.getMonth() + 1) + '-' + p(v.getDate()) + ' ' + p(v.getHours()) + ':' + p(v.getMinutes()) + ':' + p(v.getSeconds());
+  }
+  if (typeof v === 'bigint') return Number(v);
+  if (typeId === 1700 && typeof v === 'string' && v.trim() !== '' && !isNaN(v)) return Number(v); // NUMERIC arrives as text
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return v;
+}
+async function _dxPgBuild(db) {
+  await db.exec('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
+  var tables = [];
+  for (var di = 0; di < DX_DATASETS.length; di++) {
+    var ds = DX_DATASETS[di], cols = _dxColumns(ds), name = _dxTableName(ds), rows = ds.rows(_dxRaw);
+    await db.exec('CREATE TABLE ' + name + ' (' + cols.map(function(c) { return _dxPgCol(c.key) + ' ' + _dxPgType(c.type); }).join(', ') + ')');
+    if (rows.length) {
+      var insert = 'INSERT INTO ' + name + ' VALUES (' + cols.map(function(c, i) { return '$' + (i + 1); }).join(', ') + ')';
+      await db.transaction(async function(tx) {
+        for (var ri = 0; ri < rows.length; ri++) {
+          var r = rows[ri];
+          await tx.query(insert, cols.map(function(c) { return _dxPgParam(r[c.key], c.type); }));
+        }
+      });
+    }
+    tables.push({ name: name, label: ds.label, count: rows.length, cols: cols.map(function(c) { return { key: _dxPgCol(c.key), label: c.label, type: c.type }; }) });
+  }
+  _dxSql.tables = tables;
+  try { _dxSql.pgVersion = ((await db.query('SHOW server_version')).rows[0] || {}).server_version || ''; } catch (e) {}
+}
+async function _dxPgRefreshTables(db) {
+  var res = await db.query("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position");
+  var known = {}; _dxSql.tables.forEach(function(t) { known[t.name] = t; });
+  var byTable = {}, order = [];
+  res.rows.forEach(function(r) {
+    if (!byTable[r.table_name]) { byTable[r.table_name] = []; order.push(r.table_name); }
+    var dt = String(r.data_type);
+    byTable[r.table_name].push({ key: r.column_name, label: r.column_name,
+      type: /numeric|double|real|integer|bigint|smallint/.test(dt) ? 'number' : dt === 'date' ? 'date' : dt === 'boolean' ? 'bool' : 'text' });
+  });
+  var tables = [];
+  for (var i = 0; i < order.length; i++) {
+    var n = order[i], count = 0;
+    try { count = Number((await db.query('SELECT COUNT(*) AS n FROM "' + n.replace(/"/g, '""') + '"')).rows[0].n); } catch (e) {}
+    tables.push({ name: n, label: known[n] ? known[n].label : n + ' (yours)', count: count, cols: byTable[n] });
+  }
+  _dxSql.tables = tables;
+  if (!_dxSql.tables.some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
+}
+async function _dxPgExec(db, sql) {
+  var res = await db.exec(sql, { rowMode: 'array' });
+  var sets = res.filter(function(r) { return r.fields && r.fields.length; }).map(function(r) {
+    return { columns: r.fields.map(function(f) { return f.name; }),
+             values: r.rows.map(function(row) { return row.map(function(v, i) { return _dxPgValue(v, r.fields[i].dataTypeID); }); }) };
+  });
+  return { sets: sets, changed: res.reduce(function(s, r) { return s + (r.affectedRows || 0); }, 0) };
+}
+
+// Same questions as the SQLite examples, written the way you would in
+// Postgres (date_trunc, FILTER, DISTINCT ON, ILIKE, ::casts, INTERVAL).
+var DX_PG_EXAMPLES = [
+  ['Spending by month', "SELECT date_trunc('month', date)::date AS month, person, SUM(amount) AS spent\nFROM spend_entries\nGROUP BY 1, 2\nORDER BY 1 DESC, 2;"],
+  ['Biggest bills', "SELECT name, category, amount, owner\nFROM budget_bills\nORDER BY amount DESC\nLIMIT 10;"],
+  ['Best lift per exercise (FILTER)', "SELECT exercise,\n  MAX(weight) AS best_weight,\n  COUNT(*) FILTER (WHERE NOT warmup) AS working_sets\nFROM lift_sets\nWHERE weight IS NOT NULL\nGROUP BY exercise\nORDER BY best_weight DESC;"],
+  ['Workouts per week', "SELECT date_trunc('week', date)::date AS week_of,\n  COUNT(*) AS workouts, SUM(volume) AS volume\nFROM workouts\nGROUP BY 1\nORDER BY 1 DESC;"],
+  ['Job pipeline with % share', "SELECT stage, COUNT(*) AS jobs,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM jobs\nGROUP BY stage\nORDER BY jobs DESC;"],
+  ['Latest job per stage (DISTINCT ON)', "SELECT DISTINCT ON (stage) stage, company, role, date_applied\nFROM jobs\nWHERE date_applied IS NOT NULL\nORDER BY stage, date_applied DESC;"],
+  ['Search roles (ILIKE)', "SELECT company, role, stage\nFROM jobs\nWHERE role ILIKE '%manager%' OR role ILIKE '%pm%'\nORDER BY company;"],
+  ['Applications in the last 30 days', "SELECT company, role, date_applied,\n  CURRENT_DATE - date_applied AS days_ago\nFROM jobs\nWHERE date_applied >= CURRENT_DATE - INTERVAL '30 days'\nORDER BY date_applied DESC;"],
+  ['Travel spend per trip', "SELECT trip, category, SUM(amount) AS total\nFROM travel\nGROUP BY trip, category\nORDER BY trip, total DESC;"],
+  ['Body weight change (LAG)', "SELECT date, weight,\n  weight - LAG(weight) OVER (ORDER BY date) AS change\nFROM body_weight\nORDER BY date DESC;"]
+];
+
 function _dxSqlStore(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; } }
 function _dxSqlStoreSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
 
@@ -15728,7 +15833,7 @@ function _dxSqlSchemaHtml() {
     }).join('') + '</div>' +
     (sel ? '<div class="sql-label">' + escapeHtml(sel.label) + ' — tap a column to insert it</div>' +
       '<div class="sql-chips">' + sel.cols.map(function(c) {
-        return '<button class="sql-chip" data-sql-insert="' + c.key + '">' + c.key + ' <span class="sql-chip-n">' + (c.type === 'number' || c.type === 'money' ? 'num' : c.type === 'bool' ? '0/1' : c.type === 'date' ? 'date' : 'text') + '</span></button>';
+        return '<button class="sql-chip" data-sql-insert="' + c.key + '">' + c.key + ' <span class="sql-chip-n">' + (c.type === 'number' || c.type === 'money' ? 'num' : c.type === 'bool' ? (_dxSql.engine === 'postgres' ? 'bool' : '0/1') : c.type === 'date' ? 'date' : 'text') + '</span></button>';
       }).join('') + '</div>' +
       '<div class="dx-control-row" style="margin-top:10px;">' +
         '<button class="port-edit-btn" data-sql-act="insert-table">Insert name</button>' +
@@ -15753,23 +15858,31 @@ function _dxSqlSavedHtml() {
   return h;
 }
 
-function _dxSqlRun() {
+async function _dxSqlRun() {
   var ta = document.getElementById('dxSqlText');
-  if (!ta || !_dxSql.db) return;
+  var pg = _dxSql.engine === 'postgres';
+  if (!ta || (pg ? !_dxSql.pg : !_dxSql.db) || _dxSql.running) return;
   var sql = ta.value.trim();
   _dxSqlStoreSet('dx-sql-text', ta.value);
   if (!sql) return;
   var t0 = performance.now();
+  _dxSql.running = true;
   try {
-    var sets = _dxSql.db.exec(sql);
-    _dxSql.result = { sets: sets, ms: Math.round((performance.now() - t0) * 10) / 10, changed: _dxSql.db.getRowsModified() };
+    var out;
+    if (pg) {
+      out = await _dxPgExec(_dxSql.pg, sql);
+      await _dxPgRefreshTables(_dxSql.pg);
+    } else {
+      out = { sets: _dxSql.db.exec(sql), changed: _dxSql.db.getRowsModified() };
+      _dxSqlRefreshTables(); // CREATE/DROP add or remove tables: pick them up in the table list.
+    }
+    _dxSql.result = { sets: out.sets, ms: Math.round((performance.now() - t0) * 10) / 10, changed: out.changed };
     _dxSql.error = '';
-    // CREATE/DROP add or remove tables: pick them up in the table list.
-    _dxSqlRefreshTables();
   } catch (e) {
     _dxSql.result = null;
     _dxSql.error = String(e && e.message ? e.message : e);
   }
+  _dxSql.running = false;
   var hist = _dxSqlStore('dx-sql-history', []).filter(function(q) { return q !== sql; });
   hist.unshift(sql); _dxSqlStoreSet('dx-sql-history', hist.slice(0, 12));
   _dxSql.ran++;
@@ -15823,18 +15936,42 @@ function _dxSqlExportCsv() {
   setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
 }
 
+// Engine switch + which examples/dialect note go with it.
+function _dxSqlExamples() { return _dxSql.engine === "postgres" ? DX_PG_EXAMPLES : DX_SQL_EXAMPLES; }
+function _dxSqlEngineSwitchHtml() {
+  return '<div class="dx-control-row" style="margin-bottom:4px;">' +
+    '<span class="sql-label" style="margin:0 4px 0 0;">Engine</span>' +
+    '<button class="dx-ds' + (_dxSql.engine !== "postgres" ? " active" : "") + '" data-sql-engine="sqlite">SQLite</button>' +
+    '<button class="dx-ds' + (_dxSql.engine === "postgres" ? " active" : "") + '" data-sql-engine="postgres">Postgres</button>' +
+  '</div>';
+}
+function _dxSqlDialectNote() {
+  return _dxSql.engine === "postgres"
+    ? "Dialect: PostgreSQL" + (_dxSql.pgVersion ? " " + escapeHtml(_dxSql.pgVersion) : "") + " — columns are snake_case (date_applied, due_date)."
+    : "Dialect: SQLite.";
+}
+
 function _dxSqlMount() {
-  var root = document.getElementById('dxSqlRoot'); if (!root) return;
-  root.innerHTML = '<div class="card"><div style="color:var(--text-2);font-size:14px;">Loading the SQL engine…</div></div>';
-  _dxLoadSqlJs().then(function(SQL) {
-    if (!document.getElementById('dxSqlRoot')) return;
-    _dxSqlBuild(SQL);
-    _dxSql.result = null; _dxSql.error = '';
-    var saved = _dxSqlStore('dx-sql-text', '');
+  var root = document.getElementById("dxSqlRoot"); if (!root) return;
+  var pg = _dxSql.engine === "postgres";
+  var token = _dxSql.mountToken = (_dxSql.mountToken || 0) + 1;
+  var status = function (msg) {
+    if (token !== _dxSql.mountToken) return;
+    root.innerHTML = '<div class="card dx-controls">' + _dxSqlEngineSwitchHtml() + '<div style="color:var(--text-2);font-size:14px;margin-top:8px;">' + msg + '</div></div>';
+  };
+  status(pg ? (_dxSql.pg ? "Rebuilding your tables in Postgres…" : "Loading Postgres… (first time only: about a 5.5 MB download, then it works offline)") : "Loading the SQL engine…");
+  var ready = pg
+    ? _dxLoadPglite().then(function (db) { _dxSql.pg = db; status("Building your tables in Postgres…"); return _dxPgBuild(db); })
+    : _dxLoadSqlJs().then(function (SQL) { _dxSqlBuild(SQL); });
+  ready.then(function () {
+    if (token !== _dxSql.mountToken || !document.getElementById("dxSqlRoot")) return;
+    _dxSql.result = null; _dxSql.error = "";
+    var saved = _dxSqlStore("dx-sql-text", "");
     var starter = saved || "SELECT *\nFROM budget_bills\nLIMIT 20;";
     root.innerHTML =
       '<div class="card dx-controls">' +
-        '<div class="sql-label" style="margin-top:0;">Tables</div><div id="dxSqlSchema"></div>' +
+        _dxSqlEngineSwitchHtml() +
+        '<div class="sql-label">Tables</div><div id="dxSqlSchema"></div>' +
       '</div>' +
       '<div class="card dx-controls">' +
         '<textarea id="dxSqlText" class="sql-editor" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="SELECT * FROM budget_bills;">' + escapeHtml(starter) + '</textarea>' +
@@ -15845,23 +15982,23 @@ function _dxSqlMount() {
         '</div>' +
         '<div class="dx-control-row" style="margin-top:12px;">' +
           '<button class="add-btn" data-sql-act="run" style="background:var(--accent);">▶ Run</button>' +
-          '<select class="edit-select" id="dxSqlExamples"><option value="">Examples…</option>' + DX_SQL_EXAMPLES.map(function(e, i) { return '<option value="' + i + '">' + escapeHtml(e[0]) + '</option>'; }).join('') + '</select>' +
+          '<select class="edit-select" id="dxSqlExamples"><option value="">Examples…</option>' + _dxSqlExamples().map(function(e, i) { return '<option value="' + i + '">' + escapeHtml(e[0]) + '</option>'; }).join('') + '</select>' +
           '<button class="port-edit-btn" data-sql-act="save">Save</button>' +
           '<button class="port-edit-btn" data-sql-act="clear">Clear</button>' +
           '<button class="port-edit-btn" data-sql-act="reset" title="Throw away anything you created or changed and reload from your saved data">Reset data</button>' +
         '</div>' +
-        '<div style="color:var(--text-3);font-size:11px;margin-top:8px;">Runs in a private copy of your data — INSERT, UPDATE, DELETE and CREATE TABLE are fine and never change what the dashboard saves. Cmd/Ctrl + Enter runs.</div>' +
+        '<div style="color:var(--text-3);font-size:11px;margin-top:8px;">Runs in a private copy of your data — INSERT, UPDATE, DELETE and CREATE TABLE are fine and never change what the dashboard saves. Cmd/Ctrl + Enter runs. ' + _dxSqlDialectNote() + '</div>' +
       '</div>' +
       '<div class="dx-control-row" style="justify-content:flex-end;margin-bottom:6px;"><button class="port-edit-btn" id="dxSqlExport" data-sql-act="export" style="display:none;">&#8681; Export CSV</button></div>' +
       '<div id="dxSqlResult" style="scroll-margin-top:12px;"></div>' +
       '<div id="dxSqlSaved"></div>';
     _dxSqlRenderParts();
-  }).catch(function(e) {
-    root.innerHTML = '<div class="card"><div class="sql-err">' + escapeHtml(e && e.message ? e.message : 'The SQL engine did not load.') + '</div>' +
-      '<div style="color:var(--text-2);font-size:13px;margin-top:10px;">It needs to load once while you’re online. You can still use <b>Browse</b> in the meantime.</div></div>';
+  }).catch(function (e) {
+    if (token !== _dxSql.mountToken) return;
+    root.innerHTML = '<div class="card dx-controls">' + _dxSqlEngineSwitchHtml() + '<div class="sql-err" style="margin-top:8px;">' + escapeHtml(e && e.message ? e.message : "The SQL engine did not load.") + '</div>' +
+      '<div style="color:var(--text-2);font-size:13px;margin-top:10px;">It needs to load once while you’re online. You can switch engines above or use <b>Browse</b> in the meantime.</div></div>';
   });
 }
-
 function _dxSqlAttach(inner) {
   if (inner._dxSqlHandlersAttached) return;
   inner._dxSqlHandlersAttached = true;
@@ -15870,6 +16007,16 @@ function _dxSqlAttach(inner) {
     if (modeBtn) {
       var m = modeBtn.getAttribute('data-dx-mode');
       if (m !== (_dxState.mode === 'browse' ? 'browse' : 'sql')) { _dxState.mode = m; _dxSaveState(); renderExplorerPage(); }
+      return;
+    }
+    var eng = e.target.closest('[data-sql-engine]');
+    if (eng) {
+      var want = eng.getAttribute('data-sql-engine');
+      if (want !== _dxSql.engine) {
+        _dxSql.engine = want; _dxSql.selected = ''; _dxSql.result = null; _dxSql.error = '';
+        try { localStorage.setItem('dx-sql-engine', want); } catch (err) {}
+        _dxSqlMount();
+      }
       return;
     }
     var t = e.target.closest('[data-sql-table]');
@@ -15901,7 +16048,7 @@ function _dxSqlAttach(inner) {
   });
   inner.addEventListener('change', function(e) {
     if (e.target.id !== 'dxSqlExamples') return;
-    var ex = DX_SQL_EXAMPLES[Number(e.target.value)];
+    var ex = _dxSqlExamples()[Number(e.target.value)];
     e.target.value = '';
     if (ex) { var ta = document.getElementById('dxSqlText'); ta.value = ex[1]; _dxSqlStoreSet('dx-sql-text', ex[1]); _dxSqlRun(); }
   });
