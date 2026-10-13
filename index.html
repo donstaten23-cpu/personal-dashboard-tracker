@@ -1145,6 +1145,24 @@
   .sql-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--text-3); font-weight: 700; margin: 12px 0 6px; }
   .sql-err { background: color-mix(in srgb, #e5484d 12%, transparent); border: 1px solid color-mix(in srgb, #e5484d 45%, transparent); color: var(--text-1); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
   .sql-null { color: var(--text-3); font-style: italic; }
+  /* Practice panel */
+  .sql-ex-progress { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .sql-ex-blurb { color: var(--text-2); font-size: 13px; line-height: 1.55; margin-top: 10px; }
+  .sql-ex { margin-top: 12px; }
+  .sql-ex-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .sql-ex-level { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 9px; border: 1px solid currentColor; }
+  .sql-ex-level.lvl-easy { color: #3E9A61; } .sql-ex-level.lvl-medium { color: #C9862B; }
+  .sql-ex-level.lvl-hard { color: #D9534F; } .sql-ex-level.lvl-yourdata { color: #5B8FA8; }
+  .sql-ex-done { font-size: 12px; color: #3E9A61; font-weight: 600; }
+  .sql-ex-title { font-size: 17px; font-weight: 700; color: var(--text-1); margin-bottom: 4px; }
+  .sql-ex-prompt { font-size: 14px; line-height: 1.55; color: var(--text-1); }
+  .sql-ex-note { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+  .sql-ex-hints { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+  .sql-ex-hints li { margin-bottom: 4px; }
+  .sql-ex-sol { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border-2); border-radius: 10px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-1); }
+  .sql-ex-feedback { margin-top: 10px; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.45; border: 1px solid; }
+  .sql-ex-feedback.ok { color: var(--text-1); background: color-mix(in srgb, #3E9A61 14%, transparent); border-color: color-mix(in srgb, #3E9A61 50%, transparent); }
+  .sql-ex-feedback.bad { color: var(--text-1); background: color-mix(in srgb, #D9534F 10%, transparent); border-color: color-mix(in srgb, #D9534F 40%, transparent); }
   .sql-saved-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border-2); }
   .sql-saved-row button.sql-saved-open { flex: 1; text-align: left; background: none; border: none; color: var(--text-1); font: inherit; font-size: 13px; padding: 4px 0; }
   .edit-input.grow { flex: 1; }
@@ -15639,6 +15657,8 @@ function _dxExportCsv() {
 // it can never reach what the dashboard actually saves.
 var _dxSqlJsPromise = null;
 var _dxSql = { db: null, pg: null, pgVersion: '', tables: [], selected: '', result: null, error: '', ran: 0,
+               exercise: (function() { try { return JSON.parse(localStorage.getItem('dx-sql-exercise')) || ''; } catch (e) { return ''; } })(),
+               hintsShown: 0, showSolution: false, feedback: null,
                engine: (function() { try { return localStorage.getItem('dx-sql-engine') === 'postgres' ? 'postgres' : 'sqlite'; } catch (e) { return 'sqlite'; } })() };
 var DX_SQL_SHOW_LIMIT = 1000;
 
@@ -15680,6 +15700,10 @@ function _dxSqlBuild(SQL) {
     stmt.free();
     tables.push({ name: name, label: ds.label, count: rows.length, cols: cols });
   });
+  // Practice database in its own attached database; unqualified names
+  // (employees, orders…) still resolve to it since your tables never clash.
+  db.run("ATTACH DATABASE ':memory:' AS practice");
+  db.exec(_dxPracticeSql('sqlite'));
   _dxSql.db = db;
   _dxSql.tables = tables;
 }
@@ -15736,7 +15760,9 @@ function _dxPgValue(v, typeId) {
   return v;
 }
 async function _dxPgBuild(db) {
-  await db.exec('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
+  await db.exec('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCHEMA IF EXISTS practice CASCADE; CREATE SCHEMA practice;');
+  await db.exec(_dxPracticeSql('postgres'));
+  await db.exec('SET search_path TO public, practice;'); // so `employees` works without the practice. prefix
   var tables = [];
   for (var di = 0; di < DX_DATASETS.length; di++) {
     var ds = DX_DATASETS[di], cols = _dxColumns(ds), name = _dxTableName(ds), rows = ds.rows(_dxRaw);
@@ -15772,7 +15798,7 @@ async function _dxPgRefreshTables(db) {
     tables.push({ name: n, label: known[n] ? known[n].label : n + ' (yours)', count: count, cols: byTable[n] });
   }
   _dxSql.tables = tables;
-  if (!_dxSql.tables.some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
+  if (!_dxSqlAllTables().some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
 }
 async function _dxPgExec(db, sql) {
   var res = await db.exec(sql, { rowMode: 'array' });
@@ -15797,6 +15823,252 @@ var DX_PG_EXAMPLES = [
   ['Travel spend per trip', "SELECT trip, category, SUM(amount) AS total\nFROM travel\nGROUP BY trip, category\nORDER BY trip, total DESC;"],
   ['Body weight change (LAG)', "SELECT date, weight,\n  weight - LAG(weight) OVER (ORDER BY date) AS change\nFROM body_weight\nORDER BY date DESC;"]
 ];
+
+/* ---- Practice database + interview-style exercises ----
+   A made-up company ("Acme") generated from a fixed seed, so it's identical
+   every time and every exercise has a stable answer. Lives in its own
+   `practice` schema (Postgres) / attached `practice` database (SQLite) so it
+   never mixes with your own tables, and both engines resolve unqualified names
+   (employees, orders…) to it. Dates are fixed (2023–2025), not relative to
+   today, for the same reason. */
+var DX_PRACTICE_TABLES = [
+  { name: 'departments', label: 'Departments', cols: [['id', 'int'], ['name', 'text'], ['location', 'text']] },
+  { name: 'employees', label: 'Employees', cols: [['id', 'int'], ['first_name', 'text'], ['last_name', 'text'], ['email', 'text'], ['department_id', 'int'], ['manager_id', 'int'], ['title', 'text'], ['hire_date', 'date'], ['salary', 'money']] },
+  { name: 'customers', label: 'Customers', cols: [['id', 'int'], ['name', 'text'], ['email', 'text'], ['city', 'text'], ['state', 'text'], ['signup_date', 'date']] },
+  { name: 'products', label: 'Products', cols: [['id', 'int'], ['name', 'text'], ['category', 'text'], ['price', 'money']] },
+  { name: 'orders', label: 'Orders', cols: [['id', 'int'], ['customer_id', 'int'], ['order_date', 'date'], ['status', 'text']] },
+  { name: 'order_items', label: 'Order items', cols: [['order_id', 'int'], ['product_id', 'int'], ['quantity', 'int'], ['unit_price', 'money']] }
+];
+
+var _dxPracticeRows = null;
+function _dxPracticeData() {
+  if (_dxPracticeRows) return _dxPracticeRows;
+  // mulberry32: small seeded PRNG so the data is the same on every device.
+  var seed = 20251012;
+  function rnd() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+  function pick(a) { return a[Math.floor(rnd() * a.length)]; }
+  function int(lo, hi) { return lo + Math.floor(rnd() * (hi - lo + 1)); }
+  function day(fromIso, toIso) {
+    var a = Date.UTC(+fromIso.slice(0, 4), +fromIso.slice(5, 7) - 1, +fromIso.slice(8, 10));
+    var b = Date.UTC(+toIso.slice(0, 4), +toIso.slice(5, 7) - 1, +toIso.slice(8, 10));
+    return new Date(a + Math.floor(rnd() * ((b - a) / 864e5 + 1)) * 864e5).toISOString().slice(0, 10);
+  }
+  var firsts = ['Ava', 'Ben', 'Carla', 'Dev', 'Elena', 'Femi', 'Grace', 'Hiro', 'Isla', 'Jamal', 'Keisha', 'Liam', 'Maya', 'Noah', 'Olu', 'Priya', 'Quinn', 'Rosa', 'Sam', 'Tara', 'Umar', 'Vera', 'Wes', 'Ximena', 'Yusuf', 'Zoe'];
+  var lasts = ['Adams', 'Brooks', 'Chen', 'Diaz', 'Evans', 'Foster', 'Garcia', 'Hughes', 'Ibrahim', 'Jones', 'Kim', 'Lopez', 'Mensah', 'Nguyen', 'Okafor', 'Patel', 'Reed', 'Silva', 'Turner', 'Walker'];
+
+  var departments = [
+    [1, 'Engineering', 'Atlanta'], [2, 'Sales', 'Chicago'], [3, 'Marketing', 'Atlanta'], [4, 'Finance', 'New York'],
+    [5, 'Operations', 'Dallas'], [6, 'People', 'Remote'], [7, 'Legal', 'New York'] // Legal has nobody (LEFT JOIN practice)
+  ];
+  var deptBase = { 1: 105000, 2: 72000, 3: 70000, 4: 82000, 5: 68000, 6: 64000 };
+  var titles = { 1: ['Software Engineer', 'Senior Engineer', 'QA Analyst'], 2: ['Account Executive', 'Sales Rep'], 3: ['Marketing Specialist', 'Content Lead'],
+                 4: ['Financial Analyst', 'Accountant'], 5: ['Operations Analyst', 'Project Coordinator'], 6: ['HR Generalist', 'Recruiter'] };
+  var employees = [];
+  var used = {};
+  function person() { var f, l; do { f = pick(firsts); l = pick(lasts); } while (used[f + l]); used[f + l] = 1; return [f, l]; }
+  var ceo = person();
+  employees.push([1, ceo[0], ceo[1], (ceo[0] + '.' + ceo[1] + '@acme.test').toLowerCase(), 5, null, 'Chief Executive Officer', '2015-03-02', 240000]);
+  var heads = {};
+  [1, 2, 3, 4, 5, 6].forEach(function(d) {
+    var n = person(), id = employees.length + 1;
+    heads[d] = id;
+    employees.push([id, n[0], n[1], (n[0] + '.' + n[1] + '@acme.test').toLowerCase(), d, 1, departments[d - 1][1] + ' Director', day('2015-06-01', '2019-12-31'), Math.round((deptBase[d] * 1.8 + int(0, 20) * 1000) / 500) * 500]);
+  });
+  var perDept = { 1: 11, 2: 8, 3: 5, 4: 5, 5: 4, 6: 3 };
+  [1, 2, 3, 4, 5, 6].forEach(function(d) {
+    for (var i = 0; i < perDept[d]; i++) {
+      var n = person(), id = employees.length + 1;
+      employees.push([id, n[0], n[1], (n[0] + '.' + n[1] + '@acme.test').toLowerCase(), d, heads[d], pick(titles[d]), day('2017-01-01', '2025-10-31'), Math.round((deptBase[d] * (0.75 + rnd() * 0.6)) / 500) * 500]);
+    }
+  });
+
+  var cities = [['Atlanta', 'GA'], ['Savannah', 'GA'], ['Chicago', 'IL'], ['Austin', 'TX'], ['Dallas', 'TX'], ['Denver', 'CO'], ['Seattle', 'WA'], ['Miami', 'FL'], ['Charlotte', 'NC'], ['Boston', 'MA']];
+  var customers = [];
+  for (var c = 1; c <= 60; c++) {
+    var cn = pick(firsts) + ' ' + pick(lasts), place = pick(cities);
+    customers.push([c, cn, cn.toLowerCase().replace(' ', '.') + c + '@mail.test', place[0], place[1], day('2023-01-01', '2025-09-30')]);
+  }
+  // A few duplicate sign-ups: same email on two customer rows (a classic "find duplicates" question).
+  [[41, 7], [52, 19], [58, 33]].forEach(function(p) { customers[p[0] - 1][2] = customers[p[1] - 1][2]; });
+
+  var catalog = {
+    Electronics: ['Wireless Earbuds', 'Bluetooth Speaker', 'USB-C Hub', '4K Webcam', 'Mechanical Keyboard', 'Smart Watch'],
+    Home: ['Pour-Over Kettle', 'Cast Iron Skillet', 'Linen Sheet Set', 'Air Purifier', 'Desk Lamp'],
+    Outdoors: ['Trail Backpack', 'Camping Hammock', 'Insulated Bottle', 'Headlamp'],
+    Books: ['SQL Pocket Guide', 'Data Science Primer', 'PMP Exam Prep', 'Clean Code'],
+    Apparel: ['Rain Jacket', 'Running Shoes', 'Merino Hoodie', 'Wool Socks (3-pack)', 'Baseball Cap']
+  };
+  var priceRange = { Electronics: [29, 349], Home: [24, 299], Outdoors: [19, 179], Books: [14, 59], Apparel: [12, 189] };
+  var products = [], pid = 0;
+  Object.keys(catalog).forEach(function(cat) {
+    catalog[cat].forEach(function(nm) { pid++; products.push([pid, nm, cat, int(priceRange[cat][0], priceRange[cat][1]) + 0.99]); });
+  });
+
+  // Customers 53–60 never order, and two products never sell (anti-join practice).
+  var unsold = { 'Clean Code': 1, 'Baseball Cap': 1 };
+  var sellable = products.filter(function(p) { return !unsold[p[1]]; });
+  var orders = [], items = [];
+  for (var o = 1; o <= 320; o++) {
+    var r = rnd();
+    var status = r < 0.8 ? 'delivered' : r < 0.88 ? 'shipped' : r < 0.95 ? 'cancelled' : 'returned';
+    orders.push([o, int(1, 52), day('2024-01-01', '2025-12-31'), status]);
+    var lines = int(1, 4), seen = {};
+    for (var li = 0; li < lines; li++) {
+      var prod = pick(sellable);
+      if (seen[prod[0]]) continue;
+      seen[prod[0]] = 1;
+      var unit = rnd() < 0.15 ? Math.round(prod[3] * 0.9 * 100) / 100 : prod[3]; // occasional 10% discount
+      items.push([o, prod[0], int(1, 3), unit]);
+    }
+  }
+  _dxPracticeRows = { departments: departments, employees: employees, customers: customers, products: products, orders: orders, order_items: items };
+  return _dxPracticeRows;
+}
+
+// CREATE + INSERT script for one engine. Values are generated above (never
+// user input) but still quoted properly.
+function _dxPracticeSql(engine) {
+  var data = _dxPracticeData(), pg = engine === 'postgres';
+  var typeOf = function(t) { return t === 'int' ? 'INTEGER' : t === 'money' ? (pg ? 'NUMERIC(10,2)' : 'REAL') : t === 'date' ? (pg ? 'DATE' : 'TEXT') : 'TEXT'; };
+  var lit = function(v) { return v == null ? 'NULL' : typeof v === 'number' ? String(v) : "'" + String(v).replace(/'/g, "''") + "'"; };
+  return DX_PRACTICE_TABLES.map(function(t) {
+    var rows = data[t.name];
+    return 'CREATE TABLE practice.' + t.name + ' (' + t.cols.map(function(c, i) { return c[0] + ' ' + typeOf(c[1]) + (i === 0 && c[0] === 'id' ? ' PRIMARY KEY' : ''); }).join(', ') + ');\n' +
+      'INSERT INTO practice.' + t.name + ' VALUES\n' + rows.map(function(r) { return '(' + r.map(lit).join(', ') + ')'; }).join(',\n') + ';';
+  }).join('\n');
+}
+
+/* Exercises. `sql` is the reference answer; `sqlite` overrides it where the
+   dialects differ. `ordered` means the question asks for an order, so row
+   order counts when checking. Everything else compares as a set of rows,
+   ignoring column names. */
+var DX_EXERCISES = [
+  { id: 'e1', level: 'Easy', title: 'Engineering payroll', ordered: true,
+    prompt: 'List every employee in the Engineering department: first name, last name and salary, highest salary first.',
+    hints: ['Employees only store department_id — JOIN departments to filter on its name.', 'ORDER BY salary DESC.'],
+    sql: "SELECT e.first_name, e.last_name, e.salary\nFROM employees e\nJOIN departments d ON d.id = e.department_id\nWHERE d.name = 'Engineering'\nORDER BY e.salary DESC, e.last_name, e.first_name;" },
+  { id: 'e2', level: 'Easy', title: 'Pricey products', ordered: false,
+    prompt: 'Show the name, category and price of every product that costs more than $150.',
+    hints: ['A simple WHERE on price.'],
+    sql: "SELECT name, category, price\nFROM products\nWHERE price > 150;" },
+  { id: 'e3', level: 'Easy', title: 'Headcount by department', ordered: false,
+    prompt: 'How many employees does each department have? Return department name and headcount — include departments with nobody in them (they should show 0).',
+    hints: ['Start FROM departments so every department appears.', 'LEFT JOIN employees, then COUNT(e.id) — COUNT(*) would count the empty department as 1.'],
+    sql: "SELECT d.name, COUNT(e.id) AS headcount\nFROM departments d\nLEFT JOIN employees e ON e.department_id = d.id\nGROUP BY d.name;" },
+  { id: 'e4', level: 'Easy', title: 'Order status mix', ordered: true,
+    prompt: 'How many orders are in each status? Most common status first.',
+    hints: ['GROUP BY status, then ORDER BY the count.'],
+    sql: "SELECT status, COUNT(*) AS orders\nFROM orders\nGROUP BY status\nORDER BY orders DESC, status;" },
+  { id: 'e5', level: 'Easy', title: '2025 sign-ups by state', ordered: false,
+    prompt: 'How many customers signed up in 2025, per state? Return state and the count.',
+    hints: ['Filter signup_date to 2025 — a date range works in any dialect.', "WHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'"],
+    sql: "SELECT state, COUNT(*) AS signups\nFROM customers\nWHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'\nGROUP BY state;" },
+  { id: 'm1', level: 'Medium', title: 'Revenue by category', ordered: true,
+    prompt: 'Total revenue per product category, counting only delivered and shipped orders. Revenue = quantity × unit_price. Return category and revenue (rounded to cents), highest first.',
+    hints: ['You need order_items, products (for category) and orders (for status).', "WHERE o.status IN ('delivered', 'shipped')", 'SUM(oi.quantity * oi.unit_price)'],
+    sql: "SELECT p.category, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nJOIN products p ON p.id = oi.product_id\nWHERE o.status IN ('delivered', 'shipped')\nGROUP BY p.category\nORDER BY revenue DESC;" },
+  { id: 'm2', level: 'Medium', title: 'Top 5 customers', ordered: true,
+    prompt: 'Who are the top 5 customers by total spend on non-cancelled orders? Return customer name and total spent (rounded to cents), biggest first.',
+    hints: ["Exclude cancelled orders: o.status <> 'cancelled'.", 'GROUP BY the customer, ORDER BY the total DESC, LIMIT 5.'],
+    sql: "SELECT c.name, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS total_spent\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status <> 'cancelled'\nGROUP BY c.id, c.name\nORDER BY total_spent DESC, c.name\nLIMIT 5;" },
+  { id: 'm3', level: 'Medium', title: 'Above their department average', ordered: false,
+    prompt: "Which employees earn more than the average salary of their own department? Return first name, last name, salary and the department average (rounded to cents).",
+    hints: ['Work out each department’s average first (a subquery or a CTE).', 'Then join employees to it on department_id and compare.'],
+    sql: "WITH dept_avg AS (\n  SELECT department_id, AVG(salary) AS avg_salary\n  FROM employees\n  GROUP BY department_id\n)\nSELECT e.first_name, e.last_name, e.salary, ROUND(a.avg_salary, 2) AS dept_avg\nFROM employees e\nJOIN dept_avg a ON a.department_id = e.department_id\nWHERE e.salary > a.avg_salary;" },
+  { id: 'm4', level: 'Medium', title: 'Who’s my manager?', ordered: false,
+    prompt: "List every employee's full name next to their manager's full name. The CEO has no manager — keep them in the list with an empty (NULL) manager.",
+    hints: ['Join employees to itself: one copy for the employee, one for the manager.', 'LEFT JOIN so the CEO (manager_id IS NULL) is kept.', "Full name: first_name || ' ' || last_name"],
+    sql: "SELECT e.first_name || ' ' || e.last_name AS employee,\n  m.first_name || ' ' || m.last_name AS manager\nFROM employees e\nLEFT JOIN employees m ON m.id = e.manager_id;" },
+  { id: 'm5', level: 'Medium', title: 'Customers who never ordered', ordered: false,
+    prompt: 'Find customers who have never placed an order. Return their id and name.',
+    hints: ['Either LEFT JOIN orders and keep rows where the order is NULL…', '…or use WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id).'],
+    sql: "SELECT c.id, c.name\nFROM customers c\nWHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id);" },
+  { id: 'm6', level: 'Medium', title: 'Duplicate emails', ordered: false,
+    prompt: 'Some customers signed up twice with the same email. Find each duplicated email and how many customer rows share it.',
+    hints: ['GROUP BY email.', 'HAVING COUNT(*) > 1 keeps only the duplicates.'],
+    sql: "SELECT email, COUNT(*) AS accounts\nFROM customers\nGROUP BY email\nHAVING COUNT(*) > 1;" },
+  { id: 'm7', level: 'Medium', title: 'Monthly revenue in 2025', ordered: true,
+    prompt: "Revenue per month for 2025 (delivered and shipped orders only). Return the month as text like '2025-01' and the revenue rounded to cents, in month order.",
+    hints: ["Postgres: to_char(order_date, 'YYYY-MM'). SQLite: strftime('%Y-%m', order_date).", 'Filter to 2025 with a date range, GROUP BY the month, ORDER BY it.'],
+    sql: "SELECT to_char(o.order_date, 'YYYY-MM') AS month,\n  ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM orders o\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status IN ('delivered', 'shipped')\n  AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\nGROUP BY 1\nORDER BY 1;",
+    sqlite: "SELECT strftime('%Y-%m', o.order_date) AS month,\n  ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue\nFROM orders o\nJOIN order_items oi ON oi.order_id = o.id\nWHERE o.status IN ('delivered', 'shipped')\n  AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\nGROUP BY 1\nORDER BY 1;" },
+  { id: 'h1', level: 'Hard', title: 'Salary rank within department', ordered: true,
+    prompt: 'Rank employees by salary within each department (highest = 1; ties share a rank). Return department name, employee last name, salary and rank, ordered by department then rank.',
+    hints: ['A window function: RANK() OVER (PARTITION BY … ORDER BY …).', 'PARTITION BY the department, ORDER BY salary DESC.', 'Break ties in the final ORDER BY with last_name so the order is stable.'],
+    sql: "SELECT d.name AS department, e.last_name, e.salary,\n  RANK() OVER (PARTITION BY e.department_id ORDER BY e.salary DESC) AS salary_rank\nFROM employees e\nJOIN departments d ON d.id = e.department_id\nORDER BY department, salary_rank, e.last_name, e.first_name;" },
+  { id: 'h2', level: 'Hard', title: 'Second-highest salary', ordered: false,
+    prompt: 'For each department, what is the second-highest distinct salary? Return department name and that salary. (Departments with fewer than two distinct salaries can be left out.)',
+    hints: ['Rank the distinct salaries per department with DENSE_RANK().', 'Then keep rank = 2 — filter in an outer query, since you can’t use a window function in WHERE.'],
+    sql: "WITH ranked AS (\n  SELECT department_id, salary,\n    DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS r\n  FROM employees\n)\nSELECT DISTINCT d.name, ranked.salary\nFROM ranked\nJOIN departments d ON d.id = ranked.department_id\nWHERE r = 2;" },
+  { id: 'h3', level: 'Hard', title: 'Running revenue total', ordered: true,
+    prompt: "For 2025, show each month's revenue (delivered + shipped) and the running total through that month. Month as 'YYYY-MM'; both amounts rounded to cents; in month order.",
+    hints: ['Get monthly revenue first (a CTE — the same query as “Monthly revenue in 2025”).', 'Then SUM(revenue) OVER (ORDER BY month) gives the running total.'],
+    sql: "WITH monthly AS (\n  SELECT to_char(o.order_date, 'YYYY-MM') AS month, SUM(oi.quantity * oi.unit_price) AS revenue\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.id\n  WHERE o.status IN ('delivered', 'shipped')\n    AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\n  GROUP BY 1\n)\nSELECT month, ROUND(revenue, 2) AS revenue,\n  ROUND(SUM(revenue) OVER (ORDER BY month), 2) AS running_total\nFROM monthly\nORDER BY month;",
+    sqlite: "WITH monthly AS (\n  SELECT strftime('%Y-%m', o.order_date) AS month, SUM(oi.quantity * oi.unit_price) AS revenue\n  FROM orders o\n  JOIN order_items oi ON oi.order_id = o.id\n  WHERE o.status IN ('delivered', 'shipped')\n    AND o.order_date >= '2025-01-01' AND o.order_date < '2026-01-01'\n  GROUP BY 1\n)\nSELECT month, ROUND(revenue, 2) AS revenue,\n  ROUND(SUM(revenue) OVER (ORDER BY month), 2) AS running_total\nFROM monthly\nORDER BY month;" },
+  { id: 'h4', level: 'Hard', title: 'Each customer’s latest order', ordered: false,
+    prompt: 'For every customer who has ordered, return their name, their most recent order date and that order’s status. (If two orders share the latest date, pick the one with the higher order id.)',
+    hints: ['ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, id DESC) numbers each customer’s orders newest-first.', 'Keep row number 1 in an outer query. (Postgres also has DISTINCT ON for exactly this.)'],
+    sql: "WITH latest AS (\n  SELECT o.*, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, id DESC) AS rn\n  FROM orders o\n)\nSELECT c.name, l.order_date, l.status\nFROM latest l\nJOIN customers c ON c.id = l.customer_id\nWHERE l.rn = 1;" },
+  { id: 'h5', level: 'Hard', title: 'Never-bought products', ordered: false,
+    prompt: 'Which products have never appeared on a delivered order? Return product name and category.',
+    hints: ['Find the product ids that DO appear on delivered orders…', '…then keep products NOT IN / NOT EXISTS that set.'],
+    sql: "SELECT p.name, p.category\nFROM products p\nWHERE NOT EXISTS (\n  SELECT 1 FROM order_items oi\n  JOIN orders o ON o.id = oi.order_id\n  WHERE oi.product_id = p.id AND o.status = 'delivered'\n);" },
+  // Your own data — the answer is worked out live from your tables, so these change as you log things.
+  { id: 'y1', level: 'Your data', title: 'Your job pipeline', ordered: true,
+    prompt: 'Using your jobs table: how many jobs are at each stage? Most first; break ties alphabetically by stage.',
+    hints: ['GROUP BY stage, ORDER BY the count DESC, then stage.'],
+    sql: "SELECT stage, COUNT(*) AS jobs\nFROM jobs\nGROUP BY stage\nORDER BY jobs DESC, stage;" },
+  { id: 'y2', level: 'Your data', title: 'Your heaviest working sets', ordered: false,
+    prompt: 'Using your lift_sets table: for each exercise, what is the heaviest weight you lifted on a working (non-warm-up) set?',
+    hints: ['Filter out warm-ups first.', 'Postgres: WHERE NOT warmup. SQLite stores it as 0/1: WHERE warmup = 0.', 'GROUP BY exercise with MAX(weight).'],
+    sql: "SELECT exercise, MAX(weight) AS heaviest\nFROM lift_sets\nWHERE NOT warmup AND weight IS NOT NULL\nGROUP BY exercise;",
+    sqlite: "SELECT exercise, MAX(weight) AS heaviest\nFROM lift_sets\nWHERE warmup = 0 AND weight IS NOT NULL\nGROUP BY exercise;" }
+];
+
+function _dxExerciseSql(ex, engine) { return engine === 'sqlite' && ex.sqlite ? ex.sqlite : ex.sql; }
+
+// Compare a query's last result set with the reference answer's.
+function _dxNormCell(v) {
+  if (v == null) return 'NULL';
+  if (v === true || v === 'true') return '1';
+  if (v === false || v === 'false') return '0';
+  if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(v))) return String(Math.round(Number(v) * 100) / 100);
+  var s = String(v).trim();
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})(?:[ T]00:00:00(?:\.0+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?$/);
+  return m ? m[1] : s;
+}
+function _dxCompareResults(mine, ref, ordered) {
+  // SQLite reports nothing at all for a SELECT that matches zero rows, so
+  // "no result" has to count as an empty answer on either side.
+  var empty = function(r) { return !r || !r.values.length; };
+  if (empty(mine) && empty(ref)) return { ok: true };
+  if (!mine) return { ok: false, msg: 'Your query didn’t return any rows to check — make sure it ends with a SELECT.' };
+  if (!ref) return { ok: false, msg: 'Expected no rows, you returned ' + mine.values.length + '.' };
+  if (mine.columns.length !== ref.columns.length) {
+    return { ok: false, msg: 'Expected ' + ref.columns.length + ' column' + (ref.columns.length === 1 ? '' : 's') + ', you returned ' + mine.columns.length + '.' };
+  }
+  var a = mine.values.map(function(r) { return r.map(_dxNormCell); }), b = ref.values.map(function(r) { return r.map(_dxNormCell); });
+  if (a.length !== b.length) return { ok: false, msg: 'Expected ' + b.length + ' row' + (b.length === 1 ? '' : 's') + ', you returned ' + a.length + '.' };
+  var key = function(r) { return JSON.stringify(r); };
+  if (!ordered) {
+    var count = {};
+    b.forEach(function(r) { count[key(r)] = (count[key(r)] || 0) + 1; });
+    for (var i = 0; i < a.length; i++) {
+      var k = key(a[i]);
+      if (!count[k]) return { ok: false, msg: 'This row isn’t in the expected answer: ' + a[i].join(' | ') + ' — check your filters, joins and column order.' };
+      count[k]--;
+    }
+    return { ok: true };
+  }
+  for (var j = 0; j < a.length; j++) {
+    if (key(a[j]) !== key(b[j])) {
+      var sameSet = a.map(key).sort().join() === b.map(key).sort().join();
+      return { ok: false, msg: sameSet ? 'Right rows, wrong order — check your ORDER BY. Row ' + (j + 1) + ' should be: ' + b[j].join(' | ')
+                                       : 'Row ' + (j + 1) + ' differs. Expected: ' + b[j].join(' | ') + ' — got: ' + a[j].join(' | ') };
+    }
+  }
+  return { ok: true };
+}
 
 function _dxSqlStore(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch (e) { return fallback; } }
 function _dxSqlStoreSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
@@ -15826,11 +16098,20 @@ function _dxSqlResultHtml() {
   }).join('');
 }
 
+// The practice tables, listed alongside yours (they live in the practice schema/database).
+function _dxPracticeTableList() {
+  var d = _dxPracticeData();
+  return DX_PRACTICE_TABLES.map(function(t) {
+    return { name: t.name, label: 'Practice · ' + t.label, count: d[t.name].length,
+             cols: t.cols.map(function(c) { return { key: c[0], label: c[0], type: c[1] === 'int' ? 'number' : c[1] }; }) };
+  });
+}
+function _dxSqlAllTables() { return _dxSql.tables.concat(_dxPracticeTableList()); }
 function _dxSqlSchemaHtml() {
-  var sel = _dxSql.tables.find(function(t) { return t.name === _dxSql.selected; });
-  return '<div class="sql-chips">' + _dxSql.tables.map(function(t) {
-      return '<button class="sql-chip' + (t.name === _dxSql.selected ? ' active' : '') + '" data-sql-table="' + t.name + '">' + t.name + '<span class="sql-chip-n">' + t.count + '</span></button>';
-    }).join('') + '</div>' +
+  var sel = _dxSqlAllTables().find(function(t) { return t.name === _dxSql.selected; });
+  var chip = function(t) { return '<button class="sql-chip' + (t.name === _dxSql.selected ? ' active' : '') + '" data-sql-table="' + t.name + '">' + t.name + '<span class="sql-chip-n">' + t.count + '</span></button>'; };
+  return '<div class="sql-chips">' + _dxSql.tables.map(chip).join('') + '</div>' +
+    '<div class="sql-label">Practice database</div><div class="sql-chips">' + _dxPracticeTableList().map(chip).join('') + '</div>' +
     (sel ? '<div class="sql-label">' + escapeHtml(sel.label) + ' — tap a column to insert it</div>' +
       '<div class="sql-chips">' + sel.cols.map(function(c) {
         return '<button class="sql-chip" data-sql-insert="' + c.key + '">' + c.key + ' <span class="sql-chip-n">' + (c.type === 'number' || c.type === 'money' ? 'num' : c.type === 'bool' ? (_dxSql.engine === 'postgres' ? 'bool' : '0/1') : c.type === 'date' ? 'date' : 'text') + '</span></button>';
@@ -15904,10 +16185,93 @@ function _dxSqlRefreshTables() {
     return { name: n, label: known[n] ? known[n].label : n + ' (yours)', count: count,
              cols: cols.length ? cols[0].values.map(function(c) { var t = String(c[2] || '').toUpperCase(); return { key: c[1], label: c[1], type: t === 'REAL' || t === 'INTEGER' || t === 'NUMERIC' ? 'number' : 'text' }; }) : [] };
   });
-  if (!_dxSql.tables.some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
+  if (!_dxSqlAllTables().some(function(t) { return t.name === _dxSql.selected; })) _dxSql.selected = '';
+}
+
+/* ---- Practice panel (exercise picker, hints, solution, answer check) ---- */
+function _dxExerciseById(id) { return DX_EXERCISES.find(function(e) { return e.id === id; }) || null; }
+function _dxSolved() { return _dxSqlStore('dx-sql-solved', {}); }
+function _dxSqlPracticeHtml() {
+  var solved = _dxSolved(), cur = _dxExerciseById(_dxSql.exercise);
+  var done = DX_EXERCISES.filter(function(e) { return solved[e.id]; }).length;
+  var select = '<select class="edit-select" id="dxSqlExercise" style="width:100%;"><option value="">Choose an exercise…</option>' +
+    ['Easy', 'Medium', 'Hard', 'Your data'].map(function(lv) {
+      return '<optgroup label="' + lv + '">' + DX_EXERCISES.filter(function(e) { return e.level === lv; }).map(function(e) {
+        return '<option value="' + e.id + '"' + (cur && cur.id === e.id ? ' selected' : '') + '>' + (solved[e.id] ? '✓ ' : '') + escapeHtml(e.title) + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('') + '</select>';
+  var head = '<div class="dx-control-row" style="justify-content:space-between;"><span class="sql-label" style="margin:0;">Practice</span>' +
+    '<span class="sql-ex-progress">' + done + ' / ' + DX_EXERCISES.length + ' solved</span></div><div style="margin-top:8px;">' + select + '</div>';
+  if (!cur) {
+    return head + '<div class="sql-ex-blurb">Interview-style questions from Easy to Hard on a practice company database — ' +
+      'employees, departments, customers, orders, order_items, products — plus a few on your own data. ' +
+      'Write your query in the editor below, then tap <b>Check my answer</b>.</div>';
+  }
+  var allHints = cur.hints || [], hints = allHints.slice(0, _dxSql.hintsShown || 0), fb = _dxSql.feedback;
+  return head +
+    '<div class="sql-ex">' +
+      '<div class="sql-ex-top"><span class="sql-ex-level lvl-' + cur.level.replace(/\s+/g, '').toLowerCase() + '">' + cur.level + '</span>' +
+        (solved[cur.id] ? '<span class="sql-ex-done">&#10003; Solved</span>' : '') + '</div>' +
+      '<div class="sql-ex-title">' + escapeHtml(cur.title) + '</div>' +
+      '<div class="sql-ex-prompt">' + escapeHtml(cur.prompt) + '</div>' +
+      (cur.ordered ? '<div class="sql-ex-note">Row order matters for this one.</div>' : '') +
+      (hints.length ? '<ol class="sql-ex-hints">' + hints.map(function(h) { return '<li>' + escapeHtml(h) + '</li>'; }).join('') + '</ol>' : '') +
+      (_dxSql.showSolution ? '<div class="sql-label">Solution (' + (_dxSql.engine === 'postgres' ? 'Postgres' : 'SQLite') + ')</div><pre class="sql-ex-sol">' + escapeHtml(_dxExerciseSql(cur, _dxSql.engine)) + '</pre>' : '') +
+      (fb ? '<div class="sql-ex-feedback ' + (fb.ok ? 'ok' : 'bad') + '" role="status">' + escapeHtml(fb.msg) + '</div>' : '') +
+      '<div class="dx-control-row" style="margin-top:12px;">' +
+        '<button class="add-btn" data-sql-ex="check" style="background:var(--accent);">&#10003; Check my answer</button>' +
+        (allHints.length ? '<button class="port-edit-btn" data-sql-ex="hint"' + (hints.length >= allHints.length ? ' disabled' : '') + '>Hint ' + hints.length + '/' + allHints.length + '</button>' : '') +
+        '<button class="port-edit-btn" data-sql-ex="solution">' + (_dxSql.showSolution ? 'Hide solution' : 'Show solution') + '</button>' +
+        (_dxSql.showSolution ? '<button class="port-edit-btn" data-sql-ex="use">Use in editor</button>' : '') +
+        '<button class="port-edit-btn" data-sql-ex="next">Next &#8250;</button>' +
+      '</div>' +
+    '</div>';
+}
+function _dxSqlRenderPractice() { var el = document.getElementById('dxSqlPractice'); if (el) el.innerHTML = _dxSqlPracticeHtml(); }
+function _dxSqlSelectExercise(id) {
+  _dxSql.exercise = id; _dxSql.hintsShown = 0; _dxSql.showSolution = false; _dxSql.feedback = null;
+  _dxSqlStoreSet('dx-sql-exercise', id);
+  _dxSqlRenderPractice();
+}
+function _dxNextExerciseId() {
+  var solved = _dxSolved(), i = DX_EXERCISES.findIndex(function(e) { return e.id === _dxSql.exercise; });
+  for (var k = 1; k <= DX_EXERCISES.length; k++) {
+    var e = DX_EXERCISES[(i + k) % DX_EXERCISES.length];
+    if (!solved[e.id]) return e.id;
+  }
+  return DX_EXERCISES[(i + 1) % DX_EXERCISES.length].id; // everything solved: just move along
+}
+// Runs your query, works out the reference answer on the same database, and
+// compares the two (see _dxCompareResults).
+async function _dxSqlCheck() {
+  var cur = _dxExerciseById(_dxSql.exercise);
+  if (!cur) return;
+  await _dxSqlRun();
+  if (_dxSql.error) { _dxSql.feedback = { ok: false, msg: 'Your query has an error — fix that first (it’s shown under the editor).' }; _dxSqlRenderPractice(); return; }
+  var mine = _dxSql.result && _dxSql.result.sets.length ? _dxSql.result.sets[_dxSql.result.sets.length - 1] : null;
+  var ref;
+  try {
+    var refSql = _dxExerciseSql(cur, _dxSql.engine);
+    if (_dxSql.engine === 'postgres') { var out = await _dxPgExec(_dxSql.pg, refSql); ref = out.sets[out.sets.length - 1] || null; }
+    else { var sets = _dxSql.db.exec(refSql); ref = sets.length ? sets[sets.length - 1] : null; }
+  } catch (e) {
+    _dxSql.feedback = { ok: false, msg: 'Couldn’t work out the expected answer (' + (e && e.message ? e.message : e) + '). If you changed or dropped a table, tap Reset data and try again.' };
+    _dxSqlRenderPractice(); return;
+  }
+  var r = _dxCompareResults(mine, ref, cur.ordered);
+  if (r.ok) {
+    var sv = _dxSolved(); sv[cur.id] = true; _dxSqlStoreSet('dx-sql-solved', sv);
+    _dxSql.feedback = { ok: true, msg: '✓ Correct!' + (DX_EXERCISES.every(function(e) { return sv[e.id]; }) ? ' That’s every exercise solved.' : ' Tap Next for another.') };
+  } else {
+    _dxSql.feedback = { ok: false, msg: '✗ Not quite. ' + r.msg };
+  }
+  _dxSqlRenderPractice();
+  var el = document.getElementById('dxSqlPractice');
+  if (el && el.getBoundingClientRect().top < 0) { try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e2) { el.scrollIntoView(); } }
 }
 
 function _dxSqlRenderParts() {
+  _dxSqlRenderPractice();
   var res = document.getElementById('dxSqlResult'); if (res) res.innerHTML = _dxSqlResultHtml();
   var sc = document.getElementById('dxSqlSchema'); if (sc) sc.innerHTML = _dxSqlSchemaHtml();
   var sv = document.getElementById('dxSqlSaved'); if (sv) sv.innerHTML = _dxSqlSavedHtml();
@@ -15973,6 +16337,7 @@ function _dxSqlMount() {
         _dxSqlEngineSwitchHtml() +
         '<div class="sql-label">Tables</div><div id="dxSqlSchema"></div>' +
       '</div>' +
+      '<div class="card dx-controls" id="dxSqlPractice"></div>' +
       '<div class="card dx-controls">' +
         '<textarea id="dxSqlText" class="sql-editor" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="SELECT * FROM budget_bills;">' + escapeHtml(starter) + '</textarea>' +
         '<div class="sql-chips" style="margin-top:8px;">' +
@@ -16019,6 +16384,16 @@ function _dxSqlAttach(inner) {
       }
       return;
     }
+    var exBtn = e.target.closest('[data-sql-ex]');
+    if (exBtn) {
+      var exAct = exBtn.getAttribute('data-sql-ex'), cur = _dxExerciseById(_dxSql.exercise);
+      if (exAct === 'check') _dxSqlCheck();
+      else if (exAct === 'hint') { _dxSql.hintsShown = (_dxSql.hintsShown || 0) + 1; _dxSqlRenderPractice(); }
+      else if (exAct === 'solution') { _dxSql.showSolution = !_dxSql.showSolution; _dxSqlRenderPractice(); }
+      else if (exAct === 'use' && cur) { var tx = document.getElementById('dxSqlText'); tx.value = _dxExerciseSql(cur, _dxSql.engine); _dxSqlStoreSet('dx-sql-text', tx.value); tx.focus(); }
+      else if (exAct === 'next') _dxSqlSelectExercise(_dxNextExerciseId());
+      return;
+    }
     var t = e.target.closest('[data-sql-table]');
     if (t) { _dxSql.selected = t.getAttribute('data-sql-table'); _dxSqlRenderParts(); return; }
     var ins = e.target.closest('[data-sql-insert]');
@@ -16047,6 +16422,7 @@ function _dxSqlAttach(inner) {
     }
   });
   inner.addEventListener('change', function(e) {
+    if (e.target.id === 'dxSqlExercise') { _dxSqlSelectExercise(e.target.value); return; }
     if (e.target.id !== 'dxSqlExamples') return;
     var ex = _dxSqlExamples()[Number(e.target.value)];
     e.target.value = '';
