@@ -8407,10 +8407,15 @@ async function renderWorkoutsTab(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
   var defaultData = { weeklyGoal: "", items: [], bodyWeightLog: [], dismissedDeloadWeeks: [] };
-  var data = await loadTabData("dashboard-workouts-data", defaultData);
-  var templatesData = await loadTabData("dashboard-workouts-templates", { templates: [] });
-  var splitsData = await loadTabData("dashboard-workouts-splits", { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
-  var planData = await loadTabData("dashboard-workouts-plan", { days: {} });
+  // Whose workouts are showing: "me" uses the original keys (so the overview, Data Explorer
+  // and streaks keep reading only mine); "wife" stores the same four rows under a -wife suffix.
+  var wkProfile = "me";
+  try { if (localStorage.getItem("wkProfile") === "wife") wkProfile = "wife"; } catch (e) { /* storage unavailable — stay on "me" */ }
+  function wkKey(base) { return wkProfile === "wife" ? base + "-wife" : base; }
+  var data = await loadTabData(wkKey("dashboard-workouts-data"), defaultData);
+  var templatesData = await loadTabData(wkKey("dashboard-workouts-templates"), { templates: [] });
+  var splitsData = await loadTabData(wkKey("dashboard-workouts-splits"), { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
+  var planData = await loadTabData(wkKey("dashboard-workouts-plan"), { days: {} });
   var customExercisesData = await loadCustomExercisesData();
 
   // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
@@ -8503,10 +8508,10 @@ async function renderWorkoutsTab(root) {
   var planDraftCategory = "strength";
   var planDraftTemplateId = "";
 
-  function save() { saveTabData("dashboard-workouts-data", data); renderWeekStrip(); }
-  function saveTemplates() { saveTabData("dashboard-workouts-templates", templatesData); }
-  function saveSplits() { saveTabData("dashboard-workouts-splits", splitsData); }
-  function savePlan() { saveTabData("dashboard-workouts-plan", planData); renderWeekStrip(); }
+  function save() { saveTabData(wkKey("dashboard-workouts-data"), data); renderWeekStrip(); }
+  function saveTemplates() { saveTabData(wkKey("dashboard-workouts-templates"), templatesData); }
+  function saveSplits() { saveTabData(wkKey("dashboard-workouts-splits"), splitsData); }
+  function savePlan() { saveTabData(wkKey("dashboard-workouts-plan"), planData); renderWeekStrip(); }
   if (migratedAny || migratedLiftsAny) save();
   if (_planPrunedAny) savePlan();
 
@@ -8598,6 +8603,11 @@ async function renderWorkoutsTab(root) {
     '<div class="page-hero"><div class="tab-eyebrow">' + escapeHtml(_pageLabel('workouts', 'WORKOUT PLANNER')) + '</div>' +
     '<header style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;"><div><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Workouts</h2><div class="mono" id="wkStreak" style="color:' + accent + ';font-size:12px;"></div></div>' +
       '<button type="button" class="wk-rest-btn" id="wkRestBtn" aria-expanded="false">&#9201; Rest timer</button></header>' +
+    '<div class="pills" id="wkProfilePills" role="group" aria-label="Whose workouts" style="margin-bottom:8px;">' +
+      [["me", "Me"], ["wife", "Wife"]].map(function (p) {
+        var on = p[0] === wkProfile;
+        return '<button type="button" class="pill" data-profile="' + p[0] + '" aria-pressed="' + on + '" style="background:' + (on ? accent : "transparent") + ";border-color:" + accent + ";color:" + (on ? "#12151A" : accent) + ';">' + p[1] + "</button>";
+      }).join("") + "</div>" +
     '<div class="wk-rest-presets" id="wkRestPresets" hidden></div>' +
     '<div class="wk-strip" id="wkStrip" role="group" aria-label="This week"></div>' +
     '<div class="pills" id="wkSectionPills"></div></div>' +
@@ -8640,6 +8650,12 @@ async function renderWorkoutsTab(root) {
         '<span class="wk-day-l">' + ltr + '</span><span class="wk-day-c">' + mark + '</span><span class="wk-day-n">' + Number(d.slice(8)) + "</span></button>";
     }).join("");
   }
+  document.getElementById("wkProfilePills").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-profile]");
+    if (!b || b.getAttribute("data-profile") === wkProfile) return;
+    try { localStorage.setItem("wkProfile", b.getAttribute("data-profile")); } catch (err) { /* storage unavailable — switch only lasts until reload */ }
+    renderWorkoutsTab(root);
+  });
   document.getElementById("wkStrip").addEventListener("click", function (e) {
     var b = e.target.closest(".wk-day");
     if (!b) return;
