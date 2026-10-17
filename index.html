@@ -4947,9 +4947,256 @@ var _budgetSection = "overview"; // which Budget section is showing (kept across
 var BUDGET_SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "bills", label: "Bills" },
+  { id: "limits", label: "Limits" },
   { id: "goals", label: "Goals" },
   { id: "pay", label: "Paychecks" }
 ];
+
+/* ---------------- spending limits (Budget > Limits) ----------------
+   A monthly cap split into categories, each with its own dollar limit (and optional visit
+   limit), plus a log of what was actually spent. Stored in its own row, separate from the
+   bills/paycheck data. Limits are versioned by month: editing while viewing month M saves a
+   new version "from M", so changing a limit never rewrites how earlier months were judged. */
+var LIMITS_KEY = "dashboard-budget-limits";
+function limitsDefaults() {
+  return {
+    title: "Eating out",
+    baseline: { amount: 950, label: "Sep 2026" },
+    cats: [
+      { id: "sitdown", name: "Sit-down dinners", note: "One dinner out a week, ~$50 a meal" },
+      { id: "takeout", name: "Takeout (pickup only)", note: "No delivery apps, no delivery fees" },
+      { id: "sbux-we", name: "Starbucks (weekend)", note: "~$20 a visit for two" },
+      { id: "sbux-wd", name: "Starbucks (weekday)", note: "Before-work runs, ~$5-7 a person" },
+      { id: "donut", name: "Donut Lane", note: "~$12 a visit" }
+    ],
+    versions: [{ from: "0000-00", cap: 450, limits: {
+      "sitdown": { limit: 200, visits: 4 }, "takeout": { limit: 120, visits: 8 }, "sbux-we": { limit: 40, visits: 2 },
+      "sbux-wd": { limit: 60, visits: "" }, "donut": { limit: 24, visits: 2 }
+    } }],
+    entries: []
+  };
+}
+
+async function renderLimitsSection(host, accent) {
+  var data = await loadTabData(LIMITS_KEY, limitsDefaults());
+  if (!Array.isArray(data.cats)) data.cats = [];
+  if (!Array.isArray(data.entries)) data.entries = [];
+  if (!Array.isArray(data.versions) || !data.versions.length) data.versions = limitsDefaults().versions;
+  if (!data.baseline) data.baseline = { amount: "", label: "" };
+
+  var COL_OK = "#5BAE7A", COL_WARN = "#D9A441", COL_OVER = "#FF8A5C";
+  function localISO(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  var thisMonth = localISO(new Date()).slice(0, 7);
+  var month = thisMonth, editCatId = null, showSettings = false;
+
+  function monthLabel(key) { var p = key.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
+  function shortMonth(key) { var p = key.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" }); }
+  function shiftMonth(key, n) { var p = key.split("-"); return localISO(new Date(Number(p[0]), Number(p[1]) - 1 + n, 1)).slice(0, 7); }
+  function save() { saveTabData(LIMITS_KEY, data); }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  function barColor(spent, limit) { var r = limit > 0 ? spent / limit : 0; return r > 1 ? COL_OVER : r >= 0.8 ? COL_WARN : COL_OK; }
+
+  function versionFor(m) {
+    var best = data.versions[0];
+    data.versions.forEach(function (v) { if (v.from <= m && v.from >= best.from) best = v; });
+    return best;
+  }
+  // The version that edits to month m should land in: an existing one starting at m, else a copy of
+  // whatever applies to m now, starting at m.
+  function writableVersion(m) {
+    var exact = data.versions.filter(function (v) { return v.from === m; })[0];
+    if (exact) return exact;
+    var base = versionFor(m);
+    var copy = { from: m, cap: base.cap, limits: JSON.parse(JSON.stringify(base.limits || {})) };
+    data.versions.push(copy);
+    data.versions.sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+    return copy;
+  }
+  function monthEntries(m) { return data.entries.filter(function (e) { return (e.date || "").slice(0, 7) === m; }); }
+  function monthTotal(m) { return monthEntries(m).reduce(function (s, e) { return s + num(e.amount); }, 0); }
+
+  function render() {
+    var ver = versionFor(month), cap = num(ver.cap);
+    var entries = monthEntries(month).sort(function (a, b) { return (b.date || "").localeCompare(a.date || "") || (b.addedAt || "").localeCompare(a.addedAt || ""); });
+    var total = entries.reduce(function (s, e) { return s + num(e.amount); }, 0);
+    var byCat = {}, countCat = {}, knownIds = {};
+    data.cats.forEach(function (c) { knownIds[c.id] = true; });
+    var otherTotal = 0;
+    entries.forEach(function (e) {
+      if (knownIds[e.catId]) { byCat[e.catId] = (byCat[e.catId] || 0) + num(e.amount); countCat[e.catId] = (countCat[e.catId] || 0) + 1; }
+      else otherTotal += num(e.amount);
+    });
+    var catLimitSum = data.cats.reduce(function (s, c) { return s + num((ver.limits[c.id] || {}).limit); }, 0);
+    var left = cap - total;
+    var pct = cap > 0 ? Math.min(100, (total / cap) * 100) : 0;
+    var h = "";
+
+    // header + month switcher
+    h += '<div class="gauge-top"><span class="gauge-label mono">' + escapeHtml((data.title || "Spending limits").toUpperCase()) + ' &middot; MONTHLY LIMITS</span>' +
+      '<button class="link-btn" data-act="toggle-settings" style="color:' + accent + ';">' + (showSettings ? "Close" : "Edit cap") + "</button></div>";
+    h += '<div class="row-gap" style="justify-content:space-between;align-items:center;margin:8px 0 12px;">' +
+      '<button class="small-btn" data-act="prev" style="background:#8A919C;" aria-label="Previous month">&#8249;</button>' +
+      '<div style="text-align:center;"><div class="serif" style="font-size:20px;color:var(--text-1);">' + escapeHtml(monthLabel(month)) + "</div>" +
+      (month !== thisMonth ? '<button class="link-btn" data-act="today" style="color:var(--text-2);font-size:12px;">Back to this month</button>' : "") + "</div>" +
+      '<button class="small-btn" data-act="next" style="background:#8A919C;" aria-label="Next month">&#8250;</button></div>';
+
+    if (showSettings) {
+      h += '<div class="card" style="background:var(--bg);margin-bottom:12px;">' +
+        '<div style="color:var(--text-2);font-size:12px;margin-bottom:8px;">The cap applies from ' + escapeHtml(monthLabel(month)) + ' onward. Earlier months keep the cap they had.</div>' +
+        '<div class="row-gap" style="margin-bottom:8px;"><input class="form-input" id="limTitle" value="' + escapeHtml(data.title || "") + '" placeholder="Name, e.g. Eating out" style="flex:1;min-width:140px;" />' +
+        '<input class="small-input" id="limCap" type="number" inputmode="decimal" min="0" step="1" value="' + escapeHtml(String(cap || "")) + '" placeholder="Monthly cap" style="width:130px;" /></div>' +
+        '<div class="row-gap" style="margin-bottom:8px;align-items:center;"><span style="color:var(--text-2);font-size:12px;">Used to spend</span>' +
+        '<input class="small-input" id="limBase" type="number" inputmode="decimal" min="0" step="1" value="' + escapeHtml(String(data.baseline.amount || "")) + '" placeholder="$ / month" style="width:110px;" />' +
+        '<input class="small-input" id="limBaseLabel" value="' + escapeHtml(data.baseline.label || "") + '" placeholder="e.g. Sep 2026" style="width:120px;" /></div>' +
+        '<button class="small-btn" data-act="save-settings" style="background:' + accent + ';">Save</button></div>';
+    }
+
+    // summary
+    h += '<div class="gauge-top"><span class="gauge-label mono">SPENT</span><span class="mono" style="color:' + (cap > 0 ? barColor(total, cap) : accent) + ';">' + formatCurrency(total) + (cap > 0 ? " of " + formatCurrency(cap) : "") + "</span></div>";
+    if (cap > 0) {
+      h += '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:' + barColor(total, cap) + ';"></div></div>' +
+        '<div style="color:var(--text-2);font-size:12px;margin-top:8px;">' + (left >= 0 ? formatCurrency(left) + " left this month" : '<span style="color:' + COL_OVER + ';">' + formatCurrency(-left) + " over the cap</span>") +
+        (data.baseline.amount ? " &middot; ~" + formatCurrency(Number(data.baseline.amount)) + " in " + escapeHtml(data.baseline.label || "before") : "") + "</div>";
+      if (catLimitSum !== cap) {
+        h += '<div style="color:var(--text-3);font-size:11px;margin-top:4px;">Category limits add up to ' + formatCurrency(catLimitSum) + (catLimitSum > cap ? ", above the cap." : ", " + formatCurrency(cap - catLimitSum) + " under the cap as a buffer.") + "</div>";
+      }
+    }
+
+    // categories
+    h += '<div class="tab-eyebrow" style="margin-top:16px;">BY CATEGORY</div><div class="list-card">';
+    data.cats.forEach(function (c) {
+      var lim = ver.limits[c.id] || {}, limit = num(lim.limit), visits = num(lim.visits), spent = byCat[c.id] || 0, cnt = countCat[c.id] || 0;
+      if (editCatId === c.id) { h += catForm(c, lim); return; }
+      var col = limit > 0 ? barColor(spent, limit) : accent;
+      h += '<div class="item-row" style="display:block;"><div class="gauge-top" style="margin-bottom:4px;"><span class="item-name">' + escapeHtml(c.name) + '</span>' +
+        '<span class="mono" style="color:' + col + ';font-size:13px;">' + formatCurrency(spent) + (limit > 0 ? " / " + formatCurrency(limit) : "") + "</span></div>" +
+        (limit > 0 ? '<div class="gauge-track" style="height:6px;"><div class="gauge-fill" style="width:' + Math.min(100, (spent / limit) * 100) + '%;background:' + col + ';"></div></div>' : "") +
+        '<div style="display:flex;justify-content:space-between;gap:8px;color:var(--text-2);font-size:12px;margin-top:6px;"><span>' +
+        escapeHtml(c.note || "") + (visits > 0 ? (c.note ? " &middot; " : "") + '<span style="color:' + (cnt > visits ? COL_OVER : "inherit") + ';">' + cnt + " of " + visits + " visits</span>" : (cnt ? (c.note ? " &middot; " : "") + cnt + (cnt === 1 ? " visit" : " visits") : "")) +
+        '</span><button class="link-btn" data-act="edit-cat" data-id="' + escapeHtml(c.id) + '" style="color:' + accent + ';">Edit</button></div></div>';
+    });
+    if (otherTotal > 0) h += '<div class="item-row"><span class="item-name" style="color:var(--text-2);">Removed categories</span><span class="mono" style="font-size:13px;">' + formatCurrency(otherTotal) + "</span></div>";
+    if (editCatId === "__new") h += catForm({ id: "", name: "", note: "" }, {});
+    h += "</div>";
+    if (editCatId === null) h += '<button class="link-btn" data-act="add-cat" style="color:' + accent + ';margin-top:6px;">+ New category</button>';
+
+    // log spending
+    var defDate = month === thisMonth ? localISO(new Date()) : month + "-01";
+    h += '<div class="tab-eyebrow" style="margin-top:16px;">LOG SPENDING</div>' +
+      '<div class="row-gap" style="margin-bottom:8px;flex-wrap:wrap;"><select class="edit-select" id="limEntCat" aria-label="Category">' +
+      data.cats.map(function (c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + "</option>"; }).join("") + "</select>" +
+      '<input class="small-input" id="limEntAmt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Amount" style="width:100px;" />' +
+      '<input class="small-input" id="limEntDate" type="date" value="' + defDate + '" aria-label="Date" /></div>' +
+      '<div class="row-gap"><input class="form-input" id="limEntNote" placeholder="Note (optional)" style="flex:1;min-width:120px;" />' +
+      '<button class="small-btn" data-act="add-entry" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>';
+    if (entries.length) {
+      var nameOf = {}; data.cats.forEach(function (c) { nameOf[c.id] = c.name; });
+      h += '<div class="list-card" style="margin-top:10px;">' + entries.map(function (e) {
+        return '<div class="item-row"><div class="item-display"><div class="item-main"><div class="item-name">' + escapeHtml(nameOf[e.catId] || "Removed category") + '</div>' +
+          '<div class="item-sub">' + escapeHtml(e.date || "") + (e.note ? " &middot; " + escapeHtml(e.note) : "") + "</div></div></div>" +
+          '<span class="mono" style="font-size:13px;">' + formatCurrency(num(e.amount)) + '</span>' +
+          '<button class="link-btn" data-act="del-entry" data-id="' + escapeHtml(e.id) + '" aria-label="Delete entry" style="color:var(--text-3);margin-left:8px;">&#10005;</button></div>';
+      }).join("") + "</div>";
+    }
+
+    // month by month
+    var keys = {}; keys[thisMonth] = true; keys[month] = true;
+    data.entries.forEach(function (e) { if (e.date) keys[e.date.slice(0, 7)] = true; });
+    var months = Object.keys(keys).sort().reverse().slice(0, 12);
+    h += '<div class="tab-eyebrow" style="margin-top:16px;">MONTH BY MONTH</div><div class="list-card">' + months.map(function (m) {
+      var t = monthTotal(m), c = num(versionFor(m).cap), diff = c - t, active = m === month;
+      return '<div class="item-row" data-act="goto" data-m="' + m + '" style="cursor:pointer;' + (active ? "border-left:3px solid " + accent + ";" : "") + '">' +
+        '<div class="item-display"><div class="item-main"><div class="item-name">' + escapeHtml(shortMonth(m)) + '</div>' +
+        '<div class="item-sub">' + formatCurrency(t) + (c > 0 ? " of " + formatCurrency(c) : "") + "</div></div></div>" +
+        (c > 0 ? '<span class="mono" style="font-size:12px;color:' + (diff >= 0 ? COL_OK : COL_OVER) + ';">' + (diff >= 0 ? formatCurrency(diff) + " under" : formatCurrency(-diff) + " over") + "</span>" : "") + "</div>";
+    }).join("") + "</div>";
+
+    host.innerHTML = h;
+  }
+
+  function catForm(c, lim) {
+    return '<div class="item-row" style="display:block;background:var(--bg);">' +
+      '<div class="row-gap" style="margin-bottom:8px;"><input class="form-input" id="limCatName" value="' + escapeHtml(c.name) + '" placeholder="Category name" style="flex:1;min-width:140px;" /></div>' +
+      '<div class="row-gap" style="margin-bottom:8px;align-items:center;"><input class="small-input" id="limCatLimit" type="number" inputmode="decimal" min="0" step="1" value="' + escapeHtml(String(lim.limit == null ? "" : lim.limit)) + '" placeholder="$ limit / month" style="width:130px;" />' +
+      '<input class="small-input" id="limCatVisits" type="number" inputmode="numeric" min="0" step="1" value="' + escapeHtml(String(lim.visits == null ? "" : lim.visits)) + '" placeholder="Max visits" style="width:110px;" /></div>' +
+      '<div class="row-gap" style="margin-bottom:8px;"><input class="form-input" id="limCatNote" value="' + escapeHtml(c.note || "") + '" placeholder="Rule or note (optional)" style="flex:1;min-width:140px;" /></div>' +
+      '<div style="color:var(--text-3);font-size:11px;margin-bottom:8px;">Limit and max visits apply from ' + escapeHtml(monthLabel(month)) + ' onward.</div>' +
+      '<div class="row-gap"><button class="small-btn" data-act="save-cat" data-id="' + escapeHtml(c.id) + '" style="background:' + accent + ';">Save</button>' +
+      '<button class="small-btn" data-act="cancel-cat" style="background:#8A919C;">Cancel</button>' +
+      (c.id ? '<button class="link-btn" data-act="del-cat" data-id="' + escapeHtml(c.id) + '" style="color:' + COL_OVER + ';margin-left:auto;">Delete</button>' : "") + "</div></div>";
+  }
+
+  function val(id) { var el = host.querySelector("#" + id); return el ? el.value : ""; }
+
+  host.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-act]");
+    if (!t) return;
+    var act = t.getAttribute("data-act"), id = t.getAttribute("data-id");
+    if (act === "prev") { month = shiftMonth(month, -1); editCatId = null; render(); }
+    else if (act === "next") { month = shiftMonth(month, 1); editCatId = null; render(); }
+    else if (act === "today") { month = thisMonth; editCatId = null; render(); }
+    else if (act === "goto") { month = t.getAttribute("data-m"); editCatId = null; render(); }
+    else if (act === "toggle-settings") { showSettings = !showSettings; render(); }
+    else if (act === "save-settings") {
+      data.title = val("limTitle").trim() || "Eating out";
+      data.baseline = { amount: val("limBase") === "" ? "" : num(val("limBase")), label: val("limBaseLabel").trim() };
+      writableVersion(month).cap = num(val("limCap"));
+      save(); showSettings = false; render();
+    }
+    else if (act === "add-cat") { editCatId = "__new"; render(); }
+    else if (act === "edit-cat") { editCatId = id; render(); }
+    else if (act === "cancel-cat") { editCatId = null; render(); }
+    else if (act === "save-cat") {
+      var name = val("limCatName").trim();
+      if (!name) return;
+      var cat = id ? data.cats.filter(function (c) { return c.id === id; })[0] : null;
+      if (!cat) { cat = { id: uid() }; data.cats.push(cat); }
+      cat.name = name; cat.note = val("limCatNote").trim();
+      writableVersion(month).limits[cat.id] = { limit: val("limCatLimit") === "" ? "" : num(val("limCatLimit")), visits: val("limCatVisits") === "" ? "" : num(val("limCatVisits")) };
+      save(); editCatId = null; render();
+    }
+    else if (act === "del-cat") {
+      var doomed = data.cats.filter(function (c) { return c.id === id; })[0];
+      if (!doomed) return;
+      var idx = data.cats.indexOf(doomed);
+      data.cats.splice(idx, 1);
+      save(); editCatId = null; render();
+      _offerUndo('Deleted "' + doomed.name + '" (its logged spending moves to "Removed categories")', function () { data.cats.splice(idx, 0, doomed); save(); render(); });
+    }
+    else if (act === "add-entry") {
+      var amt = num(val("limEntAmt")), catId = val("limEntCat");
+      if (!(amt > 0) || !catId) { var a = host.querySelector("#limEntAmt"); if (a) a.focus(); return; }
+      var date = val("limEntDate") || localISO(new Date());
+      data.entries.push({ id: uid(), catId: catId, amount: amt, date: date, note: val("limEntNote").trim(), addedAt: new Date().toISOString() });
+      if (date.slice(0, 7) !== month) month = date.slice(0, 7);
+      save(); render();
+    }
+    else if (act === "del-entry") {
+      var ei = data.entries.findIndex(function (en) { return en.id === id; });
+      if (ei < 0) return;
+      var gone = data.entries.splice(ei, 1)[0];
+      save(); render();
+      _offerUndo("Entry deleted", function () { data.entries.push(gone); save(); render(); });
+    }
+  });
+
+  // Lets the quick-add sheet (see setupBudgetViews) file a purchase under a limit category.
+  host._limitsApi = {
+    cats: function () { return data.cats; },
+    add: function (catId, amount, note) {
+      var entry = { id: uid(), catId: catId, amount: num(amount), date: localISO(new Date()), note: (note || "").trim(), addedAt: new Date().toISOString() };
+      data.entries.push(entry);
+      save(); render();
+      return entry.id;
+    },
+    remove: function (entryId) {
+      data.entries = data.entries.filter(function (en) { return en.id !== entryId; });
+      save(); render();
+    }
+  };
+
+  render();
+}
 
 async function renderSpendTab(root, cfg) {
   root.innerHTML = skeletonCards(3);
@@ -5162,6 +5409,7 @@ async function renderSpendTab(root, cfg) {
       "</div>"
     : "") +
     (cfg.showSavingsGoal ? '<div class="card" id="stBillsProgress"></div>' : "") +
+    (cfg.showSavingsGoal ? '<div class="card" id="stLimitsCard"></div>' : "") +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
@@ -5264,6 +5512,7 @@ async function renderSpendTab(root, cfg) {
         '<div class="gauge-label mono" style="margin-bottom:10px;">QUICK ADD · PURCHASE</div>' +
         '<input class="small-input qa-amount" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="stQaAmount" placeholder="$0.00" />' +
         '<input class="small-input" type="text" autocomplete="off" id="stQaNote" placeholder="What was it for? (optional)" style="width:100%;margin-top:8px;" />' +
+        '<select class="edit-select" id="stQaLimit" aria-label="Counts toward a spending limit" style="width:100%;margin-top:8px;"></select>' +
         '<div class="pills" id="stQaWho" style="margin:12px 0 0;"></div>' +
         '<div class="qa-actions"><button type="button" class="small-btn" id="stQaCancel" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button>' +
           '<button type="button" class="small-btn" id="stQaAdd" style="background:' + cfg.accent + ';flex:1;">Add purchase</button></div>' +
@@ -6788,7 +7037,7 @@ async function renderSpendTab(root, cfg) {
     });
     root.querySelectorAll(".until-payday-grid").forEach(function (g) { g.classList.toggle("single", view !== "both"); });
     var fab = document.getElementById("stFab");
-    if (fab) fab.style.display = _budgetSection === "overview" || _budgetSection === "bills" ? "" : "none"; // quick add belongs with spending
+    if (fab) fab.style.display = _budgetSection === "overview" || _budgetSection === "bills" || _budgetSection === "limits" ? "" : "none"; // quick add belongs with spending
   }
   function renderBudgetSectionPills() {
     var el = document.getElementById("stSectionPills");
@@ -6883,6 +7132,8 @@ async function renderSpendTab(root, cfg) {
     tag(document.getElementById("stSpendViewPills"), "overview");
     tag(document.getElementById("stGlance"), "overview");
     tag(document.getElementById("stBillsProgress"), "bills");
+    tag(document.getElementById("stLimitsCard"), "limits");
+    renderLimitsSection(document.getElementById("stLimitsCard"), cfg.accent);
     tag(budgetCard("stGaugeBody"), "bills");
     ["stChips", "stSelectBar", "stPersonFilterRow", "stList"].forEach(function (id) { tag(document.getElementById(id), "bills"); });
     tag(collapseCardFor("addExpenseColl"), "bills");
@@ -6922,10 +7173,15 @@ async function renderSpendTab(root, cfg) {
         return '<button type="button" class="pill" data-qa-who="' + o.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(o.label) + "</button>";
       }).join("");
     }
+    var qaLimitEl = document.getElementById("stQaLimit");
+    function limitsApi() { var c = document.getElementById("stLimitsCard"); return c && c._limitsApi; }
     function openQa() {
       qaWho = data.spendView === "partner" ? "partner" : "me";
       renderQaWho();
       qaAmount.value = ""; qaNote.value = "";
+      var api = limitsApi();
+      qaLimitEl.innerHTML = '<option value="">Not part of a spending limit</option>' + (api ? api.cats().map(function (c) { return '<option value="' + escapeHtml(c.id) + '">Counts toward: ' + escapeHtml(c.name) + "</option>"; }).join("") : "");
+      qaLimitEl.style.display = api && api.cats().length ? "" : "none";
       sheet.hidden = false; backdrop.hidden = false;
       void sheet.offsetWidth;
       sheet.classList.add("open");
@@ -6941,11 +7197,14 @@ async function renderSpendTab(root, cfg) {
       if (!ai) return;
       ai.value = qaAmount.value; ni.value = qaNote.value;
       var who = qaWho;
+      var limitCatId = qaLimitEl.value, limitApi = limitsApi(), noteText = qaNote.value;
       var entry = handleAddPeriodEntry(who, true);
       if (!entry) { qaAmount.focus(); qaAmount.classList.remove("qa-shake"); void qaAmount.offsetWidth; qaAmount.classList.add("qa-shake"); return; }
       closeQa();
+      var limitEntryId = limitCatId && limitApi ? limitApi.add(limitCatId, entry.amount, noteText) : null;
       var t = Number(data.periodSpend[who].target) || 0;
       _offerUndo("Added " + formatCurrency(entry.amount) + " for " + personLabel(who) + (t > 0 ? " · " + formatCurrency(t - periodSpentTotal(who)) + " left" : ""), function () {
+        if (limitEntryId && limitApi) limitApi.remove(limitEntryId);
         var pd = data.periodSpend[who];
         pd.entries = (pd.entries || []).filter(function (en) { return en.id !== entry.id; });
         save(); renderPeriodSpend(who); renderPeriodEntries(who); renderBudgetViews();
@@ -8416,6 +8675,8 @@ async function renderWorkoutsTab(root) {
   var templatesData = await loadTabData(wkKey("dashboard-workouts-templates"), { templates: [] });
   var splitsData = await loadTabData(wkKey("dashboard-workouts-splits"), { days: { mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "" } });
   var planData = await loadTabData(wkKey("dashboard-workouts-plan"), { days: {} });
+  // The other person's sessions — only used so the History lift picker offers the same lifts for both.
+  var otherWorkoutsData = await loadTabData(wkProfile === "wife" ? "dashboard-workouts-data" : "dashboard-workouts-data-wife", { items: [] });
   var customExercisesData = await loadCustomExercisesData();
 
   // v1 migration: old flat items (liftWeight/sets/reps directly on the item) -> nested lifts array
@@ -8808,19 +9069,31 @@ async function renderWorkoutsTab(root) {
       var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
       var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
       var weekTile = function (big, sub) { return '<span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span>"; };
+      function showGoalEditor() {
+        bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>' +
+          (goalNum > 0 ? '<button class="link-btn" id="wkCancelGoal" style="color:var(--text-2);margin-top:6px;">Cancel</button>' : "");
+        var gd = document.getElementById("wkGoalDraft");
+        gd.addEventListener("input", function (e) { goalDraft = e.target.value; });
+        gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitGoal(); });
+        gd.focus();
+        document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
+        var cancelBtn = document.getElementById("wkCancelGoal");
+        if (cancelBtn) cancelBtn.addEventListener("click", function () { showGoalInput = false; renderGauge(); });
+      }
       if (goalNum > 0) {
         var pct = Math.min(100, (thisWeek.length / goalNum) * 100);
         amountEl.innerHTML = weekTile(thisWeek.length + " of " + goalNum, "workouts" + weekCalSuffix);
-        bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>';
+        if (showGoalInput) {
+          showGoalEditor();
+        } else {
+          bodyEl2.innerHTML = '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:linear-gradient(90deg,' + accent + ',color-mix(in srgb, ' + accent + ' 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, ' + accent + ' 33%, transparent);"></div></div>' +
+            '<button class="link-btn" id="wkChangeGoal" style="color:var(--text-2);margin-top:6px;">Change goal</button>';
+          document.getElementById("wkChangeGoal").addEventListener("click", function () { goalDraft = String(goalNum); showGoalInput = true; renderGauge(); });
+        }
       } else {
         amountEl.innerHTML = weekTile(String(thisWeek.length), (thisWeek.length === 1 ? "workout" : "workouts") + weekCalSuffix);
         if (showGoalInput) {
-          bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>';
-          var gd = document.getElementById("wkGoalDraft");
-          gd.addEventListener("input", function (e) { goalDraft = e.target.value; });
-          gd.addEventListener("keydown", function (e) { if (e.key === "Enter") commitGoal(); });
-          gd.focus();
-          document.getElementById("wkSetGoal").addEventListener("click", commitGoal);
+          showGoalEditor();
         } else {
           bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:var(--text-2);">Set a weekly goal to track against</button>';
           document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
@@ -9943,7 +10216,13 @@ async function renderWorkoutsTab(root) {
   function renderHistorySection() {
     var bodyEl = document.getElementById("wkSectionBody");
     var prData = computePRs(data.items);
-    var liftNames = Object.keys(prData.byLift).sort(function (a, b) { return prData.byLift[a].displayName.localeCompare(prData.byLift[b].displayName); });
+    // Offer every lift either person has logged. Lifts only the other person has done are
+    // listed too (name only, no PR) so both profiles pick from the same list.
+    var otherPrs = computePRs((otherWorkoutsData.items || []).filter(function (it) { return it && Array.isArray(it.lifts); }));
+    var displayNames = {};
+    Object.keys(otherPrs.byLift).forEach(function (k) { displayNames[k] = otherPrs.byLift[k].displayName; });
+    Object.keys(prData.byLift).forEach(function (k) { displayNames[k] = prData.byLift[k].displayName; });
+    var liftNames = Object.keys(displayNames).sort(function (a, b) { return displayNames[a].localeCompare(displayNames[b]); });
     if ((!historyLiftName || liftNames.indexOf(historyLiftName) === -1) && liftNames.length) historyLiftName = liftNames[0];
 
     var metricOptions = [{ id: "topWeight", label: "Top set weight" }, { id: "volume", label: "Volume" }, { id: "est1rm", label: "Est. 1RM" }];
@@ -9964,7 +10243,7 @@ async function renderWorkoutsTab(root) {
         });
       });
       chartHtml = '<div class="card">' +
-        '<div class="sort-row"><span class="gauge-label mono">' + escapeHtml(prData.byLift[historyLiftName].displayName) + "</span>" +
+        '<div class="sort-row"><span class="gauge-label mono">' + escapeHtml(displayNames[historyLiftName]) + "</span>" +
         '<div class="sort-toggle">' + metricOptions.map(function (m) {
           return '<button class="sort-btn' + (historyMetric === m.id ? " active" : "") + '" data-metric="' + m.id + '">' + m.label + "</button>";
         }).join("") + "</div></div>" +
@@ -9974,8 +10253,8 @@ async function renderWorkoutsTab(root) {
       chartHtml = '<div class="empty-state">Log a few sessions with lifts to see progression here.</div>';
     }
 
-    var prBoardHtml = liftNames.length === 0 ? "" :
-      '<div class="list-card">' + liftNames.map(function (key) {
+    var prBoardHtml = !Object.keys(prData.byLift).length ? "" :
+      '<div class="list-card">' + Object.keys(prData.byLift).sort(function (a, b) { return displayNames[a].localeCompare(displayNames[b]); }).map(function (key) {
         var rec = prData.byLift[key];
         return '<div class="item-row"><div class="item-display"><div class="item-main"><div class="item-name">' + escapeHtml(rec.displayName) + "</div>" +
           '<div class="item-sub">Best: ' + rec.bestWeight + " lbs \u00D7 " + rec.bestRepsAtBestWeight + " \u00B7 Est. 1RM " + Math.round(rec.bestEst1RM) + " lbs" + (rec.prCount ? " \u00B7 " + rec.prCount + " PR" + (rec.prCount === 1 ? "" : "s") + " logged" : "") + "</div></div></div></div>";
@@ -9985,7 +10264,7 @@ async function renderWorkoutsTab(root) {
       '<div class="card"><div class="gauge-label mono" style="margin-bottom:8px;">PICK A LIFT</div>' +
         (liftNames.length === 0 ? '<div style="color:var(--text-2);font-size:13px;">No lifts logged yet.</div>' :
           '<select class="edit-select" id="wkHistoryLiftSelect" style="width:100%;">' + liftNames.map(function (key) {
-            return '<option value="' + escapeHtml(key) + '"' + (key === historyLiftName ? " selected" : "") + ">" + escapeHtml(prData.byLift[key].displayName) + "</option>";
+            return '<option value="' + escapeHtml(key) + '"' + (key === historyLiftName ? " selected" : "") + ">" + escapeHtml(displayNames[key]) + "</option>";
           }).join("") + "</select>") +
       "</div>" +
       chartHtml +
