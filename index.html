@@ -971,7 +971,20 @@
   .qa-sheet.open { opacity: 1; transform: none; }
   .qa-sheet[hidden], .qa-backdrop[hidden] { display: none; }
   .qa-grab { display: none; }
-  .qa-amount { width: 100%; font-size: 30px; font-weight: 700; padding: 12px 14px; }
+  .qa-sheet { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 14%, var(--bg-card)), var(--bg-card) 55%); border-color: color-mix(in srgb, var(--accent) 45%, var(--border-2)); box-shadow: 0 24px 70px rgba(0,0,0,.5), 0 0 40px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .qa-sheet.open { animation: qaSheetIn .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes qaSheetIn { 0% { transform: translateY(-24px) scale(.94); } 100% { transform: none; } }
+  .qa-amount-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 16px 12px; margin-bottom: 4px; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: radial-gradient(120% 140% at 50% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%), var(--bg); box-shadow: inset 0 0 30px color-mix(in srgb, var(--accent) 12%, transparent); }
+  .qa-cur { font-size: 34px; font-weight: 800; color: var(--accent); opacity: .75; line-height: 1; }
+  .qa-amount-wrap .qa-amount { width: 100%; min-width: 0; text-align: center; font-size: 52px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; padding: 0; border: none; outline: none; background: transparent; box-shadow: none; color: var(--accent); text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .qa-amount-wrap .qa-amount::placeholder { color: var(--accent); opacity: .3; }
+  .qa-amount-wrap .qa-amount.qa-pop { animation: qaPop .24s cubic-bezier(.34,1.8,.5,1); }
+  @keyframes qaPop { 0% { transform: scale(1); } 40% { transform: scale(1.16); } 100% { transform: scale(1); } }
+  .qa-spark { position: fixed; z-index: 1500; width: 7px; height: 7px; margin: -3px 0 0 -3px; border-radius: 50%; pointer-events: none; animation: qaSpark .75s cubic-bezier(.2,.8,.3,1) forwards; }
+  @keyframes qaSpark { from { opacity: 1; transform: translate(0,0) scale(1); } to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.2); } }
+  .qa-fab.qa-fab-bump { animation: qaFabBump .5s cubic-bezier(.34,1.8,.5,1); }
+  @keyframes qaFabBump { 0% { transform: scale(1); } 35% { transform: scale(1.3) rotate(90deg); } 100% { transform: scale(1) rotate(0); } }
+  @media (prefers-reduced-motion: reduce) { .qa-sheet.open, .qa-amount-wrap .qa-amount.qa-pop, .qa-fab.qa-fab-bump { animation: none; } .qa-spark { display: none; } }
   .qa-actions { display: flex; gap: 10px; margin-top: 16px; }
   .qa-shake { animation: qaShake .35s; }
   @keyframes qaShake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
@@ -5183,9 +5196,13 @@ async function renderLimitsSection(host, accent) {
   // Lets the quick-add sheet (see setupBudgetViews) file a purchase under a limit category.
   host._limitsApi = {
     cats: function () { return data.cats; },
-    add: function (catId, amount, note) {
-      var entry = { id: uid(), catId: catId, amount: num(amount), date: localISO(new Date()), note: (note || "").trim(), addedAt: new Date().toISOString() };
-      data.entries.push(entry);
+    add: function (catId, amount, note) { return host._limitsApi.upsert(null, catId, amount, note, localISO(new Date())); },
+    // Create the entry (reusing entryId when it's given but missing, so an undone delete keeps its
+    // link) or update it in place. Returns the entry id.
+    upsert: function (entryId, catId, amount, note, date) {
+      var entry = entryId ? data.entries.filter(function (en) { return en.id === entryId; })[0] : null;
+      if (!entry) { entry = { id: entryId || uid(), addedAt: new Date().toISOString() }; data.entries.push(entry); }
+      entry.catId = catId; entry.amount = num(amount); entry.note = (note || "").trim(); entry.date = date || localISO(new Date());
       save(); render();
       return entry.id;
     },
@@ -5510,7 +5527,8 @@ async function renderSpendTab(root, cfg) {
       '<div class="qa-sheet" id="stQaSheet" role="dialog" aria-modal="true" aria-label="Quick add a purchase" hidden>' +
         '<div class="qa-grab"></div>' +
         '<div class="gauge-label mono" style="margin-bottom:10px;">QUICK ADD · PURCHASE</div>' +
-        '<input class="small-input qa-amount" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="stQaAmount" placeholder="$0.00" />' +
+        '<div class="qa-amount-wrap" id="stQaAmountWrap"><span class="qa-cur" aria-hidden="true">$</span>' +
+          '<input class="small-input qa-amount" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="stQaAmount" aria-label="Amount" placeholder="0.00" /></div>' +
         '<input class="small-input" type="text" autocomplete="off" id="stQaNote" placeholder="What was it for? (optional)" style="width:100%;margin-top:8px;" />' +
         '<select class="edit-select" id="stQaLimit" aria-label="Counts toward a spending limit" style="width:100%;margin-top:8px;"></select>' +
         '<div class="pills" id="stQaWho" style="margin:12px 0 0;"></div>' +
@@ -6872,18 +6890,41 @@ async function renderSpendTab(root, cfg) {
   // with the date/time it was entered, newest first. This is what "Spent"
   // above actually sums, so scrolling back through it is how you remember
   // what you put in instead of just staring at one running total.
+  // Link between a purchase here and the Limits tab (Budget > Limits): the purchase remembers
+  // limitEntryId/limitCatId, and every edit or delete is mirrored onto that Limits entry.
+  function getLimitsApi() { var c = document.getElementById("stLimitsCard"); return c && c._limitsApi; }
+  function localDateOf(iso) {
+    var d = iso ? new Date(iso) : new Date();
+    if (isNaN(d.getTime())) d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function syncEntryLimit(entry, catId) {
+    var api = getLimitsApi();
+    if (!api) return;
+    if (!catId) {
+      if (entry.limitEntryId) api.remove(entry.limitEntryId);
+      delete entry.limitEntryId; delete entry.limitCatId;
+      return;
+    }
+    entry.limitEntryId = api.upsert(entry.limitEntryId || null, catId, entry.amount, entry.note, localDateOf(entry.addedAt));
+    entry.limitCatId = catId;
+  }
   function renderPeriodEntries(person) {
     if (!cfg.showSavingsGoal) return;
     var el = document.getElementById("psEntries-" + person);
     if (!el) return;
     var entries = (data.periodSpend[person].entries || []).slice().sort(function (a, b) { return (b.addedAt || "").localeCompare(a.addedAt || ""); });
     if (!entries.length) { el.innerHTML = ""; return; }
+    var limitApi = getLimitsApi(), limitCats = limitApi ? limitApi.cats() : [], limitNames = {};
+    limitCats.forEach(function (c) { limitNames[c.id] = c.name; });
     el.innerHTML = entries.map(function (e) {
       if (editingPeriodEntry[person] === e.id) {
         return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
           '<span style="color:var(--text-2);width:100%;">' + formatDateTimeShort(e.addedAt) + '</span>' +
           '<input class="small-input" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-entry-edit="amount" value="' + escapeHtml(String(e.amount)) + '" placeholder="Amount" style="width:100px;" />' +
           '<input class="small-input" type="text" autocomplete="off" data-entry-edit="note" value="' + escapeHtml(e.note || "") + '" placeholder="What was it for?" style="flex:1;min-width:140px;" />' +
+          (limitCats.length ? '<select class="edit-select" data-entry-edit="limit" aria-label="Count toward a spending limit" style="width:100%;"><option value="">Not part of a spending limit</option>' +
+            limitCats.map(function (c) { return '<option value="' + escapeHtml(c.id) + '"' + (c.id === e.limitCatId ? " selected" : "") + ">Counts toward: " + escapeHtml(c.name) + "</option>"; }).join("") + "</select>" : "") +
           '<button type="button" class="small-btn" data-action="save-period-entry" data-id="' + e.id + '" style="background:' + cfg.accent + ';">Save</button>' +
           '<button type="button" class="link-btn" data-action="cancel-period-entry" style="color:var(--text-2);">Cancel</button>' +
         "</div>";
@@ -6892,6 +6933,7 @@ async function renderSpendTab(root, cfg) {
         '<div style="flex:1;min-width:0;">' +
           '<div style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</div>' +
           (e.note ? '<div style="color:var(--text-1);font-size:12px;overflow-wrap:anywhere;">' + escapeHtml(e.note) + '</div>' : '') +
+          (limitCats.length ? '<button type="button" class="link-btn" data-action="edit-period-entry" data-id="' + e.id + '" style="font-size:11px;padding:0;color:' + (limitNames[e.limitCatId] ? cfg.accent : "var(--text-3)") + ';">' + (limitNames[e.limitCatId] ? "&#9679; Counts toward " + escapeHtml(limitNames[e.limitCatId]) : "+ Count toward a limit") + "</button>" : "") +
         '</div>' +
         '<span class="mono" style="color:' + cfg.accent + ';flex-shrink:0;">' + formatCurrency(e.amount) + '</span>' +
         '<button class="icon-btn" data-action="edit-period-entry" data-id="' + e.id + '" title="Edit amount or note">✎</button>' +
@@ -6944,12 +6986,17 @@ async function renderSpendTab(root, cfg) {
     if (!raw || amount === null || isNaN(amount)) { amountEl.focus(); return; }
     entry.amount = amount;
     entry.note = noteEl.value.trim();
+    var limitSel = container.querySelector('[data-entry-edit="limit"]');
+    syncEntryLimit(entry, limitSel ? limitSel.value : (entry.limitCatId || ""));
     editingPeriodEntry[person] = null;
     save();
     renderPeriodSpend(person);
     renderPeriodEntries(person);
   }
   function handleDeletePeriodEntry(person, id) {
+    var linked = (data.periodSpend[person].entries || []).find(function (e) { return e.id === id; });
+    var linkedApi = getLimitsApi();
+    if (linked && linked.limitEntryId && linkedApi) linkedApi.remove(linked.limitEntryId); // keep Limits in step; the id stays on the entry so Undo can restore it
     var taken = _undoTake(data.periodSpend[person].entries, function (e) { return e.id === id; });
     data.periodSpend[person].entries = (data.periodSpend[person].entries || []).filter(function (e) { return e.id !== id; });
     save();
@@ -6957,6 +7004,8 @@ async function renderSpendTab(root, cfg) {
     renderPeriodEntries(person);
     _offerUndo("Spending entry deleted", function () {
       _undoPut(data.periodSpend[person].entries || (data.periodSpend[person].entries = []), taken);
+      var back = data.periodSpend[person].entries.find(function (e) { return e.id === id; });
+      if (back && back.limitEntryId && back.limitCatId) syncEntryLimit(back, back.limitCatId);
       save(); renderPeriodSpend(person); renderPeriodEntries(person);
     });
   }
@@ -7133,7 +7182,8 @@ async function renderSpendTab(root, cfg) {
     tag(document.getElementById("stGlance"), "overview");
     tag(document.getElementById("stBillsProgress"), "bills");
     tag(document.getElementById("stLimitsCard"), "limits");
-    renderLimitsSection(document.getElementById("stLimitsCard"), cfg.accent);
+    // Once the limits have loaded, redraw the purchase lists so they can show which limit each counts toward.
+    renderLimitsSection(document.getElementById("stLimitsCard"), cfg.accent).then(function () { renderPeriodEntries("me"); renderPeriodEntries("partner"); });
     tag(budgetCard("stGaugeBody"), "bills");
     ["stChips", "stSelectBar", "stPersonFilterRow", "stList"].forEach(function (id) { tag(document.getElementById(id), "bills"); });
     tag(collapseCardFor("addExpenseColl"), "bills");
@@ -7174,7 +7224,31 @@ async function renderSpendTab(root, cfg) {
       }).join("");
     }
     var qaLimitEl = document.getElementById("stQaLimit");
-    function limitsApi() { var c = document.getElementById("stLimitsCard"); return c && c._limitsApi; }
+    function limitsApi() { return getLimitsApi(); }
+    // Typing feedback: the number bounces and throws a few sparks on every keystroke; adding a
+    // purchase fires a bigger burst. Sparks are fixed-position so they outlive the closing sheet.
+    var QA_SPARK_COLORS = [cfg.accent, "#D9A441", "#5BAE7A", "#FFFFFF"];
+    function qaBurst(count, spread) {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var wrapEl = document.getElementById("stQaAmountWrap");
+      if (!wrapEl) return;
+      var r = wrapEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      for (var i = 0; i < count; i++) {
+        var s = document.createElement("span"), ang = Math.random() * Math.PI * 2, dist = spread * (0.5 + Math.random() * 0.8);
+        s.className = "qa-spark";
+        s.style.left = cx + "px"; s.style.top = cy + "px";
+        s.style.background = QA_SPARK_COLORS[i % QA_SPARK_COLORS.length];
+        s.style.setProperty("--dx", Math.cos(ang) * dist + "px");
+        s.style.setProperty("--dy", Math.sin(ang) * dist - 10 + "px");
+        document.body.appendChild(s);
+        setTimeout(function (el) { el.remove(); }.bind(null, s), 800);
+      }
+    }
+    qaAmount.addEventListener("input", function () {
+      qaAmount.classList.remove("qa-pop"); void qaAmount.offsetWidth; qaAmount.classList.add("qa-pop");
+      qaBurst(5, 70);
+      try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) { /* haptics unsupported */ }
+    });
     function openQa() {
       qaWho = data.spendView === "partner" ? "partner" : "me";
       renderQaWho();
@@ -7200,8 +7274,12 @@ async function renderSpendTab(root, cfg) {
       var limitCatId = qaLimitEl.value, limitApi = limitsApi(), noteText = qaNote.value;
       var entry = handleAddPeriodEntry(who, true);
       if (!entry) { qaAmount.focus(); qaAmount.classList.remove("qa-shake"); void qaAmount.offsetWidth; qaAmount.classList.add("qa-shake"); return; }
+      qaBurst(22, 130);
+      var fabEl = document.getElementById("stFab");
+      if (fabEl) { fabEl.classList.remove("qa-fab-bump"); void fabEl.offsetWidth; fabEl.classList.add("qa-fab-bump"); }
       closeQa();
       var limitEntryId = limitCatId && limitApi ? limitApi.add(limitCatId, entry.amount, noteText) : null;
+      if (limitEntryId) { entry.limitEntryId = limitEntryId; entry.limitCatId = limitCatId; save(); renderPeriodEntries(who); }
       var t = Number(data.periodSpend[who].target) || 0;
       _offerUndo("Added " + formatCurrency(entry.amount) + " for " + personLabel(who) + (t > 0 ? " · " + formatCurrency(t - periodSpentTotal(who)) + " left" : ""), function () {
         if (limitEntryId && limitApi) limitApi.remove(limitEntryId);
