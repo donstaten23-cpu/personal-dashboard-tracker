@@ -4998,12 +4998,12 @@ async function renderLimitsSection(host, accent) {
   if (!data.baseline) data.baseline = { amount: "", label: "" };
 
   var COL_OK = "#5BAE7A", COL_WARN = "#D9A441", COL_OVER = "#FF8A5C";
-  function localISO(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  var localISO = _isoLocal;
   var thisMonth = localISO(new Date()).slice(0, 7);
   var month = thisMonth, editCatId = null, showSettings = false;
 
-  function monthLabel(key) { var p = key.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }); }
-  function shortMonth(key) { var p = key.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" }); }
+  function monthLabel(key, style) { var p = key.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, 1).toLocaleDateString(undefined, { month: style || "long", year: "numeric" }); }
+  function shortMonth(key) { return monthLabel(key, "short"); }
   function shiftMonth(key, n) { var p = key.split("-"); return localISO(new Date(Number(p[0]), Number(p[1]) - 1 + n, 1)).slice(0, 7); }
   function save() { saveTabData(LIMITS_KEY, data); }
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
@@ -6895,8 +6895,7 @@ async function renderSpendTab(root, cfg) {
   function getLimitsApi() { var c = document.getElementById("stLimitsCard"); return c && c._limitsApi; }
   function localDateOf(iso) {
     var d = iso ? new Date(iso) : new Date();
-    if (isNaN(d.getTime())) d = new Date();
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    return _isoLocal(isNaN(d.getTime()) ? new Date() : d);
   }
   function syncEntryLimit(entry, catId) {
     var api = getLimitsApi();
@@ -7224,7 +7223,6 @@ async function renderSpendTab(root, cfg) {
       }).join("");
     }
     var qaLimitEl = document.getElementById("stQaLimit");
-    function limitsApi() { return getLimitsApi(); }
     // Typing feedback: the number bounces and throws a few sparks on every keystroke; adding a
     // purchase fires a bigger burst. Sparks are fixed-position so they outlive the closing sheet.
     var QA_SPARK_COLORS = [cfg.accent, "#D9A441", "#5BAE7A", "#FFFFFF"];
@@ -7253,7 +7251,7 @@ async function renderSpendTab(root, cfg) {
       qaWho = data.spendView === "partner" ? "partner" : "me";
       renderQaWho();
       qaAmount.value = ""; qaNote.value = "";
-      var api = limitsApi();
+      var api = getLimitsApi();
       qaLimitEl.innerHTML = '<option value="">Not part of a spending limit</option>' + (api ? api.cats().map(function (c) { return '<option value="' + escapeHtml(c.id) + '">Counts toward: ' + escapeHtml(c.name) + "</option>"; }).join("") : "");
       qaLimitEl.style.display = api && api.cats().length ? "" : "none";
       sheet.hidden = false; backdrop.hidden = false;
@@ -7271,7 +7269,7 @@ async function renderSpendTab(root, cfg) {
       if (!ai) return;
       ai.value = qaAmount.value; ni.value = qaNote.value;
       var who = qaWho;
-      var limitCatId = qaLimitEl.value, limitApi = limitsApi(), noteText = qaNote.value;
+      var limitCatId = qaLimitEl.value, limitApi = getLimitsApi(), noteText = qaNote.value;
       var entry = handleAddPeriodEntry(who, true);
       if (!entry) { qaAmount.focus(); qaAmount.classList.remove("qa-shake"); void qaAmount.offsetWidth; qaAmount.classList.add("qa-shake"); return; }
       qaBurst(22, 130);
