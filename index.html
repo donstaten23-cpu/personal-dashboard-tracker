@@ -3933,8 +3933,9 @@ var currentPage = "dashboard";
 // tab_key(s) each page's render function loads — used to warm the cache
 // before the user actually clicks (see prefetchPage below).
 var PAGE_PRELOAD_KEYS = {
+  dashboard: ["dashboard-budget-data", "dashboard-workouts-data"],
   travel: ["dashboard-travel-data", "dashboard-budget-data"],
-  budget: ["dashboard-budget-data"],
+  budget: ["dashboard-budget-data", "dashboard-budget-limits"],
   workouts: ["dashboard-workouts-data", "dashboard-workouts-templates", "dashboard-workouts-splits", "dashboard-workouts-plan"],
   chess: ["dashboard-chess-data"],
   story: ["dashboard-story-chapters", "dashboard-story-characters", "dashboard-story-comic", "dashboard-story-moodboard", "dashboard-story-lore", "dashboard-story-locations"],
@@ -3946,6 +3947,68 @@ var PAGE_PRELOAD_KEYS = {
   projects: ["projects-data"],
   guide: ["dashboard-guide-content"]
 };
+/* ---------------- cross-device refresh ----------------
+   Pages render once from the local cache, and the background refresh in loadTabData only
+   updates the cache for the *next* visit (and at most every BG_REFRESH_MIN_MS). So a change made
+   on another device wouldn't show up until you left the page and came back, a few minutes later.
+   This re-checks the open page's rows when the app comes back to the foreground and every
+   SYNC_POLL_MS while it's visible, and re-renders the page if anything really changed. */
+var SYNC_POLL_MS = 45 * 1000;
+var _SYNC_PAGES = { dashboard: 1, budget: 1, travel: 1, workouts: 1, jobs: 1, projects: 1, education: 1, certs: 1 };
+var _syncRefreshing = false, _lastSyncCheckAt = 0, _syncSeenAt = {}; // tab_key -> updated_at we last looked at
+function _syncKeysFor(page) {
+  var keys = (PAGE_PRELOAD_KEYS[page] || []).slice();
+  if (page === "workouts") keys = keys.concat(keys.map(function (k) { return k + "-wife"; })); // the Wife profile's rows
+  return keys;
+}
+// Key-order-independent JSON: the server stores jsonb (keys come back reordered), so a plain
+// stringify compare would call every row "changed".
+function _stableJson(v) {
+  if (Array.isArray(v)) return "[" + v.map(_stableJson).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + _stableJson(v[k]); }).join(",") + "}";
+  return JSON.stringify(v);
+}
+async function refreshCurrentPageFromServer(force) {
+  var page = currentPage;
+  if (_syncRefreshing || !currentUserId || document.hidden || !_SYNC_PAGES[page]) return;
+  var now = Date.now();
+  if (!force && now - _lastSyncCheckAt < 15000) return;
+  _syncRefreshing = true; _lastSyncCheckAt = now;
+  try {
+    // Cheap check first: just each row's updated_at. Only rows whose stamp moved get downloaded.
+    var meta = await supabaseClient.from("dashboard_data").select("tab_key,updated_at").eq("user_id", currentUserId).in("tab_key", _syncKeysFor(page));
+    if (meta.error || !meta.data) return;
+    var moved = meta.data.filter(function (m) { return _syncSeenAt[m.tab_key] !== m.updated_at; });
+    if (!moved.length) return;
+    var res = await supabaseClient.from("dashboard_data").select("tab_key,data").eq("user_id", currentUserId).in("tab_key", moved.map(function (m) { return m.tab_key; }));
+    if (res.error || !res.data) return;
+    moved.forEach(function (m) { _syncSeenAt[m.tab_key] = m.updated_at; });
+    var changed = false;
+    res.data.forEach(function (row) {
+      var k = row.tab_key;
+      if (!row.data || _pendingSaves[k] || Date.now() - (_lastLocalEditAt[k] || 0) < 10000) return; // our own unsynced edit wins
+      _bgRefreshedAt[k] = Date.now();
+      if (_stableJson(row.data) !== _stableJson(_readCache(k))) { _writeCache(k, row.data); changed = true; }
+    });
+    if (!changed || page !== currentPage) return;
+    // Don't yank the page out from under someone who's typing; the fresh data is cached for next time.
+    var ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    var y = window.scrollY;
+    if (page === "workouts") { var wk = document.getElementById("workoutPageRoot"); if (wk) wk._loaded = false; }
+    _switchPageNow(page);
+    setTimeout(function () { window.scrollTo(0, y); }, 400);
+  } catch (e) {
+    console.error("Cross-device refresh failed", e);
+  } finally {
+    _syncRefreshing = false;
+  }
+}
+document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshCurrentPageFromServer(true); });
+window.addEventListener("focus", function () { refreshCurrentPageFromServer(false); });
+window.addEventListener("pageshow", function () { refreshCurrentPageFromServer(true); });
+setInterval(function () { refreshCurrentPageFromServer(false); }, SYNC_POLL_MS);
+
 var _prefetchedPages = {};
 function prefetchPage(page) {
   if (_prefetchedPages[page] || !currentUserId) return;
