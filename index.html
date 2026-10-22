@@ -5286,6 +5286,11 @@ async function renderSpendTab(root, cfg) {
   if (!data.savingsGoals) data.savingsGoals = [];
   if (!data.debts) data.debts = [];
   if (!data.oneTimeBills) data.oneTimeBills = [];
+  // Money set aside out of every paycheck (gas, food...), counted in Plan ahead next to the bills.
+  var _untouchedSplit = Array.isArray(data.allowances) && data.allowances.length === 2 && data.allowances[0].id === "allow-gas" && data.allowances[1].id === "allow-food" && Number(data.allowances[0].amount) === 80 && Number(data.allowances[1].amount) === 80;
+  if (!Array.isArray(data.allowances) || _untouchedSplit) data.allowances = [{ id: "allow-gasfood", name: "Gas & food", amount: 100 }];
+  // Bills moved to a different paycheck: "<bill id>@<its due date>" -> the paycheck date (YYYY-MM-DD) that pays it instead.
+  if (!data.billMoves || typeof data.billMoves !== "object") data.billMoves = {};
   if (!data.payOverrides || typeof data.payOverrides !== "object") data.payOverrides = {};
   if ([1, 2, 3, 6].indexOf(data.planMonths) < 0) data.planMonths = 3;
   // migrate the old single shared periodSpend {spent,target} into a per-person shape.
@@ -6055,16 +6060,16 @@ async function renderSpendTab(root, cfg) {
       if (it.category === "savings" || it.dueDay === "" || it.dueDay == null || !mine(it.owner || "")) return;
       var day = Number(it.dueDay), amt = Number(it.amount) || 0;
       var one = isOnePerPaycheck(it);
-      if (day < today.getDate() && !isCurrentlyPaid(it)) bills.push({ name: it.name, amount: amt, date: today, overdue: true, onePer: one });
+      if (day < today.getDate() && !isCurrentlyPaid(it)) bills.push({ name: it.name, amount: amt, date: today, overdue: true, onePer: one, key: it.id + "@" + isoOf(today) });
       monthlyDates(day, today, end).forEach(function (d) {
         if (d.getTime() === today.getTime() && isCurrentlyPaid(it)) return;
-        bills.push({ name: it.name, amount: amt, date: d, onePer: one });
+        bills.push({ name: it.name, amount: amt, date: d, onePer: one, key: it.id + "@" + isoOf(d) });
       });
     });
     (data.oneTimeBills || []).forEach(function (ob) {
       var d = dateOfISO(ob.date);
       if (!d || d < today || d > end || !mine(ob.owner || "")) return;
-      bills.push({ name: ob.name, amount: Number(ob.amount) || 0, date: d, oneTime: true, id: ob.id });
+      bills.push({ name: ob.name, amount: Number(ob.amount) || 0, date: d, oneTime: true, id: ob.id, key: "one-" + ob.id });
     });
     bills.sort(function (x, y) { return x.date - y.date; });
     var periods = [];
@@ -6082,6 +6087,10 @@ async function renderSpendTab(root, cfg) {
     });
     var head = [], tail = [];
     bills.forEach(function (bl) {
+      // A bill you moved goes straight to the paycheck you picked (if that paycheck is still in view).
+      var movedTo = data.billMoves && data.billMoves[bl.key];
+      var forced = movedTo ? periods.filter(function (pd) { return isoOf(pd.date) === movedTo; })[0] : null;
+      if (forced) { bl.movedByUser = true; forced.bills.push(bl); return; }
       var host = null;
       periods.forEach(function (pd) { if (pd.date <= bl.date) host = pd; });
       if (host && bl.date > host.end) tail.push(bl);
@@ -6093,15 +6102,23 @@ async function renderSpendTab(root, cfg) {
     // nowhere to move them, so they show up under "not covered yet".)
     var carry = [];
     periods.forEach(function (pd, i) {
-      var flagged = carry.concat(pd.bills.filter(function (b) { return b.onePer; })).sort(function (x, y) { return x.date - y.date; });
+      var flagged = carry.concat(pd.bills.filter(function (b) { return b.onePer && !b.movedByUser; })).sort(function (x, y) { return x.date - y.date; });
       var last = i === periods.length - 1;
       var keep = flagged.slice(0, 1);
       carry = flagged.slice(1);
       carry.forEach(function (b) { b.moved = true; });
       if (last) { carry.forEach(function (b) { tail.push(b); }); carry = []; } // no paycheck left to take them: not covered yet
-      pd.bills = pd.bills.filter(function (b) { return !b.onePer; }).concat(keep).sort(function (x, y) { return x.date - y.date; });
+      pd.bills = pd.bills.filter(function (b) { return !b.onePer || b.movedByUser; }).concat(keep).sort(function (x, y) { return x.date - y.date; });
     });
     var sum = function (arr, f) { return arr.reduce(function (t, x) { return t + f(x); }, 0); };
+    // Every paycheck also sets aside its gas/food/etc. allowances; they sit after the dated bills.
+    periods.forEach(function (pd) {
+      pd.paychecks.forEach(function (pay) {
+        (data.allowances || []).forEach(function (al) {
+          if (Number(al.amount) > 0) pd.bills.push({ name: al.name || "Set aside", amount: Number(al.amount), date: pd.date, allowance: true, who: everyone ? pay.person : "" });
+        });
+      });
+    });
     periods.forEach(function (pd) {
       pd.income = sum(pd.paychecks, function (x) { return x.amount; });
       pd.billsTotal = sum(pd.bills, function (x) { return x.amount; });
@@ -6170,11 +6187,12 @@ async function renderSpendTab(root, cfg) {
     buildPlan(["me", "partner"], 1).periods.forEach(function (pd) { pd.paychecks.forEach(function (pay) { income[pay.person === "partner" ? "partner" : "me"] += pay.amount; nCount++; }); });
     var totalIncome = income.me + income.partner;
     var nextPer = coverageFor(buildPlan([next.person === "partner" ? "partner" : "me"], 3), next.id);
-    var bd = nextPer ? { bills: nextPer.bills, total: nextPer.billsTotal } : { bills: [], total: 0 };
+    // The total includes the per-paycheck gas/food set-asides; the bill count doesn't.
+    var bd = nextPer ? { bills: nextPer.bills.filter(function (b) { return !b.allowance; }), total: nextPer.billsTotal } : { bills: [], total: 0 };
     var nextAmt = Number(next.amount) || 0;
     var nextTile = _bentoTile("NEXT PAYCHECK", nd === 0 ? "Today" : nd + (nd === 1 ? " day" : " days"), cfg.accent, escapeHtml(personLabel(next.person)) + " &middot; " + nextPayDate(next).toLocaleDateString(undefined, { month: "short", day: "numeric" }) + (nextAmt ? " &middot; " + formatCurrency(nextAmt) : ""));
     var incomeTile = _bentoTile("NEXT MONTH'S INCOME", totalIncome ? formatCurrency(totalIncome) : "&mdash;", "#5BAE7A", nCount + (nCount === 1 ? " paycheck" : " paychecks") + (income.me && income.partner ? "<br>" + escapeHtml(USER_DISPLAY_NAME) + " " + formatCurrency(income.me) + " &middot; " + escapeHtml(PARTNER_DISPLAY_NAME) + " " + formatCurrency(income.partner) : ""));
-    var dueTile = _bentoTile("IT COVERS", formatCurrency(bd.total), bd.total ? "#FF8A5C" : "var(--text-3)", bd.bills.length ? bd.bills.length + (bd.bills.length === 1 ? " bill" : " bills") + " &middot; " + escapeHtml(personLabel(next.person)) : "nothing due until the next one");
+    var dueTile = _bentoTile("IT COVERS", formatCurrency(bd.total), bd.total ? "#FF8A5C" : "var(--text-3)", bd.bills.length ? bd.bills.length + (bd.bills.length === 1 ? " bill" : " bills") + " &middot; " + escapeHtml(personLabel(next.person)) : bd.total ? "just your per-paycheck budgets" : "nothing due until the next one");
     var leftTile = nextAmt && bd.total
       ? _bentoTile("LEFT AFTER BILLS", formatCurrency(nextAmt - bd.total), nextAmt - bd.total < 0 ? "#FF8A5C" : "#5BAE7A", "from the next paycheck", Math.max(0, Math.min(100, ((nextAmt - bd.total) / nextAmt) * 100)))
       : _bentoTile("LEFT AFTER BILLS", "&mdash;", "var(--text-3)", nextAmt ? "no bills before it" : "add the paycheck amount");
@@ -6183,6 +6201,27 @@ async function renderSpendTab(root, cfg) {
 
   var planEditKey = null, planEditVal = "";
   var planAddOpen = false, planAddForm = { name: "", amount: "", date: "", owner: "" }, planAddError = "";
+  var allowEditOpen = false, allowDraft = [];
+  var planMoveKey = null; // the bill whose "move to another paycheck" picker is open
+
+  // "Set aside every paycheck" line: a summary with an Edit button, or the inline editor.
+  function allowancesHtml() {
+    var list = data.allowances || [], ghost = "background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);";
+    if (!allowEditOpen) {
+      return '<div style="margin:0 0 14px;font-size:13px;color:var(--text-2);">' +
+        (list.length ? 'Set aside every paycheck: ' + list.map(function (al) { return escapeHtml(al.name || "Unnamed") + ' <span class="mono" style="color:var(--text-1);">' + formatCurrency(Number(al.amount) || 0) + "</span>"; }).join(" &middot; ") : "Nothing set aside per paycheck.") +
+        ' <button class="link-btn" data-action="allow-open" style="color:' + cfg.accent + ';">' + (list.length ? "Edit" : "+ Add gas, food&hellip;") + "</button></div>";
+    }
+    return '<div class="card" style="background:var(--bg);margin:0 0 14px;"><div class="gauge-label mono" style="margin-bottom:8px;">SET ASIDE EVERY PAYCHECK</div>' +
+      allowDraft.map(function (al, i) {
+        return '<div class="row-gap" style="margin-bottom:8px;"><input class="small-input" data-allow-name="' + i + '" value="' + escapeHtml(al.name) + '" placeholder="e.g. Gas" style="flex:1;min-width:110px;" />' +
+          '<input class="small-input" type="number" inputmode="decimal" min="0" step="1" data-allow-amt="' + i + '" value="' + escapeHtml(String(al.amount)) + '" placeholder="$" style="width:90px;" />' +
+          '<button class="icon-btn" data-action="allow-del" data-idx="' + i + '" aria-label="Remove">✕</button></div>';
+      }).join("") +
+      '<div class="row-gap"><button class="link-btn" data-action="allow-add" style="color:' + cfg.accent + ';">+ Add another</button>' +
+      '<button class="small-btn" data-action="allow-save" style="background:' + cfg.accent + ';margin-left:auto;">Save</button>' +
+      '<button class="small-btn" data-action="allow-cancel" style="' + ghost + '">Cancel</button></div></div>';
+  }
 
   function renderPlanAhead() {
     var el = document.getElementById("payPlan");
@@ -6195,13 +6234,20 @@ async function renderSpendTab(root, cfg) {
     var html = '<div class="gauge-top"><span class="gauge-label mono">PLAN AHEAD</span></div>' +
       '<div style="color:var(--text-2);font-size:12px;margin-bottom:10px;">Your paychecks are the dates you add below; bills repeat on their due day each month. Each paycheck pays for the bills due from its date until the next paycheck, and a bill marked \u201Conly one per paycheck\u201D (like a mortgage) moves to the next paycheck if another already sits in this one. Tap a paycheck amount to change it for just that date.</div>' +
       '<div class="pills" style="margin:0 0 8px;">' + [{ id: "me", label: USER_DISPLAY_NAME }, { id: "partner", label: PARTNER_DISPLAY_NAME }, { id: "both", label: "Both" }].map(function (o) { return pill("data-plan-view", o.id, escapeHtml(o.label), o.id === view); }).join("") + '</div>' +
-      '<div class="pills" style="margin:0 0 14px;">' + [1, 2, 3, 6].map(function (n) { return pill("data-plan-months", n, n + (n === 1 ? " month" : " months"), n === months); }).join("") + '</div>';
+      '<div class="pills" style="margin:0 0 14px;">' + [1, 2, 3, 6].map(function (n) { return pill("data-plan-months", n, n + (n === 1 ? " month" : " months"), n === months); }).join("") + '</div>' +
+      allowancesHtml();
     if (!plan.periods.length) {
       html += '<div class="empty-state" style="padding:16px 8px;">' + (persons.length === 1 ? "No paychecks for " + escapeHtml(personLabel(persons[0])) + " yet." : "No paychecks yet.") + ' Add one below to see what each paycheck covers.</div>';
     }
     var billRow = function (b) {
-      return '<div class="plan-bill"><span class="plan-bd">' + (b.overdue ? '<span style="color:#D9667A;">Overdue</span>' : fmtShort(b.date)) + '</span><span class="plan-bn">' + escapeHtml(b.name) + (b.oneTime ? ' <span class="plan-tag">one-time</span>' : "") + (b.moved ? ' <span class="plan-tag">moved to this paycheck</span>' : "") + '</span><span class="mono plan-ba">' + formatCurrency(b.amount) + '</span>' +
-        (b.oneTime ? '<button class="icon-btn plan-x" data-action="plan-del-onetime" data-id="' + b.id + '" aria-label="Delete one-time bill">✕</button>' : "") + '</div>';
+      return '<div class="plan-bill"><span class="plan-bd">' + (b.overdue ? '<span style="color:#D9667A;">Overdue</span>' : b.allowance ? '<span style="color:var(--text-3);">Budget</span>' : fmtShort(b.date)) + '</span><span class="plan-bn">' + escapeHtml(b.name) + (b.who ? " (" + escapeHtml(personLabel(b.who)) + ")" : "") + (b.allowance ? ' <span class="plan-tag">every paycheck</span>' : "") + (b.oneTime ? ' <span class="plan-tag">one-time</span>' : "") + (b.moved ? ' <span class="plan-tag">moved to this paycheck</span>' : "") + (b.movedByUser ? ' <span class="plan-tag">moved by you · due ' + fmtShort(b.date) + '</span>' : "") + '</span><span class="mono plan-ba">' + formatCurrency(b.amount) + '</span>' +
+        (b.key ? '<button class="icon-btn plan-x" data-action="bill-move-open" data-key="' + escapeHtml(b.key) + '" aria-label="Move to another paycheck" title="Move to another paycheck">⇄</button>' : "") +
+        (b.oneTime ? '<button class="icon-btn plan-x" data-action="plan-del-onetime" data-id="' + b.id + '" aria-label="Delete one-time bill">✕</button>' : "") + '</div>' +
+        (b.key && planMoveKey === b.key ? '<div class="plan-edit" style="margin:2px 0 6px;"><span class="plan-edit-l">Pay this bill from</span>' +
+          '<select class="edit-select" data-bill-move-select="' + escapeHtml(b.key) + '"><option value="">Choose a paycheck…</option>' +
+          plan.periods.map(function (pd) { var iso = isoOf(pd.date); return '<option value="' + iso + '">' + escapeHtml(pd.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })) + "</option>"; }).join("") +
+          (b.movedByUser ? '<option value="__usual">Back to its usual paycheck</option>' : "") + '</select>' +
+          '<button class="icon-btn" data-action="plan-cancel" aria-label="Cancel">✕</button></div>' : "");
     };
     if (plan.head.length) {
       html += '<div class="plan-period plan-head-block"><div class="plan-when">Before the first paycheck</div><div class="plan-cover">From money you already have · until ' + (plan.periods[0] ? fmtShort(new Date(plan.periods[0].date.getFullYear(), plan.periods[0].date.getMonth(), plan.periods[0].date.getDate() - 1)) : fmtShort(plan.end)) + '</div>' +
@@ -6278,12 +6324,21 @@ async function renderSpendTab(root, cfg) {
       if (!btn) return;
       var act = btn.getAttribute("data-action"), key = btn.getAttribute("data-key");
       if (act === "plan-edit") { planEditKey = key; planEditVal = btn.getAttribute("data-amount") || ""; renderPlanAhead(); var inp = el.querySelector("[data-plan-input]"); if (inp) { inp.focus(); inp.select(); } }
-      else if (act === "plan-cancel") { planEditKey = null; renderPlanAhead(); }
+      else if (act === "plan-cancel") { planEditKey = null; planMoveKey = null; renderPlanAhead(); }
+      else if (act === "bill-move-open") { planMoveKey = planMoveKey === key ? null : key; renderPlanAhead(); }
       else if (act === "plan-save") { var n = planEditVal === "" ? 0 : Number(planEditVal); if (isNaN(n) || n < 0) return; planSaveOverride(key, n); }
       else if (act === "plan-skip") planSaveOverride(key, 0);
       else if (act === "plan-reset") { delete data.payOverrides[key]; planEditKey = null; save(); refreshPay(); }
       else if (act === "plan-add-open") { planAddOpen = true; planAddError = ""; planAddForm = { name: "", amount: "", date: "", owner: (data.spendView || "me") === "both" ? "" : (data.spendView || "me") }; renderPlanAhead(); var ni = el.querySelector('[data-plan-add="name"]'); if (ni) ni.focus(); }
       else if (act === "plan-add-cancel") { planAddOpen = false; renderPlanAhead(); }
+      else if (act === "allow-open") { allowEditOpen = true; allowDraft = (data.allowances || []).map(function (al) { return { id: al.id, name: al.name, amount: al.amount }; }); if (!allowDraft.length) allowDraft.push({ id: uid(), name: "", amount: "" }); renderPlanAhead(); }
+      else if (act === "allow-add") { allowDraft.push({ id: uid(), name: "", amount: "" }); renderPlanAhead(); }
+      else if (act === "allow-del") { allowDraft.splice(Number(btn.getAttribute("data-idx")), 1); renderPlanAhead(); }
+      else if (act === "allow-cancel") { allowEditOpen = false; renderPlanAhead(); }
+      else if (act === "allow-save") {
+        data.allowances = allowDraft.filter(function (al) { return String(al.name).trim() || Number(al.amount) > 0; }).map(function (al) { return { id: al.id, name: String(al.name).trim() || "Set aside", amount: Math.max(0, Number(al.amount) || 0) }; });
+        allowEditOpen = false; save(); refreshPay();
+      }
       else if (act === "plan-add-save") {
         var f = planAddForm;
         if (!f.name.trim()) { planAddError = "Give it a name."; renderPlanAhead(); return; }
@@ -6305,8 +6360,18 @@ async function renderSpendTab(root, cfg) {
       if (e.target.hasAttribute && e.target.hasAttribute("data-plan-input")) planEditVal = e.target.value;
       var f = e.target.getAttribute && e.target.getAttribute("data-plan-add");
       if (f) planAddForm[f] = e.target.value;
+      var an = e.target.getAttribute && e.target.getAttribute("data-allow-name"), aa = e.target.getAttribute && e.target.getAttribute("data-allow-amt");
+      if (an !== null && an !== undefined && allowDraft[an]) allowDraft[an].name = e.target.value;
+      if (aa !== null && aa !== undefined && allowDraft[aa]) allowDraft[aa].amount = e.target.value;
     });
-    el.addEventListener("change", function (e) { var f = e.target.getAttribute && e.target.getAttribute("data-plan-add"); if (f) planAddForm[f] = e.target.value; });
+    el.addEventListener("change", function (e) {
+      var f = e.target.getAttribute && e.target.getAttribute("data-plan-add"); if (f) planAddForm[f] = e.target.value;
+      var mk = e.target.getAttribute && e.target.getAttribute("data-bill-move-select");
+      if (mk && e.target.value) {
+        if (e.target.value === "__usual") delete data.billMoves[mk]; else data.billMoves[mk] = e.target.value;
+        planMoveKey = null; save(); refreshPay();
+      }
+    });
     el.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-plan-input")) { e.preventDefault(); var n = planEditVal === "" ? 0 : Number(planEditVal); if (!isNaN(n) && n >= 0) planSaveOverride(planEditKey, n); }
       if (e.key === "Escape") { planEditKey = null; planAddOpen = false; renderPlanAhead(); }
