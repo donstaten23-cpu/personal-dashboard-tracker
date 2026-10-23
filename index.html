@@ -5308,14 +5308,20 @@ async function renderSpendTab(root, cfg) {
   // (for existing trackers) fold whatever running total they'd already typed
   // into "Spent" into a single dated entry so switching to the log doesn't
   // discard progress already tracked this period.
-  if (!Array.isArray(data.periodSpend.me.entries)) data.periodSpend.me.entries = [];
-  if (!Array.isArray(data.periodSpend.partner.entries)) data.periodSpend.partner.entries = [];
+  // The fold-in only happens for a person who has never had an entries list. It used to run
+  // whenever the list was empty, so deleting every entry made the old "spent" total reappear as
+  // a fresh entry on the next load (different id/time on each device, so it never synced).
+  // The legacy field is cleared either way so it can't resurface.
+  var _legacySpentCleared = false;
   ["me", "partner"].forEach(function (p) {
-    var pd = data.periodSpend[p];
-    if (pd.entries.length === 0 && pd.spent !== "" && Number(pd.spent) !== 0) {
+    var pd = data.periodSpend[p], neverHadEntries = !Array.isArray(pd.entries);
+    if (neverHadEntries) pd.entries = [];
+    if (neverHadEntries && pd.spent !== "" && pd.spent != null && Number(pd.spent) !== 0) {
       pd.entries.push({ id: uid(), amount: Number(pd.spent) || 0, addedAt: new Date().toISOString() });
     }
+    if (pd.spent !== "" && pd.spent != null) { pd.spent = ""; _legacySpentCleared = true; }
   });
+  if (_legacySpentCleared) saveTabData(cfg.storageKey, data); // write the cleared value back so other devices stop seeing it
   if (!data.beforePayCollapsed) data.beforePayCollapsed = { me: false, partner: false };
   if (data.plannedCollapsed === undefined) data.plannedCollapsed = true;
   if (data.payScheduleCollapsed === undefined) data.payScheduleCollapsed = true;
