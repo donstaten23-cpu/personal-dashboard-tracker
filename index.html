@@ -3653,6 +3653,7 @@ function showDashboardScreen() {
     // the user's configured default landing page, same reasoning as above.
     _defaultPageApplied = true;
     switchPage(_initialHashRoute.page);
+    _initialHashRoute = null; // a startup route applies once, not on every later sign-in event
   }
   // Page slides only start once the dashboard has settled, so the automatic
   // jump to a default/bookmarked page at sign-in doesn't animate.
@@ -3837,7 +3838,12 @@ function bootAuth() {
   supabaseClient.auth.onAuthStateChange(function (event, session) {
     if (event === "TOKEN_REFRESHED") return;
     if (session) {
+      // Supabase re-emits SIGNED_IN every time the tab regains focus. Re-running the whole
+      // sign-in path then re-applied the startup route (the #page the tab first opened with),
+      // bouncing you back to that page on every return to the tab.
+      var alreadySignedIn = currentUserId === session.user.id && document.getElementById("dashboardScreen").style.display !== "none";
       currentUserId = session.user.id;
+      if (alreadySignedIn) return;
       showDashboardScreen();
       checkFirebaseConnected(session.user.email);
     } else {
@@ -13927,6 +13933,22 @@ function _eduStatus(id) {
   return EDU_STATUSES.find(function(s) { return s.id === id; }) || EDU_STATUSES[0];
 }
 
+// Registration: only classes you haven't started need it (once a class is in progress or done you
+// obviously registered). `registered` is a per-course flag you tick when you've signed up for it.
+function _eduNeedsRegistration(c) { return !!c.semester && (c.status || 'not-started') === 'not-started' && !c.registered; }
+function _eduRegBadge(course, groupId) {
+  if (!course.semester || (course.status || 'not-started') !== 'not-started') return '';
+  var on = !!course.registered, col = on ? '#5BAE7A' : '#D9A441';
+  return '<button data-action="toggle-registered" data-group="' + groupId + '" data-course="' + course.id + '" title="' + (on ? 'Registered. Tap to undo' : 'Tap when you have registered') + '" ' +
+    'style="border:1px solid ' + col + ';background:' + col + (on ? '22' : '00') + ';color:' + col + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer;font-family:inherit;">' +
+    (on ? '&#10003; Registered' : 'Not registered') + '</button>';
+}
+// Semester number for "now" in the same scale as _parseSemester (Spring Jan-May, Summer Jun-Jul, Fall Aug-Dec).
+function _eduCurrentSemesterIdx() {
+  var d = new Date(), m = d.getMonth();
+  return d.getFullYear() * 3 + (m <= 4 ? 0 : m <= 6 ? 1 : 2);
+}
+
 function _parseSemester(str) {
   if (!str) return -1;
   var m = str.match(/^(Spring|Summer|Fall)\s+(\d{4})$/i);
@@ -14107,6 +14129,7 @@ async function renderEducationPage() {
             '<select class="edit-select" id="eduEditSemester" style="min-width:130px;">' + _eduSemesterOpts(course.semester || '') + '</select>' +
             '<select class="edit-select" id="eduEditStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '"' + (s.id === (course.status || 'not-started') ? ' selected' : '') + '>' + s.label + '</option>'; }).join('') + '</select>' +
             '<input class="edit-input" style="width:70px;" id="eduEditGrade" placeholder="Grade" value="' + escapeHtml(course.grade || '') + '" />' +
+            '<label style="display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;"><input type="checkbox" id="eduEditRegistered"' + (course.registered ? ' checked' : '') + ' /> Registered</label>' +
             '<button class="icon-btn" data-action="save-course-edit" data-group="' + group.id + '" data-course="' + course.id + '" style="color:#5BAE7A;">✓</button>' +
             '<button class="icon-btn" data-action="cancel-course-edit">✕</button>' +
           '</div>' +
@@ -14120,6 +14143,7 @@ async function renderEducationPage() {
           '<div class="item-sub">' + (course.credits || 0) + ' credit' + ((Number(course.credits) || 0) !== 1 ? 's' : '') + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + (course.semester ? ' · ' + escapeHtml(course.semester) : '') + '</div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
+          _eduRegBadge(course, group.id) +
           '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
           '<button class="icon-btn" data-action="edit-course" data-group="' + group.id + '" data-course="' + course.id + '">✎</button>' +
           '<button class="icon-btn" data-action="delete-course" data-group="' + group.id + '" data-course="' + course.id + '">✕</button>' +
@@ -14139,6 +14163,7 @@ async function renderEducationPage() {
             '<select class="edit-select" id="eduNewSemester" style="min-width:130px;">' + _eduSemesterOpts('') + '</select>' +
             '<select class="edit-select" id="eduNewStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '">' + s.label + '</option>'; }).join('') + '</select>' +
             '<input class="edit-input" style="width:70px;" id="eduNewGrade" placeholder="Grade" />' +
+            '<label style="display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;"><input type="checkbox" id="eduNewRegistered" /> Registered</label>' +
             '<button class="add-btn" data-action="confirm-add-course" data-group="' + group.id + '" style="background:var(--accent);flex-shrink:0;">Add</button>' +
             '<button class="icon-btn" data-action="cancel-add-course">✕</button>' +
           '</div>' +
@@ -14177,12 +14202,27 @@ async function renderEducationPage() {
   semKeys.sort(function(a, b) { return _parseSemester(a) - _parseSemester(b); });
   if (semMap['__none__']) semKeys.push('__none__');
 
+  // Registration reminder: upcoming/current semesters that still have classes you haven't registered for.
+  var curSemIdx = _eduCurrentSemesterIdx();
+  var upcomingSems = semKeys.filter(function(k) { return k !== '__none__' && _parseSemester(k) >= curSemIdx; });
+  var regTodo = upcomingSems.map(function(k) { return { sem: k, n: semMap[k].filter(function(it) { return _eduNeedsRegistration(it.course); }).length }; }).filter(function(x) { return x.n > 0; });
+  var upcomingTotal = upcomingSems.reduce(function(s, k) { return s + semMap[k].filter(function(it) { return (it.course.status || 'not-started') === 'not-started'; }).length; }, 0);
+  var regBannerHtml = regTodo.length
+    ? '<div class="card" style="border-color:#D9A441;"><div class="gauge-label mono" style="margin-bottom:8px;color:#D9A441;">REGISTER FOR CLASSES</div>' +
+        regTodo.map(function(x) { return '<div style="color:var(--text-1);font-size:14px;margin-bottom:4px;"><strong>' + escapeHtml(x.sem) + '</strong> <span style="color:var(--text-2);">&middot; ' + x.n + (x.n === 1 ? ' class' : ' classes') + ' not registered yet</span></div>'; }).join('') +
+        '<div style="color:var(--text-3);font-size:12px;margin-top:6px;">Tap &ldquo;Not registered&rdquo; on a class once you&rsquo;ve signed up for it.</div></div>'
+    : upcomingTotal > 0
+      ? '<div class="card" style="border-color:#5BAE7A;"><div class="gauge-label mono" style="color:#5BAE7A;">&#10003; ALL UPCOMING CLASSES REGISTERED</div></div>'
+      : '';
+
   var semesterViewHtml = semKeys.length === 0
     ? '<div style="color:var(--text-3);font-size:13px;padding:8px 0 12px;">No courses added yet.</div>'
     : semKeys.map(function(sem) {
         var label = sem === '__none__' ? 'Unscheduled' : sem;
         var items = semMap[sem];
         var semCr = items.reduce(function(s, it) { return s + (Number(it.course.credits) || 0); }, 0);
+        var semRegItems = sem === '__none__' ? [] : items.filter(function(it) { return (it.course.status || 'not-started') === 'not-started'; });
+        var semRegTotal = semRegItems.length, semRegDone = semRegItems.filter(function(it) { return it.course.registered; }).length;
         var rowsHtml = items.map(function(item) {
           var course = item.course;
           var st = _eduStatus(course.status || 'not-started');
@@ -14197,6 +14237,7 @@ async function renderEducationPage() {
                 '<select class="edit-select" id="eduEditSemester" style="min-width:130px;">' + _eduSemesterOpts(course.semester || '') + '</select>' +
                 '<select class="edit-select" id="eduEditStatus">' + EDU_STATUSES.map(function(s) { return '<option value="' + s.id + '"' + (s.id === (course.status || 'not-started') ? ' selected' : '') + '>' + s.label + '</option>'; }).join('') + '</select>' +
                 '<input class="edit-input" style="width:70px;" id="eduEditGrade" placeholder="Grade" value="' + escapeHtml(course.grade || '') + '" />' +
+            '<label style="display:flex;align-items:center;gap:4px;color:var(--text-2);font-size:12px;"><input type="checkbox" id="eduEditRegistered"' + (course.registered ? ' checked' : '') + ' /> Registered</label>' +
                 '<button class="icon-btn" data-action="save-course-edit" data-group="' + item.groupId + '" data-course="' + course.id + '" style="color:#5BAE7A;">✓</button>' +
                 '<button class="icon-btn" data-action="cancel-course-edit">✕</button>' +
               '</div>' +
@@ -14210,6 +14251,7 @@ async function renderEducationPage() {
               '<div class="item-sub">' + (course.credits || 0) + ' cr' + (course.grade ? ' · ' + escapeHtml(course.grade) : '') + ' · <span style="opacity:.7;">' + escapeHtml(item.groupName) + '</span></div>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
+              _eduRegBadge(course, item.groupId) +
               '<span style="background:' + st.color + '22;color:' + st.color + ';border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap;">' + st.label + '</span>' +
               '<button class="icon-btn" data-action="edit-course" data-group="' + item.groupId + '" data-course="' + course.id + '">✎</button>' +
               '<button class="icon-btn" data-action="delete-course" data-group="' + item.groupId + '" data-course="' + course.id + '">✕</button>' +
@@ -14219,7 +14261,7 @@ async function renderEducationPage() {
         return '<div style="margin-bottom:8px;">' +
           '<div class="port-section-label" style="margin-top:20px;display:flex;align-items:center;justify-content:space-between;">' +
             '<span>' + escapeHtml(label) + '</span>' +
-            '<span style="color:var(--text-3);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">' + semCr + ' cr</span>' +
+            '<span style="color:var(--text-3);font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;">' + semCr + ' cr' + (semRegTotal ? ' &middot; <span style="color:' + (semRegDone === semRegTotal ? '#5BAE7A' : '#D9A441') + ';">' + semRegDone + ' of ' + semRegTotal + ' registered</span>' : '') + '</span>' +
           '</div>' +
           '<div class="list-card">' + rowsHtml + '</div>' +
         '</div>';
@@ -14277,6 +14319,8 @@ async function renderEducationPage() {
           'style="background:var(--bg);color:var(--text-1);border:1px solid var(--border-2);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;" />' +
       '</div>' +
     '</div>' +
+
+    regBannerHtml +
 
     '<div>' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
@@ -14372,9 +14416,17 @@ async function renderEducationPage() {
           credits:  Number((document.getElementById('eduNewCredits')  || {}).value) || 0,
           semester: ((document.getElementById('eduNewSemester') || {}).value || '').trim(),
           status:   (document.getElementById('eduNewStatus')   || {}).value || 'not-started',
-          grade:    ((document.getElementById('eduNewGrade')    || {}).value || '').trim()
+          grade:    ((document.getElementById('eduNewGrade')    || {}).value || '').trim(),
+          registered: !!(document.getElementById('eduNewRegistered') || {}).checked
         });
         _eduAddCourseGroupId = null;
+        saveEducationData();
+        renderEducationPage();
+      } else if (action === 'toggle-registered') {
+        if (!group) return;
+        var regCourse = (group.courses || []).find(function(c) { return c.id === cid; });
+        if (!regCourse) return;
+        regCourse.registered = !regCourse.registered;
         saveEducationData();
         renderEducationPage();
       } else if (action === 'edit-course') {
@@ -14393,6 +14445,7 @@ async function renderEducationPage() {
         course.semester = ((document.getElementById('eduEditSemester') || {}).value || '').trim();
         course.status   = (document.getElementById('eduEditStatus')   || {}).value || 'not-started';
         course.grade    = ((document.getElementById('eduEditGrade')    || {}).value || '').trim();
+        course.registered = !!(document.getElementById('eduEditRegistered') || {}).checked;
         _eduEditCourseId = null;
         saveEducationData();
         renderEducationPage();
