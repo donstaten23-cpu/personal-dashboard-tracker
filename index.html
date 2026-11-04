@@ -12384,6 +12384,13 @@ function _bibleOpenOverlay() {
       if (_bibleIsRead(i)) { _bibleSetRead(i, false); _bibleSave(); _bibleRefresh(); _offerUndo(_bibleName(i) + " marked unread", function () { _bibleRestore(snap); }); }
       else _bibleMarkRead(i);
     }
+    else if (act === "bookread") {
+      var bk = Number(a.getAttribute("data-b")), bn = BIBLE_BOOKS[bk][1], allRead = true, snapB = _bibleSnapshot();
+      for (var q = 0; q < bn; q++) if (!_bibleIsRead(BIBLE_OFFSET[bk] + q)) { allRead = false; break; }
+      for (var q2 = 0; q2 < bn; q2++) _bibleSetRead(BIBLE_OFFSET[bk] + q2, !allRead);
+      _bibleSave(); _bibleRefresh();
+      _offerUndo(BIBLE_BOOKS[bk][0] + (allRead ? " marked unread" : " marked read"), function () { _bibleRestore(snapB); });
+    }
     else if (act === "place") {
       var b = Number(document.getElementById("biblePB").value), c = Number(document.getElementById("biblePC").value);
       var idx = BIBLE_OFFSET[b] + c - 1, snap2 = _bibleSnapshot();
@@ -12439,7 +12446,8 @@ function _bibleRenderOverlay() {
       var n = BIBLE_BOOKS[b][1], got = 0;
       for (var c = 0; c < n; c++) if (_bibleIsRead(BIBLE_OFFSET[b] + c)) got++;
       h += '<details class="bible-book" data-b="' + b + '"' + (_bibleOpenBooks[b] ? ' open' : '') + '><summary><span class="bible-bname">' + escapeHtml(BIBLE_BOOKS[b][0]) + '</span><span class="bible-bcount">' + got + ' / ' + n + '</span>' +
-        '<span class="bible-mini"><i style="width:' + (got / n * 100) + '%"></i></span></summary><div class="bible-grid">';
+        '<span class="bible-mini"><i style="width:' + (got / n * 100) + '%"></i></span></summary>' +
+        '<div style="padding:2px 0 10px;"><button class="port-edit-btn" data-bo="bookread" data-b="' + b + '" style="min-height:40px;">' + (got === n ? 'Mark whole book unread' : 'Mark whole book read') + '</button></div><div class="bible-grid">';
       for (var k = 0; k < n; k++) {
         var gi = BIBLE_OFFSET[b] + k, r = _bibleIsRead(gi);
         h += '<button class="bible-c' + (r ? ' read' : '') + (gi === ni ? ' next' : '') + '" data-bo="pick" data-i="' + gi + '" aria-label="' + escapeHtml(BIBLE_BOOKS[b][0]) + ' ' + (k + 1) + (r ? ', read' : '') + '">' + (k + 1) + '</button>';
