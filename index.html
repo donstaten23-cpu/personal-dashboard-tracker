@@ -1161,6 +1161,52 @@
   .dx-cell-empty { color: var(--text-3); }
   .dx-bar { height: 8px; border-radius: 999px; background: var(--border-2); overflow: hidden; min-width: 80px; }
   .dx-bar > div { height: 100%; background: var(--accent); border-radius: 999px; }
+  /* Nightly Bible reading (Overview → Routines) */
+  .bible-title { font-size: 36px; line-height: 1.05; color: var(--text-1); margin: 6px 0 2px; }
+  .bible-sub { color: var(--text-2); font-size: 13px; }
+  .bible-sub a { color: var(--accent); }
+  .bible-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 6px; align-items: center; }
+  .bible-actions .add-btn { flex: 1 1 140px; min-height: 44px; }
+  .bible-actions .port-edit-btn { min-height: 44px; }
+  .bible-pct { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .bible-pct strong { font-size: 30px; line-height: 1; color: var(--text-1); }
+  .bible-pct span { color: var(--text-2); font-size: 13px; }
+  .bible-bar { position: relative; margin-top: 8px; }
+  .bible-bar .gauge-track { height: 12px; }
+  .bible-div { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--bg-card); }
+  .bible-scale { position: relative; height: 16px; font-size: 11px; color: var(--text-3); margin-top: 5px; }
+  .bible-scale span { position: absolute; top: 0; white-space: nowrap; }
+  .bible-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; border-top: 1px solid var(--border-2); border-bottom: 1px solid var(--border-2); }
+  .bible-stat { padding: 10px 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .bible-stat + .bible-stat { padding-left: 12px; border-left: 1px solid var(--border-2); }
+  .bible-stat b { font-size: 22px; line-height: 1.1; color: var(--text-1); }
+  .bible-stat span { font-size: 11px; color: var(--text-3); }
+  .bible-pace { color: var(--text-2); font-size: 13px; margin: 12px 0 0; }
+  .bible-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--bg); color: var(--text-1); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px); }
+  .bible-overlay-inner { max-width: 640px; margin: 0 auto; }
+  .bible-ohead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 12px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  .bible-ohead h2 { margin: 0; font-size: 28px; color: var(--text-1); }
+  .bible-test { margin: 18px 0 4px; }
+  details.bible-book { border-bottom: 1px solid var(--border-2); }
+  details.bible-book > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 0; min-height: 48px; }
+  details.bible-book > summary::-webkit-details-marker { display: none; }
+  .bible-bname { font-weight: 600; color: var(--text-1); }
+  .bible-bcount { color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .bible-mini { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--border-2); overflow: hidden; }
+  .bible-mini > i { display: block; height: 100%; background: var(--accent); }
+  .bible-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 5px; padding: 4px 0 16px; }
+  .bible-c { appearance: none; border: 1px solid var(--border-2); background: var(--bg-card); color: var(--text-1); border-radius: 8px; min-height: 40px; cursor: pointer; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .bible-c.read { background: var(--accent); border-color: var(--accent); color: #12151A; font-weight: 600; }
+  .bible-c.next { border: 2px solid var(--accent); font-weight: 700; }
+  .bible-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1001; }
+  .bible-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; max-width: 640px; margin: 0 auto; background: var(--bg-card); border: 1px solid var(--border-2); border-bottom: 0; border-radius: 16px 16px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
+  .bible-sheet-title { font-size: 26px; font-weight: 700; color: var(--text-1); }
+  .bible-tool { border: 1px solid var(--border-2); border-radius: 12px; background: var(--bg-card); margin-top: 12px; }
+  .bible-tool > summary { cursor: pointer; padding: 14px 16px; font-weight: 600; list-style: none; min-height: 48px; display: flex; align-items: center; color: var(--text-1); }
+  .bible-tool > summary::-webkit-details-marker { display: none; }
+  .bible-tool-body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .bible-tool-body p { margin: 0; color: var(--text-2); font-size: 13px; }
+  .bible-tool-body textarea { width: 100%; min-height: 84px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
   .dx-mode { display: flex; gap: 6px; margin-bottom: 14px; }
   .sql-editor { width: 100%; min-height: 140px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; line-height: 1.5; background: var(--bg); color: var(--text-1); border: 1px solid var(--border-2); border-radius: 10px; padding: 12px; tab-size: 2; box-sizing: border-box; }
   .sql-editor:focus { outline: none; border-color: var(--accent); }
@@ -12168,6 +12214,265 @@ async function renderStoryPage(root) {
 
 /* ---------------- routines tab ---------------- */
 
+
+/* ---------------- nightly Bible reading (Overview → Routines) ----------------
+   Tonight's chapter, an "I read it" button, a to-scale progress bar, streak and a
+   pace-based finish date — with every book's chapter grid one tap away. Stored as
+   one tab (bible-tracker-data): `read` is a 1,189-character string of 0/1 flags
+   (one per chapter, in order), `days` the nights logged and `perDay` how many
+   chapters were read on each (used for the pace line). */
+var BIBLE_BOOKS = [
+  ["Genesis",50],["Exodus",40],["Leviticus",27],["Numbers",36],["Deuteronomy",34],["Joshua",24],["Judges",21],["Ruth",4],
+  ["1 Samuel",31],["2 Samuel",24],["1 Kings",22],["2 Kings",25],["1 Chronicles",29],["2 Chronicles",36],["Ezra",10],["Nehemiah",13],
+  ["Esther",10],["Job",42],["Psalms",150],["Proverbs",31],["Ecclesiastes",12],["Song of Solomon",8],["Isaiah",66],["Jeremiah",52],
+  ["Lamentations",5],["Ezekiel",48],["Daniel",12],["Hosea",14],["Joel",3],["Amos",9],["Obadiah",1],["Jonah",4],["Micah",7],
+  ["Nahum",3],["Habakkuk",3],["Zephaniah",3],["Haggai",2],["Zechariah",14],["Malachi",4],
+  ["Matthew",28],["Mark",16],["Luke",24],["John",21],["Acts",28],["Romans",16],["1 Corinthians",16],["2 Corinthians",13],
+  ["Galatians",6],["Ephesians",6],["Philippians",4],["Colossians",4],["1 Thessalonians",5],["2 Thessalonians",3],["1 Timothy",6],
+  ["2 Timothy",4],["Titus",3],["Philemon",1],["Hebrews",13],["James",5],["1 Peter",5],["2 Peter",3],["1 John",5],["2 John",1],
+  ["3 John",1],["Jude",1],["Revelation",22]
+];
+var BIBLE_OT_BOOKS = 39;
+var BIBLE_OFFSET = [], BIBLE_TOTAL = 0;
+BIBLE_BOOKS.forEach(function (b) { BIBLE_OFFSET.push(BIBLE_TOTAL); BIBLE_TOTAL += b[1]; });
+var BIBLE_OT_TOTAL = BIBLE_OFFSET[BIBLE_OT_BOOKS];
+
+var _bible = null;           // loaded data
+var _bibleOpenBooks = {};    // books expanded in the full view
+var _bibleSel = null;        // chapter picked in the full view
+
+// Local date (not UTC): a night's reading counts on the night you did it.
+function _bibleToday() { return new Date().toLocaleDateString("en-CA"); }
+function _bibleBlank() { return { read: new Array(BIBLE_TOTAL + 1).join("0"), days: [], perDay: {}, updated: 0 }; }
+function _bibleNormalize(d) {
+  if (!d || typeof d.read !== "string" || d.read.length !== BIBLE_TOTAL || /[^01]/.test(d.read)) return _bibleBlank();
+  var days = Array.isArray(d.days) ? d.days.filter(function (x) { return typeof x === "string"; }).slice(-1500) : [];
+  var perDay = {};
+  if (d.perDay && typeof d.perDay === "object") Object.keys(d.perDay).forEach(function (k) { var n = Number(d.perDay[k]); if (n > 0) perDay[k] = n; });
+  return { read: d.read, days: days, perDay: perDay, updated: Number(d.updated) || 0 };
+}
+function _bibleSave() { _bible.updated = Date.now(); saveTabData("bible-tracker-data", _bible); }
+function _bibleIsRead(i) { return _bible.read.charAt(i) === "1"; }
+function _bibleSetRead(i, v) { _bible.read = _bible.read.slice(0, i) + (v ? "1" : "0") + _bible.read.slice(i + 1); }
+function _bibleCount() { var n = 0; for (var i = 0; i < BIBLE_TOTAL; i++) if (_bibleIsRead(i)) n++; return n; }
+function _bibleNext() { for (var i = 0; i < BIBLE_TOTAL; i++) if (!_bibleIsRead(i)) return i; return -1; }
+function _bibleLocate(i) { var b = BIBLE_BOOKS.length - 1; while (BIBLE_OFFSET[b] > i) b--; return { b: b, c: i - BIBLE_OFFSET[b] + 1 }; }
+function _bibleUrl(i) { var p = _bibleLocate(i); return "https://wol.jw.org/en/wol/b/r1/lp-e/nwtsty/" + (p.b + 1) + "/" + p.c; }
+function _bibleName(i) { var p = _bibleLocate(i); return BIBLE_BOOKS[p.b][0] + " " + p.c; }
+function _bibleStreak() {
+  var set = {}; _bible.days.forEach(function (d) { set[d] = 1; });
+  var cur = _bibleToday();
+  if (!set[cur]) cur = addDaysISO(cur, -1);
+  var n = 0;
+  while (set[cur]) { n++; cur = addDaysISO(cur, -1); }
+  return n;
+}
+// Chapters per calendar night over the last 4 weeks (or since you started, if
+// that's shorter). Fewer than 3 logged nights isn't enough to measure: assume 1.
+function _biblePace() {
+  var today = _bibleToday(), start = addDaysISO(today, -27);
+  var inWin = _bible.days.filter(function (d) { return d >= start && d <= today; });
+  if (inWin.length < 3) return { rate: 1, measured: false };
+  var first = inWin.slice().sort()[0];
+  var span = Math.max(1, Math.round((new Date(today + "T00:00:00") - new Date(first + "T00:00:00")) / 86400000) + 1);
+  var chapters = 0; inWin.forEach(function (d) { chapters += _bible.perDay[d] || 1; });
+  return { rate: Math.max(chapters / span, 0.1), measured: true };
+}
+function _bibleSnapshot() { return JSON.stringify(_bible); }
+function _bibleRestore(snap) { _bible = JSON.parse(snap); _bibleSave(); _bibleRefresh(); }
+
+// Counts a chapter as read (tonight), optionally with an Undo.
+function _bibleMarkRead(i, label) {
+  var snap = _bibleSnapshot();
+  _bibleSetRead(i, true);
+  var t = _bibleToday();
+  if (_bible.days.indexOf(t) < 0) _bible.days.push(t);
+  _bible.perDay[t] = (_bible.perDay[t] || 0) + 1;
+  _bibleSave(); _bibleRefresh();
+  _offerUndo(label || (_bibleName(i) + " marked read"), function () { _bibleRestore(snap); });
+}
+
+function _bibleRefresh() {
+  var el = document.getElementById("rtBible");
+  if (el && el._bibleRender) el._bibleRender();
+  if (document.getElementById("bibleOverlay")) _bibleRenderOverlay();
+}
+
+function _bibleCardHtml() {
+  var read = _bibleCount(), remaining = BIBLE_TOTAL - read, ni = _bibleNext();
+  var pct = Math.round(read / BIBLE_TOTAL * 1000) / 10;
+  var loggedTonight = _bible.days.indexOf(_bibleToday()) >= 0;
+  var otPct = BIBLE_OT_TOTAL / BIBLE_TOTAL * 100;
+  var st = _bibleStreak();
+  var h = '<div class="gauge-top"><span class="gauge-label mono">NIGHTLY READING</span>' +
+    (loggedTonight ? '<span class="mono" style="color:var(--accent);font-size:12px;">✓ logged tonight</span>' : '') + '</div>';
+  if (ni >= 0) {
+    h += '<div class="bible-title serif">' + escapeHtml(_bibleName(ni)) + '</div>' +
+      '<div class="bible-sub">Chapter ' + (ni + 1) + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' · <a href="' + _bibleUrl(ni) + '" target="_blank" rel="noopener">Open online</a></div>' +
+      '<div class="bible-actions"><button class="add-btn" data-bible="mark" style="background:var(--accent);">I read it</button>' +
+      '<button class="port-edit-btn" data-bible="all">All books ›</button></div>';
+  } else {
+    h += '<div class="bible-title serif">You finished the Bible</div>' +
+      '<div class="bible-sub">All ' + BIBLE_TOTAL.toLocaleString("en-US") + ' chapters are marked read.</div>' +
+      '<div class="bible-actions"><button class="port-edit-btn" data-bible="all">All books ›</button></div>';
+  }
+  h += '<div class="bible-pct"><strong class="serif mono">' + pct.toFixed(1) + '%</strong><span>' + read.toLocaleString("en-US") + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' chapters</span></div>' +
+    '<div class="bible-bar" role="img" aria-label="' + pct.toFixed(1) + ' percent of the Bible read"><div class="gauge-track"><div class="gauge-fill" style="width:' + (read / BIBLE_TOTAL * 100) + '%;background:var(--accent);"></div></div><span class="bible-div" style="left:' + otPct + '%"></span></div>' +
+    '<div class="bible-scale"><span style="left:0;">Genesis</span><span style="left:' + otPct + '%;padding-left:4px;">Matthew \u203A</span></div>' +
+    '<div class="bible-stats">' +
+      '<div class="bible-stat"><b class="mono">' + st + '</b><span>night' + (st === 1 ? '' : 's') + ' in a row</span></div>' +
+      '<div class="bible-stat"><b class="mono">' + remaining.toLocaleString("en-US") + '</b><span>chapters left</span></div>' +
+      '<div class="bible-stat"><b class="mono">' + _bible.days.length + '</b><span>nights logged</span></div>' +
+    '</div>';
+  if (remaining > 0) {
+    var pace = _biblePace();
+    var fin = new Date(); fin.setDate(fin.getDate() + Math.ceil(remaining / pace.rate));
+    var fs = fin.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    h += '<p class="bible-pace">' + (pace.measured
+      ? 'At your recent pace of ' + (Math.round(pace.rate * 10) / 10) + ' chapter' + (Math.round(pace.rate * 10) / 10 === 1 ? '' : 's') + ' a night, you finish around <b style="color:var(--text-1);">' + fs + '</b>.'
+      : 'At one chapter a night, you finish around <b style="color:var(--text-1);">' + fs + '</b>.') + '</p>';
+  }
+  return h;
+}
+
+async function renderBibleCard(el) {
+  if (!el) return;
+  el.className = "card";
+  el.innerHTML = '<div class="gauge-label mono">NIGHTLY READING</div><div style="color:var(--text-3);font-size:13px;margin-top:8px;">Loading…</div>';
+  var raw = await loadTabData("bible-tracker-data", _bibleBlank());
+  _bible = _bibleNormalize(raw);
+  el._bibleRender = function () { el.innerHTML = _bibleCardHtml(); };
+  el._bibleRender();
+  _setHandler(el, "click", function (e) {
+    var b = e.target.closest("[data-bible]");
+    if (!b) return;
+    var act = b.getAttribute("data-bible");
+    if (act === "mark") { var ni = _bibleNext(); if (ni >= 0) _bibleMarkRead(ni); }
+    else if (act === "all") _bibleOpenOverlay();
+  });
+}
+
+function _bibleOpenOverlay() {
+  var ov = document.getElementById("bibleOverlay");
+  if (ov) ov.remove();
+  ov = document.createElement("div");
+  ov.id = "bibleOverlay"; ov.className = "bible-overlay"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Every book");
+  document.body.appendChild(ov);
+  _bibleSel = null;
+  var ni = _bibleNext();
+  if (ni >= 0) _bibleOpenBooks[_bibleLocate(ni).b] = true;
+  document.body.style.overflow = "hidden";
+  _bibleRenderOverlay();
+  ov.addEventListener("toggle", function (e) {
+    var t = e.target;
+    if (t && t.classList && t.classList.contains("bible-book")) _bibleOpenBooks[t.getAttribute("data-b")] = t.open;
+  }, true);
+  ov.addEventListener("change", function (e) {
+    if (e.target.id === "biblePB") _bibleFillChapters(Number(e.target.value), 1);
+  });
+  ov.addEventListener("click", function (e) {
+    var a = e.target.closest("[data-bo]");
+    if (!a) return;
+    var act = a.getAttribute("data-bo");
+    if (act === "close") _bibleCloseOverlay();
+    else if (act === "pick") { _bibleSel = Number(a.getAttribute("data-i")); _bibleRenderOverlay(); }
+    else if (act === "dismiss") { _bibleSel = null; _bibleRenderOverlay(); }
+    else if (act === "setread") {
+      if (_bibleSel === null) return;
+      var i = _bibleSel, snap = _bibleSnapshot();
+      _bibleSel = null;
+      if (_bibleIsRead(i)) { _bibleSetRead(i, false); _bibleSave(); _bibleRefresh(); _offerUndo(_bibleName(i) + " marked unread", function () { _bibleRestore(snap); }); }
+      else _bibleMarkRead(i);
+    }
+    else if (act === "place") {
+      var b = Number(document.getElementById("biblePB").value), c = Number(document.getElementById("biblePC").value);
+      var idx = BIBLE_OFFSET[b] + c - 1, snap2 = _bibleSnapshot();
+      for (var k = 0; k < idx; k++) _bibleSetRead(k, true);
+      _bibleSave(); _bibleRefresh();
+      _offerUndo("Everything before " + BIBLE_BOOKS[b][0] + " " + c + " marked read", function () { _bibleRestore(snap2); });
+    }
+    else if (act === "import") {
+      var txt = document.getElementById("bibleImport").value.trim(), parsed = null;
+      try { parsed = JSON.parse(txt); } catch (err) {}
+      var msg = document.getElementById("bibleImportMsg");
+      if (!parsed || typeof parsed.read !== "string" || parsed.read.length !== BIBLE_TOTAL || /[^01]/.test(parsed.read)) { msg.textContent = "That code isn’t a valid backup."; return; }
+      var snap3 = _bibleSnapshot();
+      var imp = _bibleNormalize(parsed);
+      imp.perDay = _bible.perDay;
+      _bible = imp;
+      _bibleSave(); _bibleRefresh();
+      _offerUndo("Progress imported", function () { _bibleRestore(snap3); });
+    }
+  });
+  ov._esc = function (e) { if (e.key === "Escape") _bibleCloseOverlay(); };
+  document.addEventListener("keydown", ov._esc);
+}
+
+function _bibleCloseOverlay() {
+  var ov = document.getElementById("bibleOverlay");
+  if (!ov) return;
+  document.removeEventListener("keydown", ov._esc);
+  ov.remove();
+  document.body.style.overflow = "";
+}
+
+function _bibleFillChapters(b, chosen) {
+  var pc = document.getElementById("biblePC"); if (!pc) return;
+  var o = "";
+  for (var c = 1; c <= BIBLE_BOOKS[b][1]; c++) o += '<option value="' + c + '">Chapter ' + c + '</option>';
+  pc.innerHTML = o; pc.value = String(Math.min(chosen || 1, BIBLE_BOOKS[b][1]));
+}
+
+function _bibleRenderOverlay() {
+  var ov = document.getElementById("bibleOverlay"); if (!ov) return;
+  var scroll = ov.scrollTop;
+  var keepTools = {}; Array.prototype.forEach.call(ov.querySelectorAll("details.bible-tool"), function (d, i) { keepTools[i] = d.open; });
+  var pbEl = document.getElementById("biblePB"), pcEl = document.getElementById("biblePC");
+  var keepPB = pbEl ? Number(pbEl.value) : null, keepPC = pcEl ? Number(pcEl.value) : null;
+  var ni = _bibleNext();
+  var h = '<div class="bible-overlay-inner"><div class="bible-ohead"><h2 class="serif">Every book</h2><button class="port-edit-btn" data-bo="close" style="min-height:44px;">Close</button></div>' +
+    '<div style="color:var(--text-2);font-size:13px;">Tap a chapter to open it online or mark it read. Filled numbers are done.</div>';
+  for (var t = 0; t < 2; t++) {
+    var from = t === 0 ? 0 : BIBLE_OT_BOOKS, to = t === 0 ? BIBLE_OT_BOOKS : BIBLE_BOOKS.length;
+    h += '<div class="bible-test"><div class="tab-eyebrow">' + (t === 0 ? 'Hebrew-Aramaic Scriptures' : 'Christian Greek Scriptures') + '</div>';
+    for (var b = from; b < to; b++) {
+      var n = BIBLE_BOOKS[b][1], got = 0;
+      for (var c = 0; c < n; c++) if (_bibleIsRead(BIBLE_OFFSET[b] + c)) got++;
+      h += '<details class="bible-book" data-b="' + b + '"' + (_bibleOpenBooks[b] ? ' open' : '') + '><summary><span class="bible-bname">' + escapeHtml(BIBLE_BOOKS[b][0]) + '</span><span class="bible-bcount">' + got + ' / ' + n + '</span>' +
+        '<span class="bible-mini"><i style="width:' + (got / n * 100) + '%"></i></span></summary><div class="bible-grid">';
+      for (var k = 0; k < n; k++) {
+        var gi = BIBLE_OFFSET[b] + k, r = _bibleIsRead(gi);
+        h += '<button class="bible-c' + (r ? ' read' : '') + (gi === ni ? ' next' : '') + '" data-bo="pick" data-i="' + gi + '" aria-label="' + escapeHtml(BIBLE_BOOKS[b][0]) + ' ' + (k + 1) + (r ? ', read' : '') + '">' + (k + 1) + '</button>';
+      }
+      h += '</div></details>';
+    }
+    h += '</div>';
+  }
+  var opts = BIBLE_BOOKS.map(function (bk, i) { return '<option value="' + i + '">' + escapeHtml(bk[0]) + '</option>'; }).join('');
+  h += '<details class="bible-tool"><summary>Set my place</summary><div class="bible-tool-body"><p>Already part way through? Pick the chapter you read next and everything before it is marked read.</p>' +
+    '<div class="row-gap"><select class="edit-select" id="biblePB" aria-label="Book" style="flex:1;min-width:0;">' + opts + '</select><select class="edit-select" id="biblePC" aria-label="Chapter" style="flex:1;min-width:0;"></select></div>' +
+    '<button class="port-edit-btn" data-bo="place" style="min-height:44px;">Mark everything before this as read</button></div></details>' +
+    '<details class="bible-tool"><summary>Import from my old tracker</summary><div class="bible-tool-body"><p>In the old tracker, open “Backup and restore”, copy the code, and paste it here.</p>' +
+    '<textarea class="form-input" id="bibleImport" placeholder="Paste backup code here" aria-label="Backup code"></textarea>' +
+    '<button class="port-edit-btn" data-bo="import" style="min-height:44px;">Import progress</button><div id="bibleImportMsg" style="color:var(--text-2);font-size:13px;"></div></div></details></div>';
+  if (_bibleSel !== null) {
+    var sr = _bibleIsRead(_bibleSel);
+    h += '<div class="bible-scrim" data-bo="dismiss"></div><div class="bible-sheet" role="dialog" aria-label="' + escapeHtml(_bibleName(_bibleSel)) + '">' +
+      '<div class="bible-sheet-title serif">' + escapeHtml(_bibleName(_bibleSel)) + '</div>' +
+      '<div style="color:var(--text-2);font-size:13px;">' + (sr ? 'Marked as read.' : 'Not read yet.') + '</div>' +
+      '<div class="bible-actions" style="margin:0;"><a class="port-edit-btn" href="' + _bibleUrl(_bibleSel) + '" target="_blank" rel="noopener" style="min-height:44px;display:inline-flex;align-items:center;text-decoration:none;">Open online</a>' +
+      '<button class="add-btn" data-bo="setread" style="background:var(--accent);">' + (sr ? 'Mark unread' : 'Mark as read') + '</button></div>' +
+      '<button class="link-btn" data-bo="dismiss" style="color:var(--text-2);">Cancel</button></div>';
+  }
+  ov.innerHTML = h;
+  var tools = ov.querySelectorAll("details.bible-tool");
+  Array.prototype.forEach.call(tools, function (d, i) { d.open = !!keepTools[i]; });
+  var b0 = keepPB != null ? keepPB : (ni >= 0 ? _bibleLocate(ni).b : 0);
+  document.getElementById("biblePB").value = String(b0);
+  _bibleFillChapters(b0, keepPC != null && keepPB != null ? keepPC : (ni >= 0 && _bibleLocate(ni).b === b0 ? _bibleLocate(ni).c : 1));
+  ov.scrollTop = scroll;
+}
+
 async function renderRoutinesTab(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
@@ -12202,6 +12507,7 @@ async function renderRoutinesTab(root) {
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('routines', 'DAILY ROUTINES')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + ",color-mix(in srgb, " + accent + " 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, " + accent + ' 33%, transparent);"></div></div></div>' +
+    '<div id="rtBible"></div>' +
     '<div class="card">' +
       '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
       '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
@@ -12386,6 +12692,7 @@ async function renderRoutinesTab(root) {
     _offerUndo((taken && taken.item.name ? '"' + taken.item.name + '"' : "Routine") + " deleted", function () { _undoPut(data.routines, taken); save(); renderDynamic(); });
   }
 
+  renderBibleCard(document.getElementById("rtBible"));
   renderFreqPills();
 
   document.getElementById("rtAddBtn").addEventListener("click", function () {
@@ -18006,6 +18313,7 @@ function renderGuidePage() {
         ['dashboard-travel-data',   'All trips: array of trip objects with items (flights, stay, activities…)'],
         ['dashboard-budget-data',   'Monthly expenses, savings goal, pay period config'],
         ['dashboard-routines-data', 'Routines with name, frequency, completion history'],
+        ['bible-tracker-data',      'Nightly Bible reading: a 1,189-character read/unread string (one flag per chapter), the nights logged, and chapters read per night'],
         ['dashboard-workouts-data', 'Workout sessions, exercises, sets/reps/weight'],
         ['dashboard-education-data','Degree program, courses, grades'],
         ['dashboard-certs-data',    'Certifications list with dates and status'],
