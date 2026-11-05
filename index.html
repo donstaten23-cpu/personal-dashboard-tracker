@@ -12272,7 +12272,13 @@ function _biblePlaceAt(idx, verse) {
 function _bibleCount() { var n = 0; for (var i = 0; i < BIBLE_TOTAL; i++) if (_bibleIsRead(i)) n++; return n; }
 function _bibleNext() { for (var i = 0; i < BIBLE_TOTAL; i++) if (!_bibleIsRead(i)) return i; return -1; }
 function _bibleLocate(i) { var b = BIBLE_BOOKS.length - 1; while (BIBLE_OFFSET[b] > i) b--; return { b: b, c: i - BIBLE_OFFSET[b] + 1 }; }
-function _bibleUrl(i) { var p = _bibleLocate(i); return "https://wol.jw.org/en/wol/b/r1/lp-e/nwtsty/" + (p.b + 1) + "/" + p.c; }
+// jw.org Study Bible: .../books/<book-slug>/<chapter>/, and #v<book><chapter:3><verse:3> jumps to a verse.
+function _bibleUrl(i, verse) {
+  var p = _bibleLocate(i), slug = BIBLE_BOOKS[p.b][0].toLowerCase().replace(/ /g, "-");
+  var url = "https://www.jw.org/en/library/bible/study-bible/books/" + slug + "/" + p.c + "/";
+  if (verse >= 1) url += "#v" + (p.b + 1) + ("00" + p.c).slice(-3) + ("00" + verse).slice(-3);
+  return url;
+}
 function _bibleName(i) { var p = _bibleLocate(i); return BIBLE_BOOKS[p.b][0] + " " + p.c; }
 function _bibleStreak() {
   var set = {}; _bible.days.forEach(function (d) { set[d] = 1; });
@@ -12323,7 +12329,7 @@ function _bibleCardHtml() {
     (loggedTonight ? '<span class="mono" style="color:var(--accent);font-size:12px;">✓ logged tonight</span>' : '') + '</div>';
   if (ni >= 0) {
     h += '<div class="bible-title serif">' + escapeHtml(_bibleName(ni)) + '</div>' +
-      '<div class="bible-sub">Chapter ' + (ni + 1) + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' · <a href="' + _bibleUrl(ni) + '" target="_blank" rel="noopener">Open online</a></div>' +
+      '<div class="bible-sub">Chapter ' + (ni + 1) + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' · <a href="' + _bibleUrl(ni, _bible.partial && _bible.partial.i === ni ? _bible.partial.v : 0) + '" target="_blank" rel="noopener">Open online</a></div>' +
       (_bible.partial && _bible.partial.i === ni ? '<div class="bible-sub" style="color:var(--accent);font-weight:600;margin-top:2px;">Left off at verse ' + _bible.partial.v + '</div>' : '') +
       '<div class="bible-actions"><button class="add-btn" data-bible="mark" style="background:var(--accent);">I read it</button>' +
       '<button class="port-edit-btn" data-bible="all">All books ›</button></div>';
