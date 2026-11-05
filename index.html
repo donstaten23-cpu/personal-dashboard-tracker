@@ -12243,21 +12243,42 @@ var _bibleSel = null;        // chapter picked in the full view
 
 // Local date (not UTC): a night's reading counts on the night you did it.
 function _bibleToday() { return new Date().toLocaleDateString("en-CA"); }
-function _bibleBlank() { return { read: new Array(BIBLE_TOTAL + 1).join("0"), days: [], perDay: {}, updated: 0 }; }
+function _bibleBlank() { return { read: new Array(BIBLE_TOTAL + 1).join("0"), days: [], perDay: {}, partial: null, updated: 0 }; }
 function _bibleNormalize(d) {
   if (!d || typeof d.read !== "string" || d.read.length !== BIBLE_TOTAL || /[^01]/.test(d.read)) return _bibleBlank();
   var days = Array.isArray(d.days) ? d.days.filter(function (x) { return typeof x === "string"; }).slice(-1500) : [];
   var perDay = {};
   if (d.perDay && typeof d.perDay === "object") Object.keys(d.perDay).forEach(function (k) { var n = Number(d.perDay[k]); if (n > 0) perDay[k] = n; });
-  return { read: d.read, days: days, perDay: perDay, updated: Number(d.updated) || 0 };
+  // Where you stopped part-way through a chapter: { i: chapter index, v: last verse read }.
+  var pt = d.partial && Number(d.partial.i) >= 0 && Number(d.partial.i) < BIBLE_TOTAL && Number(d.partial.v) >= 1 && Number(d.partial.v) <= 200
+    ? { i: Math.floor(Number(d.partial.i)), v: Math.floor(Number(d.partial.v)) } : null;
+  return { read: d.read, days: days, perDay: perDay, partial: pt, updated: Number(d.updated) || 0 };
 }
 function _bibleSave() { _bible.updated = Date.now(); saveTabData("bible-tracker-data", _bible); }
 function _bibleIsRead(i) { return _bible.read.charAt(i) === "1"; }
-function _bibleSetRead(i, v) { _bible.read = _bible.read.slice(0, i) + (v ? "1" : "0") + _bible.read.slice(i + 1); }
+function _bibleSetRead(i, v) {
+  _bible.read = _bible.read.slice(0, i) + (v ? "1" : "0") + _bible.read.slice(i + 1);
+  if (v && _bible.partial && _bible.partial.i === i) _bible.partial = null; // finished that chapter
+}
+// Everything before chapter `idx` is read; `verse` (optional) is the last verse you read in it.
+function _biblePlaceAt(idx, verse) {
+  var snap = _bibleSnapshot();
+  for (var k = 0; k < idx; k++) _bibleSetRead(k, true);
+  _bibleSetRead(idx, false);
+  _bible.partial = verse >= 1 && verse <= 200 ? { i: idx, v: Math.floor(verse) } : null;
+  _bibleSave(); _bibleRefresh();
+  _offerUndo("Place set to " + _bibleName(idx) + (_bible.partial ? ":" + _bible.partial.v : ""), function () { _bibleRestore(snap); });
+}
 function _bibleCount() { var n = 0; for (var i = 0; i < BIBLE_TOTAL; i++) if (_bibleIsRead(i)) n++; return n; }
 function _bibleNext() { for (var i = 0; i < BIBLE_TOTAL; i++) if (!_bibleIsRead(i)) return i; return -1; }
 function _bibleLocate(i) { var b = BIBLE_BOOKS.length - 1; while (BIBLE_OFFSET[b] > i) b--; return { b: b, c: i - BIBLE_OFFSET[b] + 1 }; }
-function _bibleUrl(i) { var p = _bibleLocate(i); return "https://wol.jw.org/en/wol/b/r1/lp-e/nwtsty/" + (p.b + 1) + "/" + p.c; }
+// jw.org Study Bible: .../books/<book-slug>/<chapter>/, and #v<book><chapter:3><verse:3> jumps to a verse.
+function _bibleUrl(i, verse) {
+  var p = _bibleLocate(i), slug = BIBLE_BOOKS[p.b][0].toLowerCase().replace(/ /g, "-");
+  var url = "https://www.jw.org/en/library/bible/study-bible/books/" + slug + "/" + p.c + "/";
+  if (verse >= 1) url += "#v" + (p.b + 1) + ("00" + p.c).slice(-3) + ("00" + verse).slice(-3);
+  return url;
+}
 function _bibleName(i) { var p = _bibleLocate(i); return BIBLE_BOOKS[p.b][0] + " " + p.c; }
 function _bibleStreak() {
   var set = {}; _bible.days.forEach(function (d) { set[d] = 1; });
@@ -12308,7 +12329,8 @@ function _bibleCardHtml() {
     (loggedTonight ? '<span class="mono" style="color:var(--accent);font-size:12px;">✓ logged tonight</span>' : '') + '</div>';
   if (ni >= 0) {
     h += '<div class="bible-title serif">' + escapeHtml(_bibleName(ni)) + '</div>' +
-      '<div class="bible-sub">Chapter ' + (ni + 1) + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' · <a href="' + _bibleUrl(ni) + '" target="_blank" rel="noopener">Open online</a></div>' +
+      '<div class="bible-sub">Chapter ' + (ni + 1) + ' of ' + BIBLE_TOTAL.toLocaleString("en-US") + ' · <a href="' + _bibleUrl(ni, _bible.partial && _bible.partial.i === ni ? _bible.partial.v : 0) + '" target="_blank" rel="noopener">Open online</a></div>' +
+      (_bible.partial && _bible.partial.i === ni ? '<div class="bible-sub" style="color:var(--accent);font-weight:600;margin-top:2px;">Left off at verse ' + _bible.partial.v + '</div>' : '') +
       '<div class="bible-actions"><button class="add-btn" data-bible="mark" style="background:var(--accent);">I read it</button>' +
       '<button class="port-edit-btn" data-bible="all">All books ›</button></div>';
   } else {
@@ -12384,6 +12406,12 @@ function _bibleOpenOverlay() {
       if (_bibleIsRead(i)) { _bibleSetRead(i, false); _bibleSave(); _bibleRefresh(); _offerUndo(_bibleName(i) + " marked unread", function () { _bibleRestore(snap); }); }
       else _bibleMarkRead(i);
     }
+    else if (act === "starthere") {
+      if (_bibleSel === null) return;
+      var at = _bibleSel, vv = Number(document.getElementById("bibleSheetVerse").value);
+      _bibleSel = null;
+      _biblePlaceAt(at, vv);
+    }
     else if (act === "bookread") {
       var bk = Number(a.getAttribute("data-b")), bn = BIBLE_BOOKS[bk][1], allRead = true, snapB = _bibleSnapshot();
       for (var q = 0; q < bn; q++) if (!_bibleIsRead(BIBLE_OFFSET[bk] + q)) { allRead = false; break; }
@@ -12393,10 +12421,7 @@ function _bibleOpenOverlay() {
     }
     else if (act === "place") {
       var b = Number(document.getElementById("biblePB").value), c = Number(document.getElementById("biblePC").value);
-      var idx = BIBLE_OFFSET[b] + c - 1, snap2 = _bibleSnapshot();
-      for (var k = 0; k < idx; k++) _bibleSetRead(k, true);
-      _bibleSave(); _bibleRefresh();
-      _offerUndo("Everything before " + BIBLE_BOOKS[b][0] + " " + c + " marked read", function () { _bibleRestore(snap2); });
+      _biblePlaceAt(BIBLE_OFFSET[b] + c - 1, Number(document.getElementById("bibleVerse").value));
     }
     else if (act === "import") {
       var txt = document.getElementById("bibleImport").value.trim(), parsed = null;
@@ -12457,8 +12482,9 @@ function _bibleRenderOverlay() {
     h += '</div>';
   }
   var opts = BIBLE_BOOKS.map(function (bk, i) { return '<option value="' + i + '">' + escapeHtml(bk[0]) + '</option>'; }).join('');
-  h += '<details class="bible-tool"><summary>Set my place</summary><div class="bible-tool-body"><p>Already part way through? Pick the chapter you read next and everything before it is marked read.</p>' +
+  h += '<details class="bible-tool"><summary>Set my place</summary><div class="bible-tool-body"><p>Already part way through? Pick the chapter you\u2019re on and everything before it is marked read. Add the verse if you stopped mid-chapter.</p>' +
     '<div class="row-gap"><select class="edit-select" id="biblePB" aria-label="Book" style="flex:1;min-width:0;">' + opts + '</select><select class="edit-select" id="biblePC" aria-label="Chapter" style="flex:1;min-width:0;"></select></div>' +
+    '<input class="form-input" type="number" inputmode="numeric" min="1" max="200" id="bibleVerse" placeholder="Left off at verse (optional)" aria-label="Verse you left off at" />' +
     '<button class="port-edit-btn" data-bo="place" style="min-height:44px;">Mark everything before this as read</button></div></details>' +
     '<details class="bible-tool"><summary>Import from my old tracker</summary><div class="bible-tool-body"><p>In the old tracker, open “Backup and restore”, copy the code, and paste it here.</p>' +
     '<textarea class="form-input" id="bibleImport" placeholder="Paste backup code here" aria-label="Backup code"></textarea>' +
@@ -12470,6 +12496,9 @@ function _bibleRenderOverlay() {
       '<div style="color:var(--text-2);font-size:13px;">' + (sr ? 'Marked as read.' : 'Not read yet.') + '</div>' +
       '<div class="bible-actions" style="margin:0;"><a class="port-edit-btn" href="' + _bibleUrl(_bibleSel) + '" target="_blank" rel="noopener" style="min-height:44px;display:inline-flex;align-items:center;text-decoration:none;">Open online</a>' +
       '<button class="add-btn" data-bo="setread" style="background:var(--accent);">' + (sr ? 'Mark unread' : 'Mark as read') + '</button></div>' +
+      '<div style="border-top:1px solid var(--border-2);padding-top:12px;"><div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">Or pick up here: mark everything before ' + escapeHtml(_bibleName(_bibleSel)) + ' as read.</div>' +
+      '<div class="row-gap"><input class="form-input" type="number" inputmode="numeric" min="1" max="200" id="bibleSheetVerse" placeholder="Left off at verse (optional)" aria-label="Verse you left off at" style="flex:1;min-width:0;" />' +
+      '<button class="port-edit-btn" data-bo="starthere" style="min-height:44px;">Start here</button></div></div>' +
       '<button class="link-btn" data-bo="dismiss" style="color:var(--text-2);">Cancel</button></div>';
   }
   ov.innerHTML = h;
