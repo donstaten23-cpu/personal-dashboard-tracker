@@ -621,7 +621,7 @@
   .lift-sets .weight-log-row:not(.lift-set) { background: var(--bg); border: 1px solid var(--accent); border-radius: 14px; padding: 8px; }
   .lift-set-n { width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .lift-set.warm .lift-set-n { background: var(--border-2); color: var(--text-3); }
-  .lift-set-main { font-size: 16px; font-weight: 700; color: var(--text-1); white-space: nowrap; }
+  .lift-set-main { font-size: 16px; font-weight: 700; color: var(--text-1); white-space: normal; overflow-wrap: anywhere; }
   .lift-set.warm .lift-set-main { color: var(--text-2); font-weight: 600; }
   .lift-set-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
   .lift-set-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -9604,23 +9604,29 @@ async function renderWorkoutsTab(root) {
           if (editingSetItemId === item.id && editingSetLiftId === l.id && editingSetId === s.id) {
             var sf = editingSetForm;
             var editFieldsHtml = isCardio
-              ? '<input class="edit-input amt" type="number" min="0" data-set-edit="duration" placeholder="Min" value="' + escapeHtml(sf.duration) + '" />' +
-                '<input class="edit-input" style="width:90px;" type="text" data-set-edit="distance" placeholder="Distance" value="' + escapeHtml(sf.distance) + '" />' +
-                '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />'
+              ? '<input class="edit-input" style="width:90px;" type="text" data-set-edit="distance" placeholder="Distance" value="' + escapeHtml(sf.distance) + '" />' +
+                '<input class="edit-input" style="width:80px;" type="text" data-set-edit="time" placeholder="Time" value="' + escapeHtml(sf.time) + '" />' +
+                '<input class="edit-input" style="width:90px;" type="text" data-set-edit="target" placeholder="Target" value="' + escapeHtml(sf.target) + '" />' +
+                '<input class="edit-input" style="width:100px;" type="text" data-set-edit="rest" placeholder="Rest" value="' + escapeHtml(sf.rest) + '" />' +
+                '<input class="edit-input amt" type="number" min="0" data-set-edit="duration" placeholder="Min" value="' + escapeHtml(sf.duration) + '" />' +
+                (sf.reps !== "" ? '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />' : "")
               : '<input class="edit-input amt" type="number" min="0" step="0.5" data-set-edit="weight" placeholder="Lbs" value="' + escapeHtml(sf.weight) + '" />' +
                 '<input class="edit-input amt" type="number" min="0" data-set-edit="reps" placeholder="Reps" value="' + escapeHtml(sf.reps) + '" />';
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
-              '<span style="color:var(--text-2);width:52px;flex-shrink:0;">Set ' + (idx + 1) + "</span>" +
+              '<span style="color:var(--text-2);width:52px;flex-shrink:0;">' + (isCardio ? "Rep " : "Set ") + (idx + 1) + "</span>" +
               editFieldsHtml +
               '<button class="icon-btn" data-action="save-set" style="color:' + accent + ';">\u2713</button>' +
               '<button class="icon-btn" data-action="cancel-set-edit">\u2715</button>' +
             "</div>";
           }
           var pr = prData.bySetId[s.id];
-          var bits = [];
+          var bits = [], metaBits = [];
           if (isCardio) {
-            if (s.duration !== "" && s.duration != null) bits.push(s.duration + " min");
             if (s.distance) bits.push(s.distance);
+            if (s.time) bits.push(s.time);
+            if (s.target) metaBits.push("target " + s.target);
+            if (s.rest) metaBits.push("rest " + s.rest);
+            if (s.duration !== "" && s.duration != null) bits.push(s.duration + " min");
             if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
           } else {
             if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
@@ -9630,6 +9636,9 @@ async function renderWorkoutsTab(root) {
           return '<div class="weight-log-row lift-set' + (s.isWarmup ? " warm" : "") + '">' +
             '<span class="lift-set-n">' + (idx + 1) + "</span>" +
             '<div class="lift-set-body"><span class="lift-set-main mono">' + bits.join(isCardio ? " \u00B7 " : " \u00D7 ") + "</span>" +
+            (isCardio && !s.time && (s.duration === "" || s.duration == null)
+              ? '<input class="edit-input" style="width:84px;margin-top:4px;" type="text" placeholder="Time" aria-label="Time for this rep" data-set-time="1" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" />' : "") +
+            (metaBits.length ? '<span class="lift-set-meta"><span class="lift-set-tag">' + escapeHtml(metaBits.join(" \u00B7 ")) + "</span></span>" : "") +
             (s.isWarmup || pr || setOneRM ? '<span class="lift-set-meta">' +
               (s.isWarmup ? '<span class="lift-set-tag">Warm-up</span>' : "") +
               (pr ? '<span class="lift-set-tag pr">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
@@ -9643,9 +9652,10 @@ async function renderWorkoutsTab(root) {
 
         var lastSet = (l.sets || []).length ? l.sets[l.sets.length - 1] : null;
         var addSetFieldsHtml = isCardio
-          ? '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" placeholder="Min" data-set-field="duration" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<input class="form-input" style="width:100px;flex:0 0 auto;" type="text" placeholder="Distance" data-set-field="distance" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
-            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" />'
+          ? '<input class="form-input" style="width:100px;flex:0 0 auto;" type="text" placeholder="Distance" data-set-field="distance" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.distance ? lastSet.distance : "") + '" />' +
+            '<input class="form-input" style="width:80px;flex:0 0 auto;" type="text" placeholder="Time" data-set-field="time" data-item="' + item.id + '" data-lift="' + l.id + '" />' +
+            '<input class="form-input" style="width:100px;flex:0 0 auto;" type="text" placeholder="Rest" data-set-field="rest" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.rest ? lastSet.rest : "") + '" />' +
+            '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Min" data-set-field="duration" data-item="' + item.id + '" data-lift="' + l.id + '" />'
           : '<input class="form-input" style="width:80px;flex:0 0 auto;" type="number" min="0" step="0.5" placeholder="Lbs" data-set-field="weight" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.weight != null ? lastSet.weight : "") + '" />' +
             '<input class="form-input" style="width:70px;flex:0 0 auto;" type="number" min="0" placeholder="Reps" data-set-field="reps" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + escapeHtml(lastSet && lastSet.reps != null ? lastSet.reps : "") + '" />' +
             '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);"><input type="checkbox" class="checkbox" data-set-field="warmup" data-item="' + item.id + '" data-lift="' + l.id + '" /> Warm-up</label>';
@@ -9655,7 +9665,7 @@ async function renderWorkoutsTab(root) {
         };
         var statsHtml = isEditingName ? "" : '<div class="lift-stats">' +
           (isCardio
-            ? tile("TOTAL TIME", liftMinutes ? Math.round(liftMinutes * 10) / 10 : "\u2014", liftMinutes ? "min" : "") + tile("SETS", (l.sets || []).length, "")
+            ? tile("REPS", (l.sets || []).length, "") + tile("TOTAL TIME", liftMinutes ? Math.round(liftMinutes * 10) / 10 : "\u2014", liftMinutes ? "min" : "")
             : tile("TOTAL VOLUME", liftVolume ? Math.round(liftVolume).toLocaleString() : "\u2014", liftVolume ? "lbs" : "") + tile("MAX 1RM", liftBest1RM ? Math.round(liftBest1RM) : "\u2014", liftBest1RM ? "lbs" : "")) +
           '<button type="button" class="lift-rest" data-action="rest-start" aria-label="Start rest timer">&#9201; ' + _fmtRest(window._restLast || 90) + "</button>" +
         "</div>";
@@ -9665,7 +9675,7 @@ async function renderWorkoutsTab(root) {
           '<div class="lift-add">' +
             '<span class="lift-add-n">+</span>' +
             '<div class="lift-add-fields">' + addSetFieldsHtml + "</div>" +
-            '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">Add set</button>' +
+            '<button class="small-btn" style="background:' + accent + ';" data-action="add-set" data-item="' + item.id + '" data-lift="' + l.id + '">' + (isCardio ? "Add rep" : "Add set") + '</button>' +
           "</div></div>";
       }).join("");
 
@@ -9979,7 +9989,9 @@ async function renderWorkoutsTab(root) {
       if (lift.kind === "cardio") {
         var durationEl = document.querySelector('[data-set-field="duration"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
         var distanceEl = document.querySelector('[data-set-field="distance"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
-        lift.sets.push({ id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", reps: reps, isWarmup: false });
+        var timeEl = document.querySelector('[data-set-field="time"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        var restEl = document.querySelector('[data-set-field="rest"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
+        lift.sets.push({ id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", time: timeEl ? timeEl.value.trim() : "", rest: restEl ? restEl.value.trim() : "", reps: reps, isWarmup: false });
       } else {
         var weightEl = document.querySelector('[data-set-field="weight"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
         var warmupEl = document.querySelector('[data-set-field="warmup"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
@@ -10023,7 +10035,7 @@ async function renderWorkoutsTab(root) {
         weight: s.weight === "" || s.weight == null ? "" : String(s.weight),
         reps: s.reps === "" || s.reps == null ? "" : String(s.reps),
         duration: s.duration === "" || s.duration == null ? "" : String(s.duration),
-        distance: s.distance || ""
+        distance: s.distance || "", time: s.time || "", target: s.target || "", rest: s.rest || ""
       };
       refreshLog();
     }
@@ -10036,7 +10048,7 @@ async function renderWorkoutsTab(root) {
       lift.sets = (lift.sets || []).map(function (s) {
         if (s.id !== editingSetId) return s;
         if (lift.kind === "cardio") {
-          return { id: s.id, duration: editingSetForm.duration === "" ? "" : Number(editingSetForm.duration), distance: (editingSetForm.distance || "").trim(), reps: editingSetForm.reps === "" ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
+          return { id: s.id, duration: editingSetForm.duration === "" ? "" : Number(editingSetForm.duration), distance: (editingSetForm.distance || "").trim(), time: (editingSetForm.time || "").trim(), target: (editingSetForm.target || "").trim(), rest: (editingSetForm.rest || "").trim(), reps: editingSetForm.reps === "" || editingSetForm.reps == null ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
         }
         return { id: s.id, weight: editingSetForm.weight === "" ? "" : Number(editingSetForm.weight), reps: editingSetForm.reps === "" ? "" : Number(editingSetForm.reps), isWarmup: s.isWarmup };
       });
@@ -10174,6 +10186,14 @@ async function renderWorkoutsTab(root) {
     function _wkItemChange(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
       if (field) editRowForm[field] = e.target.value;
+      if (e.target.getAttribute && e.target.getAttribute("data-set-time")) {
+        // Quick time entry on a rep row (no need to open the editor for each rep).
+        var tItem = data.items.find(function (it) { return it.id === e.target.getAttribute("data-item"); });
+        var tLift = tItem && (tItem.lifts || []).find(function (l) { return l.id === e.target.getAttribute("data-lift"); });
+        var tSet = tLift && (tLift.sets || []).find(function (st) { return st.id === e.target.getAttribute("data-set"); });
+        if (tSet && e.target.value.trim()) { tSet.time = e.target.value.trim(); save(); refreshLog(); }
+        return;
+      }
       if (e.target.getAttribute && e.target.getAttribute("data-action") === "set-muscle-group") {
         handleSetMuscleGroup(e.target.getAttribute("data-item"), e.target.getAttribute("data-lift"), e.target.value);
       }
@@ -10296,7 +10316,8 @@ async function renderWorkoutsTab(root) {
     return (tpl.lifts || []).map(function (pl) {
       var n = Number(pl.targetSets) || 1, setsArr = [], i;
       if (pl.kind === "cardio") {
-        for (i = 0; i < n; i++) setsArr.push({ id: uid(), duration: blank(pl.targetMinutes) === "" ? "" : Number(pl.targetMinutes), distance: pl.targetDistance || "", reps: blank(pl.targetReps), isWarmup: false });
+        // Each planned rep is one row: distance, target pace and rest filled in, time left to record.
+        for (i = 0; i < n; i++) setsArr.push({ id: uid(), duration: blank(pl.targetMinutes) === "" ? "" : Number(pl.targetMinutes), distance: pl.targetDistance || "", time: "", target: pl.targetPace || "", rest: pl.targetRest || "", reps: blank(pl.targetReps), isWarmup: false });
         return { id: uid(), name: pl.name, kind: "cardio", sets: setsArr };
       }
       for (i = 0; i < n; i++) setsArr.push({ id: uid(), weight: blank(pl.targetWeight), reps: blank(pl.targetReps), isWarmup: false });
@@ -10512,9 +10533,10 @@ async function renderWorkoutsTab(root) {
             var rm = '<button class="icon-btn" data-action="remove-tpl-lift" data-idx="' + i + '">✕</button>';
             if (pl.kind === "cardio") {
               return '<div class="weight-log-row" style="flex-wrap:wrap;">' + nameCell +
-                '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
+                '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetSets) + '" />' +
                 '<input class="edit-input" style="width:96px;" type="text" data-tpl-lift-field="targetDistance" data-idx="' + i + '" placeholder="Distance" value="' + escapeHtml(pl.targetDistance || "") + '" />' +
-                '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetMinutes" data-idx="' + i + '" placeholder="Min" value="' + (pl.targetMinutes === "" || pl.targetMinutes == null ? "" : pl.targetMinutes) + '" />' + rm + '</div>';
+                '<input class="edit-input" style="width:96px;" type="text" data-tpl-lift-field="targetPace" data-idx="' + i + '" placeholder="Target pace" value="' + escapeHtml(pl.targetPace || "") + '" />' +
+                '<input class="edit-input" style="width:110px;" type="text" data-tpl-lift-field="targetRest" data-idx="' + i + '" placeholder="Rest" value="' + escapeHtml(pl.targetRest || "") + '" />' + rm + '</div>';
             }
             return '<div class="weight-log-row" style="flex-wrap:wrap;">' + nameCell +
               '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
@@ -10527,12 +10549,13 @@ async function renderWorkoutsTab(root) {
           '<button type="button" class="pill" data-tpl-kind="cardio" style="padding:4px 12px;font-size:12px;background:' + (tplNewKind === "cardio" ? accent : "transparent") + ";border-color:" + accent + ";color:" + (tplNewKind === "cardio" ? "#12151A" : accent) + ';">Cardio / Activity</button>' +
         '</div>' +
         (tplNewKind === "cardio"
-          ? '<div style="color:var(--text-3);font-size:12px;margin-bottom:6px;">e.g. Sprint · 8 sets · 100m. Distance and minutes are optional.</div>' +
+          ? '<div style="color:var(--text-3);font-size:12px;margin-bottom:6px;">e.g. Sprint · 6 reps · 300m · target 0:50 · rest 2 min (or "walk back"). Everything but the name is optional.</div>' +
             '<div class="row-gap" style="margin-bottom:12px;">' +
               '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="wkTplLiftName" placeholder="Activity name, e.g. Sprint" data-exercise-combo="1" /></span>' +
-              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
+              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Reps" />' +
               '<input class="form-input" style="width:100px;" type="text" id="wkTplActDistance" placeholder="Distance" />' +
-              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplActMin" placeholder="Min" />' +
+              '<input class="form-input" style="width:100px;" type="text" id="wkTplActPace" placeholder="Target pace" />' +
+              '<input class="form-input" style="width:110px;" type="text" id="wkTplActRest" placeholder="Rest" />' +
               '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+</button>' +
             "</div>"
           : '<div class="row-gap" style="margin-bottom:12px;">' +
@@ -10595,12 +10618,12 @@ async function renderWorkoutsTab(root) {
         var name = nameEl.value.trim();
         if (!name) { nameEl.focus(); return; }
         if (tplNewKind === "cardio") {
-          var minEl = document.getElementById("wkTplActMin");
           templateDraft.lifts.push({
             name: name, kind: "cardio",
-            targetSets: document.getElementById("wkTplLiftSets").value || "",
+            targetSets: document.getElementById("wkTplLiftSets").value || "", // number of reps
             targetDistance: document.getElementById("wkTplActDistance").value.trim(),
-            targetMinutes: minEl.value === "" ? "" : Number(minEl.value)
+            targetPace: document.getElementById("wkTplActPace").value.trim(),
+            targetRest: document.getElementById("wkTplActRest").value.trim()
           });
           renderTemplatesSection();
           return;
@@ -16483,14 +16506,14 @@ var DX_DATASETS = [
     } },
   { id: 'lift-sets', group: 'Fitness', label: 'Lift sets', keys: ['dashboard-workouts-data'],
     columns: [['date', 'Date', 'date'], ['workout', 'Workout', 'text'], ['exercise', 'Exercise', 'text'], ['muscle', 'Muscle group', 'text'],
-              ['weight', 'Weight', 'number'], ['reps', 'Reps', 'number'], ['minutes', 'Minutes', 'number'], ['distance', 'Distance', 'text'], ['warmup', 'Warm-up', 'bool']],
+              ['weight', 'Weight', 'number'], ['reps', 'Reps', 'number'], ['minutes', 'Minutes', 'number'], ['distance', 'Distance', 'text'], ['time', 'Time', 'text'], ['target', 'Target pace', 'text'], ['rest', 'Rest', 'text'], ['warmup', 'Warm-up', 'bool']],
     rows: function(d) {
       var out = [];
       (d['dashboard-workouts-data'].items || []).forEach(function(it) {
         (it.lifts || []).forEach(function(l) {
           (l.sets || []).forEach(function(s) {
             out.push({ _ref: s, date: it.date || '', workout: it.name || '', exercise: l.name || '', muscle: l.muscleGroup || '',
-                       weight: _dxNum(s.weight), reps: _dxNum(s.reps), minutes: _dxNum(s.duration), distance: s.distance || '', warmup: !!s.isWarmup });
+                       weight: _dxNum(s.weight), reps: _dxNum(s.reps), minutes: _dxNum(s.duration), distance: s.distance || '', time: s.time || '', target: s.target || '', rest: s.rest || '', warmup: !!s.isWarmup });
           });
         });
       });
@@ -16721,7 +16744,7 @@ var DX_EDIT = {
     duration: { kind: 'number', field: 'duration', min: 0 }, notes: { kind: 'text', field: 'notes' } } },
   'lift-sets': { key: 'dashboard-workouts-data', cols: {
     weight: { kind: 'number', field: 'weight', min: 0 }, reps: { kind: 'number', field: 'reps', min: 0, whole: true },
-    minutes: { kind: 'number', field: 'duration', min: 0 }, distance: { kind: 'text', field: 'distance' }, warmup: { kind: 'bool', field: 'isWarmup' } } },
+    minutes: { kind: 'number', field: 'duration', min: 0 }, distance: { kind: 'text', field: 'distance' }, time: { kind: 'text', field: 'time' }, target: { kind: 'text', field: 'target' }, rest: { kind: 'text', field: 'rest' }, warmup: { kind: 'bool', field: 'isWarmup' } } },
   'body-weight': { key: 'dashboard-workouts-data', cols: { date: { kind: 'date', field: 'date' }, weight: { kind: 'number', field: 'weight', min: 0 } } },
   'jobs': { key: 'jobs-data', cols: {
     company: { kind: 'text', field: 'company' }, role: { kind: 'text', field: 'role' }, stage: { kind: 'select', field: 'stage', options: _dxOptList(JOB_STAGES) },
