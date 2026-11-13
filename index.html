@@ -9064,6 +9064,37 @@ function _relationshipMapSvg(characters, relationships) {
   return '<svg viewBox="0 0 ' + size + " " + size + '" width="100%" style="display:block;max-width:320px;margin:0 auto;">' + lines + nodes + "</svg>";
 }
 
+/* ---------------- rep times vs. target ----------------
+   Times are typed as people write them: 0:47, 1:02.5, 47, 47s, 1m47s. A target
+   pace like "7:30/mi" is read by its leading time. Anything that isn't a time is
+   simply left out of the comparison. */
+function _parseClock(str) {
+  if (str == null) return null;
+  var t = String(str).toLowerCase().split("/")[0].trim();
+  if (!t) return null;
+  var m;
+  if ((m = t.match(/^(\d+):(\d{2}):(\d{2})(\.\d+)?$/))) return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + (m[4] ? Number(m[4]) : 0);
+  if ((m = t.match(/^(\d+):(\d{1,2})(\.\d+)?$/))) return Number(m[1]) * 60 + Number(m[2]) + (m[3] ? Number(m[3]) : 0);
+  if ((m = t.match(/^(\d+)\s*m(?:in)?\s*(\d+(?:\.\d+)?)\s*s?$/))) return Number(m[1]) * 60 + Number(m[2]);
+  if ((m = t.match(/^(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds?)?$/))) return Number(m[1]);
+  return null;
+}
+function _fmtClock(sec) {
+  if (sec == null || isNaN(sec)) return "";
+  var r = Math.round(sec * 10) / 10, mins = Math.floor(r / 60), rest = Math.round((r - mins * 60) * 10) / 10;
+  var rs = (rest < 10 ? "0" : "") + (rest % 1 ? rest.toFixed(1) : String(rest));
+  return mins + ":" + rs;
+}
+// { sec: time - target, label: "-3s" / "+2s" / "on target", color } when both are readable.
+function _repVsTarget(set) {
+  var t = _parseClock(set && set.time), g = _parseClock(set && set.target);
+  if (t == null || g == null) return null;
+  var d = Math.round((t - g) * 10) / 10;
+  if (Math.abs(d) < 0.05) return { sec: 0, label: "on target", color: "#5BAE7A" };
+  var abs = Math.abs(d), txt = abs >= 60 ? _fmtClock(abs) : (abs % 1 ? abs.toFixed(1) : String(abs)) + "s";
+  return { sec: d, label: (d < 0 ? "−" : "+") + txt, color: d < 0 ? "#5BAE7A" : "#E1543F" };
+}
+
 async function renderWorkoutsTab(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
@@ -9620,12 +9651,14 @@ async function renderWorkoutsTab(root) {
             "</div>";
           }
           var pr = prData.bySetId[s.id];
-          var bits = [], metaBits = [];
+          var bits = [], metaBits = [], vsTag = "";
           if (isCardio) {
             if (s.distance) bits.push(s.distance);
             if (s.time) bits.push(s.time);
             if (s.target) metaBits.push("target " + s.target);
             if (s.rest) metaBits.push("rest " + s.rest);
+            var vs = _repVsTarget(s);
+            if (vs) vsTag = '<span class="lift-set-tag" style="color:' + vs.color + ';border-color:' + vs.color + ';font-weight:700;">' + vs.label + (vs.sec ? " vs target" : "") + "</span>";
             if (s.duration !== "" && s.duration != null) bits.push(s.duration + " min");
             if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
           } else {
@@ -9638,7 +9671,7 @@ async function renderWorkoutsTab(root) {
             '<div class="lift-set-body"><span class="lift-set-main mono">' + bits.join(isCardio ? " \u00B7 " : " \u00D7 ") + "</span>" +
             (isCardio && !s.time && (s.duration === "" || s.duration == null)
               ? '<input class="edit-input" style="width:84px;margin-top:4px;" type="text" placeholder="Time" aria-label="Time for this rep" data-set-time="1" data-item="' + item.id + '" data-lift="' + l.id + '" data-set="' + s.id + '" />' : "") +
-            (metaBits.length ? '<span class="lift-set-meta"><span class="lift-set-tag">' + escapeHtml(metaBits.join(" \u00B7 ")) + "</span></span>" : "") +
+            (metaBits.length || vsTag ? '<span class="lift-set-meta">' + (metaBits.length ? '<span class="lift-set-tag">' + escapeHtml(metaBits.join(" \u00B7 ")) + "</span>" : "") + vsTag + "</span>" : "") +
             (s.isWarmup || pr || setOneRM ? '<span class="lift-set-meta">' +
               (s.isWarmup ? '<span class="lift-set-tag">Warm-up</span>' : "") +
               (pr ? '<span class="lift-set-tag pr">\uD83C\uDFC6 ' + pr.label + "</span>" : "") +
@@ -9669,8 +9702,26 @@ async function renderWorkoutsTab(root) {
             : tile("TOTAL VOLUME", liftVolume ? Math.round(liftVolume).toLocaleString() : "\u2014", liftVolume ? "lbs" : "") + tile("MAX 1RM", liftBest1RM ? Math.round(liftBest1RM) : "\u2014", liftBest1RM ? "lbs" : "")) +
           '<button type="button" class="lift-rest" data-action="rest-start" aria-label="Start rest timer">&#9201; ' + _fmtRest(window._restLast || 90) + "</button>" +
         "</div>";
+        var timingHtml = "";
+        if (isCardio) {
+          var secs = [], hit = 0, scored = 0;
+          (l.sets || []).forEach(function (st) {
+            var tv = _parseClock(st.time);
+            if (tv != null) secs.push(tv);
+            var cmp = _repVsTarget(st);
+            if (cmp) { scored++; if (cmp.sec <= 0) hit++; }
+          });
+          if (secs.length) {
+            var avgS = secs.reduce(function (a, b) { return a + b; }, 0) / secs.length;
+            timingHtml = '<div class="lift-timing" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin:2px 0 10px;font-size:13px;color:var(--text-2);">' +
+              '<span>Best <b class="mono" style="color:var(--text-1);">' + _fmtClock(Math.min.apply(null, secs)) + '</b></span>' +
+              '<span>Average <b class="mono" style="color:var(--text-1);">' + _fmtClock(avgS) + '</b></span>' +
+              (scored ? '<span>On target <b class="mono" style="color:var(--text-1);">' + hit + ' of ' + scored + '</b></span>' : "") +
+              "</div>";
+          }
+        }
         return '<div class="card lift-card">' +
-          header + statsHtml +
+          header + statsHtml + timingHtml +
           '<div class="lift-sets">' + (setRows || "") + "</div>" +
           '<div class="lift-add">' +
             '<span class="lift-add-n">+</span>' +
@@ -9991,7 +10042,7 @@ async function renderWorkoutsTab(root) {
         var distanceEl = document.querySelector('[data-set-field="distance"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
         var timeEl = document.querySelector('[data-set-field="time"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
         var restEl = document.querySelector('[data-set-field="rest"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
-        lift.sets.push({ id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", time: timeEl ? timeEl.value.trim() : "", rest: restEl ? restEl.value.trim() : "", reps: reps, isWarmup: false });
+        lift.sets.push({ id: uid(), duration: durationEl && durationEl.value !== "" ? Number(durationEl.value) : "", distance: distanceEl ? distanceEl.value.trim() : "", time: timeEl ? timeEl.value.trim() : "", target: lift.sets.length && lift.sets[lift.sets.length - 1].target ? lift.sets[lift.sets.length - 1].target : "", rest: restEl ? restEl.value.trim() : "", reps: reps, isWarmup: false });
       } else {
         var weightEl = document.querySelector('[data-set-field="weight"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
         var warmupEl = document.querySelector('[data-set-field="warmup"][data-item="' + itemId + '"][data-lift="' + liftId + '"]');
@@ -16506,14 +16557,15 @@ var DX_DATASETS = [
     } },
   { id: 'lift-sets', group: 'Fitness', label: 'Lift sets', keys: ['dashboard-workouts-data'],
     columns: [['date', 'Date', 'date'], ['workout', 'Workout', 'text'], ['exercise', 'Exercise', 'text'], ['muscle', 'Muscle group', 'text'],
-              ['weight', 'Weight', 'number'], ['reps', 'Reps', 'number'], ['minutes', 'Minutes', 'number'], ['distance', 'Distance', 'text'], ['time', 'Time', 'text'], ['target', 'Target pace', 'text'], ['rest', 'Rest', 'text'], ['warmup', 'Warm-up', 'bool']],
+              ['weight', 'Weight', 'number'], ['reps', 'Reps', 'number'], ['minutes', 'Minutes', 'number'], ['distance', 'Distance', 'text'], ['time', 'Time', 'text'], ['target', 'Target pace', 'text'], ['rest', 'Rest', 'text'], ['timeSec', 'Time (sec)', 'number'], ['targetSec', 'Target (sec)', 'number'], ['vsTargetSec', 'vs target (sec)', 'number'], ['warmup', 'Warm-up', 'bool']],
     rows: function(d) {
       var out = [];
       (d['dashboard-workouts-data'].items || []).forEach(function(it) {
         (it.lifts || []).forEach(function(l) {
           (l.sets || []).forEach(function(s) {
             out.push({ _ref: s, date: it.date || '', workout: it.name || '', exercise: l.name || '', muscle: l.muscleGroup || '',
-                       weight: _dxNum(s.weight), reps: _dxNum(s.reps), minutes: _dxNum(s.duration), distance: s.distance || '', time: s.time || '', target: s.target || '', rest: s.rest || '', warmup: !!s.isWarmup });
+                       weight: _dxNum(s.weight), reps: _dxNum(s.reps), minutes: _dxNum(s.duration), distance: s.distance || '', time: s.time || '', target: s.target || '', rest: s.rest || '',
+                       timeSec: _parseClock(s.time), targetSec: _parseClock(s.target), vsTargetSec: (_repVsTarget(s) || {}).sec == null ? null : _repVsTarget(s).sec, warmup: !!s.isWarmup });
           });
         });
       });
