@@ -9130,6 +9130,14 @@ async function renderWorkoutsTab(root) {
   if (!planData.days) planData.days = {};
   // Plans are only ever useful for the current/upcoming week, so drop anything
   // that's aged out rather than letting this row grow forever.
+  // A day can hold several planned workouts: each date maps to a list. Older data
+  // stored one plan object per date, so wrap those (and drop anything malformed).
+  Object.keys(planData.days).forEach(function (d) {
+    var v = planData.days[d];
+    if (Array.isArray(v)) { v.forEach(function (pl) { if (!pl.id) pl.id = uid(); }); if (!v.length) delete planData.days[d]; }
+    else if (v && typeof v === "object") planData.days[d] = [Object.assign({ id: uid() }, v)];
+    else delete planData.days[d];
+  });
   var _planPruneCutoff = addDaysISO(todayISO(), -14);
   var _planPrunedAny = false;
   Object.keys(planData.days).forEach(function (d) {
@@ -9166,6 +9174,7 @@ async function renderWorkoutsTab(root) {
   var templateEditId = null;
   var confirmResetTemplates = false;
   var planEditingDay = null;
+  var planEditingId = null; // null = adding a new planned workout to planEditingDay
   var planScrollToForm = false;
   var planDraftName = "";
   var planDraftCategory = "strength";
@@ -9175,6 +9184,7 @@ async function renderWorkoutsTab(root) {
   function saveTemplates() { saveTabData(wkKey("dashboard-workouts-templates"), templatesData); }
   function saveSplits() { saveTabData(wkKey("dashboard-workouts-splits"), splitsData); }
   function savePlan() { saveTabData(wkKey("dashboard-workouts-plan"), planData); renderWeekStrip(); }
+  function plansFor(d) { return planData.days[d] || []; }
   if (migratedAny || migratedLiftsAny) save();
   if (_planPrunedAny) savePlan();
 
@@ -9304,11 +9314,11 @@ async function renderWorkoutsTab(root) {
     el.innerHTML = letters.map(function (ltr, i) {
       var d = addDaysISO(mon, i);
       var logged = data.items.filter(function (it) { return it.date === d; });
-      var plan = planData.days[d];
+      var plans = plansFor(d), plan = plans[0];
       var cls = "wk-day" + (d === today ? " today" : "") + (logged.length ? " done" : plan ? " planned" : "") + (d > today && !logged.length && !plan ? " future" : "");
       var cat = logged.length ? categoryById(WORKOUT_CATEGORIES, logged[0].category) : plan ? categoryById(WORKOUT_CATEGORIES, plan.category) : null;
-      var mark = logged.length ? (logged.length > 1 ? String(logged.length) : "&#10003;") : plan ? cat.glyph : "";
-      var label = new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" }) + ": " + (logged.length ? logged.map(function (it) { return it.name; }).join(", ") + " logged" : plan ? plan.name + " planned" : "nothing planned");
+      var mark = logged.length ? (logged.length > 1 ? String(logged.length) : "&#10003;") : plan ? (plans.length > 1 ? String(plans.length) : cat.glyph) : "";
+      var label = new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" }) + ": " + ([logged.length ? logged.map(function (it) { return it.name; }).join(", ") + " logged" : "", plans.length ? plans.map(function (pl) { return pl.name; }).join(", ") + " planned" : ""].filter(Boolean).join("; ") || "nothing planned");
       return '<button type="button" class="' + cls + '" data-date="' + d + '" aria-label="' + escapeHtml(label) + '"' + (cat ? ' style="--c:' + cat.color + ';"' : "") + ">" +
         '<span class="wk-day-l">' + ltr + '</span><span class="wk-day-c">' + mark + '</span><span class="wk-day-n">' + Number(d.slice(8)) + "</span></button>";
     }).join("");
@@ -9324,14 +9334,14 @@ async function renderWorkoutsTab(root) {
     if (!b) return;
     var d = b.getAttribute("data-date");
     var logged = data.items.filter(function (it) { return it.date === d; });
-    if (logged.length) { activeSection = "log"; viewingWorkoutId = logged[0].id; }
+    if (logged.length && !plansFor(d).length) { activeSection = "log"; viewingWorkoutId = logged[0].id; }
     else {
       activeSection = "plan";
       viewingWorkoutId = null;
-      var plan = planData.days[d];
-      planEditingDay = d;
-      if (plan) { planDraftName = plan.name; planDraftCategory = plan.category || "strength"; planDraftTemplateId = plan.templateId || ""; }
-      else { planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = ""; }
+      // An empty day opens the plan form; a day that already has workouts just shows the week.
+      planEditingDay = plansFor(d).length || logged.length ? null : d;
+      planEditingId = null;
+      planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = "";
     }
     renderSectionPills(); renderSection();
     var body = document.getElementById("wkSectionBody");
@@ -10287,8 +10297,8 @@ async function renderWorkoutsTab(root) {
   // Turns a planned day into a real logged workout, dated for whenever it's
   // actually being done (today) rather than the day it was originally planned
   // for — same shape as handleStartFromTemplate above.
-  function handleStartPlanned(dateISO) {
-    var plan = planData.days[dateISO];
+  function handleStartPlanned(dateISO, planId) {
+    var plan = plansFor(dateISO).find(function (pl) { return pl.id === planId; });
     if (!plan) return;
     var lifts = [];
     var tpl = plan.templateId ? (templatesData.templates || []).find(function (t) { return t.id === plan.templateId; }) : null;
@@ -10304,12 +10314,21 @@ async function renderWorkoutsTab(root) {
     }
     var newItem = { id: uid(), category: plan.category || "strength", name: plan.name, date: todayISO(), duration: "", notes: "", lifts: lifts };
     data.items.push(newItem);
-    delete planData.days[dateISO];
+    planData.days[dateISO] = plansFor(dateISO).filter(function (pl) { return pl.id !== planId; });
+    if (!planData.days[dateISO].length) delete planData.days[dateISO];
     save();
     savePlan();
     // Stays on This Week rather than jumping to the Log — checking a day off
     // just flips its row from "planned" to "logged" in place.
     renderPlanSection();
+  }
+
+  // Saves the form: updates the workout being edited, or adds a new one to the day.
+  function _planSaveEntry(fields) {
+    var list = planData.days[planEditingDay] || (planData.days[planEditingDay] = []);
+    var existing = planEditingId ? list.find(function (pl) { return pl.id === planEditingId; }) : null;
+    if (existing) Object.assign(existing, fields); else list.push(Object.assign({ id: uid() }, fields));
+    savePlan();
   }
 
   function renderPlanSection() {
@@ -10322,41 +10341,45 @@ async function renderWorkoutsTab(root) {
     function dayRowHtml(dateISO, dk) {
       var isToday = dateISO === todayISO();
       var loggedForDay = data.items.filter(function (it) { return it.date === dateISO; });
-      var plan = planData.days[dateISO];
-      var barColor = "var(--border-2)", glyphColor = "var(--text-3)", glyph = "·", subText;
+      var plans = plansFor(dateISO);
+      var total = loggedForDay.length + plans.length;
+      var hint = splitsData.days[dk];
+      var first = loggedForDay.length ? categoryById(WORKOUT_CATEGORIES, loggedForDay[0].category) : plans.length ? categoryById(WORKOUT_CATEGORIES, plans[0].category) : null;
+      var barColor = first ? first.color : "var(--border-2)", glyphColor = first ? first.color : "var(--text-3)", glyph = first ? first.glyph : "·";
+      var subText = total
+        ? total + " workout" + (total === 1 ? "" : "s") + (hint ? " · Usual: " + escapeHtml(hint) : "")
+        : (hint ? "Usual split: " + escapeHtml(hint) : "Nothing planned");
 
-      if (loggedForDay.length) {
-        var lc = categoryById(WORKOUT_CATEGORIES, loggedForDay[0].category);
-        barColor = lc.color; glyphColor = lc.color; glyph = lc.glyph;
-        subText = loggedForDay.map(function (it) { return escapeHtml(it.name); }).join(", ") + " — logged";
-      } else if (plan) {
-        var pc = categoryById(WORKOUT_CATEGORIES, plan.category);
-        barColor = pc.color; glyphColor = pc.color; glyph = pc.glyph;
-        subText = escapeHtml(plan.name) + " — planned";
-      } else {
-        var hint = splitsData.days[dk];
-        subText = hint ? "Usual split: " + escapeHtml(hint) : "Nothing planned";
-      }
-
-      var actions;
-      if (loggedForDay.length) {
-        actions = '<button class="icon-btn" data-action="plan-view" data-id="' + loggedForDay[0].id + '" title="View">›</button>';
-      } else if (plan) {
-        actions =
-          '<input type="checkbox" class="plan-check" data-action="plan-start" data-date="' + dateISO + '" title="Check off as completed" style="width:18px;height:18px;accent-color:' + accent + ';cursor:pointer;margin-right:2px;" />' +
-          '<button class="icon-btn" data-action="plan-edit" data-date="' + dateISO + '" title="Edit">✎</button>' +
-          '<button class="icon-btn" data-action="plan-remove" data-date="' + dateISO + '" title="Remove">✕</button>';
-      } else {
-        actions = '<button class="icon-btn" data-action="plan-add" data-date="' + dateISO + '" title="Plan a workout">+</button>';
-      }
-
-      return '<div class="item-row"><div class="item-display">' +
+      // One header row per day (its + adds another workout), then one row per workout.
+      var html = '<div class="item-row"><div class="item-display">' +
         '<span class="item-bar" style="background:' + barColor + ';"></span>' +
         '<span class="item-glyph" style="color:' + glyphColor + ';">' + glyph + "</span>" +
         '<div class="item-main"><div class="item-name">' + dayLabels[dk] + (isToday ? " · Today" : " · " + formatDateShort(dateISO)) + "</div>" +
         '<div class="item-sub">' + subText + "</div></div>" +
-        '<div class="item-actions">' + actions + "</div>" +
-      "</div></div>" + (planEditingDay === dateISO ? '<div id="wkPlanFormSlot">' + planFormHtml(dateISO, dk) + "</div>" : "");
+        '<div class="item-actions"><button class="icon-btn" data-action="plan-add" data-date="' + dateISO + '" title="' + (total ? "Add another workout" : "Plan a workout") + '">+</button></div>' +
+      "</div></div>";
+
+      function entryRow(color, g, name, sub, actions) {
+        return '<div class="item-row"><div class="item-display" style="padding-left:14px;">' +
+          '<span class="item-bar" style="background:' + color + ';"></span>' +
+          '<span class="item-glyph" style="color:' + color + ';">' + g + "</span>" +
+          '<div class="item-main"><div class="item-name" style="font-size:14px;">' + escapeHtml(name) + '</div><div class="item-sub">' + sub + "</div></div>" +
+          '<div class="item-actions">' + actions + "</div></div></div>";
+      }
+      loggedForDay.forEach(function (it) {
+        var lc = categoryById(WORKOUT_CATEGORIES, it.category);
+        html += entryRow(lc.color, lc.glyph, it.name, "logged", '<button class="icon-btn" data-action="plan-view" data-id="' + it.id + '" title="View">›</button>');
+      });
+      plans.forEach(function (pl) {
+        var pc = categoryById(WORKOUT_CATEGORIES, pl.category);
+        html += entryRow(pc.color, pc.glyph, pl.name, "planned",
+          '<input type="checkbox" class="plan-check" data-action="plan-start" data-date="' + dateISO + '" data-pid="' + pl.id + '" title="Check off as completed" style="width:18px;height:18px;accent-color:' + accent + ';cursor:pointer;margin-right:2px;" />' +
+          '<button class="icon-btn" data-action="plan-edit" data-date="' + dateISO + '" data-pid="' + pl.id + '" title="Edit">✎</button>' +
+          '<button class="icon-btn" data-action="plan-remove" data-date="' + dateISO + '" data-pid="' + pl.id + '" title="Remove">✕</button>');
+        if (planEditingDay === dateISO && planEditingId === pl.id) html += '<div id="wkPlanFormSlot">' + planFormHtml(dateISO, dk) + "</div>";
+      });
+      if (planEditingDay === dateISO && !planEditingId) html += '<div id="wkPlanFormSlot">' + planFormHtml(dateISO, dk) + "</div>";
+      return html;
     }
 
     // Opens right under the day that was tapped (it used to render below the
@@ -10395,6 +10418,7 @@ async function renderWorkoutsTab(root) {
     bodyEl.querySelectorAll("[data-action='plan-add']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
         planEditingDay = e.currentTarget.getAttribute("data-date");
+        planEditingId = null;
         planDraftName = ""; planDraftCategory = "strength"; planDraftTemplateId = "";
         planScrollToForm = true;
         renderPlanSection();
@@ -10402,10 +10426,10 @@ async function renderWorkoutsTab(root) {
     });
     bodyEl.querySelectorAll("[data-action='plan-edit']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
-        var d = e.currentTarget.getAttribute("data-date");
-        var plan = planData.days[d];
+        var d = e.currentTarget.getAttribute("data-date"), pid = e.currentTarget.getAttribute("data-pid");
+        var plan = plansFor(d).find(function (pl) { return pl.id === pid; });
         if (!plan) return;
-        planEditingDay = d;
+        planEditingDay = d; planEditingId = pid;
         planDraftName = plan.name; planDraftCategory = plan.category || "strength"; planDraftTemplateId = plan.templateId || "";
         planScrollToForm = true;
         renderPlanSection();
@@ -10413,19 +10437,23 @@ async function renderWorkoutsTab(root) {
     });
     bodyEl.querySelectorAll("[data-action='plan-remove']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
-        var rmDate = e.currentTarget.getAttribute("data-date");
-        var rmPlan = planData.days[rmDate];
-        delete planData.days[rmDate];
-        if (planEditingDay === rmDate) planEditingDay = null;
+        var rmDate = e.currentTarget.getAttribute("data-date"), rmId = e.currentTarget.getAttribute("data-pid");
+        var rmList = plansFor(rmDate), rmIdx = rmList.findIndex(function (pl) { return pl.id === rmId; });
+        if (rmIdx < 0) return;
+        var rmPlan = rmList[rmIdx];
+        planData.days[rmDate] = rmList.filter(function (pl) { return pl.id !== rmId; });
+        if (!planData.days[rmDate].length) delete planData.days[rmDate];
+        if (planEditingDay === rmDate && planEditingId === rmId) { planEditingDay = null; planEditingId = null; }
         savePlan();
         renderPlanSection();
-        if (rmPlan) _offerUndo("Planned workout removed", function () {
-          if (!planData.days[rmDate]) { planData.days[rmDate] = rmPlan; savePlan(); renderPlanSection(); }
+        _offerUndo("Planned workout removed", function () {
+          var cur = planData.days[rmDate] || (planData.days[rmDate] = []);
+          if (!cur.some(function (pl) { return pl.id === rmId; })) { cur.splice(Math.min(rmIdx, cur.length), 0, rmPlan); savePlan(); renderPlanSection(); }
         });
       });
     });
     bodyEl.querySelectorAll("[data-action='plan-start']").forEach(function (checkbox) {
-      checkbox.addEventListener("change", function (e) { handleStartPlanned(e.currentTarget.getAttribute("data-date")); });
+      checkbox.addEventListener("change", function (e) { handleStartPlanned(e.currentTarget.getAttribute("data-date"), e.currentTarget.getAttribute("data-pid")); });
     });
     bodyEl.querySelectorAll("[data-action='plan-view']").forEach(function (btn) {
       btn.addEventListener("click", function (e) {
@@ -10446,18 +10474,16 @@ async function renderWorkoutsTab(root) {
         btn.addEventListener("click", function (e) {
           var t = templatesData.templates.find(function (tpl) { return tpl.id === e.currentTarget.getAttribute("data-plan-template"); });
           if (!t) return;
-          planData.days[planEditingDay] = { name: t.name, category: t.category || "strength", templateId: t.id };
-          savePlan();
-          planEditingDay = null;
+          _planSaveEntry({ name: t.name, category: t.category || "strength", templateId: t.id });
+          planEditingDay = null; planEditingId = null;
           renderPlanSection();
         });
       });
-      document.getElementById("wkPlanCancelBtn").addEventListener("click", function () { planEditingDay = null; renderPlanSection(); });
+      document.getElementById("wkPlanCancelBtn").addEventListener("click", function () { planEditingDay = null; planEditingId = null; renderPlanSection(); });
       document.getElementById("wkPlanSaveBtn").addEventListener("click", function () {
         if (!planDraftName.trim()) { document.getElementById("wkPlanError").textContent = "Give it a name first."; return; }
-        planData.days[planEditingDay] = { name: planDraftName.trim(), category: planDraftCategory, templateId: planDraftTemplateId || "" };
-        savePlan();
-        planEditingDay = null;
+        _planSaveEntry({ name: planDraftName.trim(), category: planDraftCategory, templateId: planDraftTemplateId || "" });
+        planEditingDay = null; planEditingId = null;
         renderPlanSection();
       });
     }
