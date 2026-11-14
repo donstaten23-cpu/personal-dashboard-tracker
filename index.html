@@ -9601,9 +9601,11 @@ async function renderWorkoutsTab(root) {
         var mg = isCardio ? { label: "Cardio / Activity", color: "#E1543F" } : (MUSCLE_GROUPS.filter(function (m) { return m.id === l.muscleGroup; })[0] || MUSCLE_GROUPS[MUSCLE_GROUPS.length - 1]);
         var subLabel = [mg.label].concat(isCardio ? [] : (l.trainingStyles || []).map(function (id) { var ts = TRAINING_STYLES.filter(function (t) { return t.id === id; })[0]; return ts ? ts.label : ""; }).filter(Boolean)).join(" \u00B7 ");
         var working = (l.sets || []).filter(function (st) { return !st.isWarmup; });
-        var liftVolume = 0, liftBest1RM = 0, liftMinutes = 0;
+        var liftVolume = 0, liftBest1RM = 0, liftMinutes = 0, liftReps = 0, bestReps = 0;
         working.forEach(function (st) {
           liftVolume += (Number(st.weight) || 0) * (Number(st.reps) || 0);
+          liftReps += Number(st.reps) || 0;
+          bestReps = Math.max(bestReps, Number(st.reps) || 0);
           liftBest1RM = Math.max(liftBest1RM, estOneRM(st.weight, st.reps));
           liftMinutes += Number(st.duration) || 0;
         });
@@ -9663,7 +9665,7 @@ async function renderWorkoutsTab(root) {
             if (s.reps !== "" && s.reps != null) bits.push(s.reps + " reps");
           } else {
             if (s.weight !== "" && s.weight != null) bits.push(s.weight + " lbs");
-            if (s.reps !== "" && s.reps != null) bits.push(s.reps);
+            if (s.reps !== "" && s.reps != null) bits.push(s.reps + (s.weight !== "" && s.weight != null ? "" : " reps"));
           }
           var setOneRM = isCardio || s.isWarmup ? 0 : Math.round(estOneRM(s.weight, s.reps));
           return '<div class="weight-log-row lift-set' + (s.isWarmup ? " warm" : "") + '">' +
@@ -9699,7 +9701,10 @@ async function renderWorkoutsTab(root) {
         var statsHtml = isEditingName ? "" : '<div class="lift-stats">' +
           (isCardio
             ? tile("REPS", (l.sets || []).length, "") + tile("TOTAL TIME", liftMinutes ? Math.round(liftMinutes * 10) / 10 : "\u2014", liftMinutes ? "min" : "")
-            : tile("TOTAL VOLUME", liftVolume ? Math.round(liftVolume).toLocaleString() : "\u2014", liftVolume ? "lbs" : "") + tile("MAX 1RM", liftBest1RM ? Math.round(liftBest1RM) : "\u2014", liftBest1RM ? "lbs" : "")) +
+            // Bodyweight moves (pull-ups, push-ups…) have no volume or 1RM, so count reps instead.
+            : !liftVolume && liftReps
+              ? tile("TOTAL REPS", liftReps, working.length + (working.length === 1 ? " set" : " sets")) + tile("BEST SET", bestReps, "reps")
+              : tile("TOTAL VOLUME", liftVolume ? Math.round(liftVolume).toLocaleString() : "\u2014", liftVolume ? "lbs \u00B7 " + liftReps + " reps" : "") + tile("MAX 1RM", liftBest1RM ? Math.round(liftBest1RM) : "\u2014", liftBest1RM ? "lbs" : "")) +
           '<button type="button" class="lift-rest" data-action="rest-start" aria-label="Start rest timer">&#9201; ' + _fmtRest(window._restLast || 90) + "</button>" +
         "</div>";
         var timingHtml = "";
@@ -10323,9 +10328,9 @@ async function renderWorkoutsTab(root) {
         '<button class="icon-btn" data-action="delete" data-id="' + item.id + '">✕</button>' +
       "</div>";
     }
-    var totalVol = 0, totalSets = 0;
+    var totalVol = 0, totalSets = 0, totalReps = 0;
     (item.lifts || []).forEach(function (l) {
-      (l.sets || []).forEach(function (st) { if (!st.isWarmup) { totalSets++; totalVol += (Number(st.weight) || 0) * (Number(st.reps) || 0); } });
+      (l.sets || []).forEach(function (st) { if (!st.isWarmup) { totalSets++; totalVol += (Number(st.weight) || 0) * (Number(st.reps) || 0); if (l.kind !== "cardio") totalReps += Number(st.reps) || 0; } });
     });
     var nLifts = (item.lifts || []).length;
     var statTile = function (label, big, sub) {
@@ -10334,7 +10339,7 @@ async function renderWorkoutsTab(root) {
     bodyEl.innerHTML =
       '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);justify-self:start;">‹ Back to Log</button>' +
       '<div class="card">' + headerHtml + "</div>" +
-      (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises")) : "") +
+      (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises") + (totalReps ? " \u00B7 " + totalReps.toLocaleString() + " reps" : "")) : "") +
       renderLiftsBlock(item, prData);
     bodyEl.querySelectorAll("details.lift-tags").forEach(function (d) {
       d.addEventListener("toggle", function () { liftTagsOpen[d.getAttribute("data-lift")] = d.open; });
