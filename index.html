@@ -9494,7 +9494,7 @@ async function renderWorkoutsTab(root) {
         '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
         '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
       "</div>" +
-      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div><div id="wkCardioGoal" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);"></div></div>' +
+      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div><div id="wkPie"></div><div id="wkCardioGoal" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);"></div></div>' +
       '<div class="chips" id="wkChips"></div>' +
       '<div class="card">' +
         '<div class="pills" id="wkPills"></div>' +
@@ -9596,7 +9596,28 @@ async function renderWorkoutsTab(root) {
           document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
         }
       }
+      renderWeekPie(thisWeek);
       renderCardioGoal(weekCardio);
+    }
+    // This week's workouts as a donut, one slice per workout type.
+    function renderWeekPie(thisWeek) {
+      var el = document.getElementById("wkPie"); if (!el) return;
+      var slices = WORKOUT_CATEGORIES.map(function (c) {
+        return { label: c.label, color: c.color, n: thisWeek.filter(function (it) { return it.category === c.id; }).length };
+      }).filter(function (sl) { return sl.n > 0; });
+      if (!slices.length) { el.innerHTML = ""; return; }
+      var total = thisWeek.length, R = 40, C = 2 * Math.PI * R, off = 0, arcs = "";
+      slices.forEach(function (sl) {
+        var len = sl.n / total * C;
+        arcs += '<circle cx="50" cy="50" r="' + R + '" fill="none" stroke="' + sl.color + '" stroke-width="16" stroke-dasharray="' + len + " " + (C - len) + '" stroke-dashoffset="' + (-off) + '" transform="rotate(-90 50 50)"><title>' + escapeHtml(sl.label) + ": " + sl.n + "</title></circle>";
+        off += len;
+      });
+      el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:14px;">' +
+        '<svg viewBox="0 0 100 100" width="96" height="96" role="img" aria-label="This week\u2019s workouts by type" style="flex-shrink:0;"><circle cx="50" cy="50" r="' + R + '" fill="none" stroke="var(--border-2)" stroke-width="16"/>' + arcs +
+          '<text x="50" y="52" text-anchor="middle" font-size="22" font-weight="700" fill="var(--text-1)" font-family="inherit">' + total + '</text><text x="50" y="65" text-anchor="middle" font-size="9" fill="var(--text-2)" font-family="inherit">this week</text></svg>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--text-1);min-width:0;">' + slices.map(function (sl) {
+          return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + sl.color + ';margin-right:6px;"></span>' + escapeHtml(sl.label) + ' <b class="mono">' + sl.n + "</b></span>";
+        }).join("") + "</div></div>";
     }
     // Weekly cardio against a goal. Default 150 min: the standard adult recommendation
     // (CDC / WHO / AHA: 150 minutes of moderate cardio a week, or 75 if vigorous).
