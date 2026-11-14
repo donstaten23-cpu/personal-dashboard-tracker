@@ -10647,14 +10647,14 @@ async function renderWorkoutsTab(root) {
               '<input class="form-input" style="width:100px;" type="text" id="wkTplActDistance" placeholder="Distance" />' +
               '<input class="form-input" style="width:100px;" type="text" id="wkTplActPace" placeholder="Target pace" />' +
               '<input class="form-input" style="width:110px;" type="text" id="wkTplActRest" placeholder="Rest" />' +
-              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+</button>' +
+              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+ Add</button>' +
             "</div>"
           : '<div class="row-gap" style="margin-bottom:12px;">' +
               '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="wkTplLiftName" placeholder="Lift name" data-exercise-combo="1" /></span>' +
               '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
               '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftReps" placeholder="Reps" />' +
               '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" id="wkTplLiftWeight" placeholder="Lbs" />' +
-              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+</button>' +
+              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+ Add</button>' +
             "</div>") +
         '<div class="form-actions"><span class="error-text" id="wkTplError"></span>' +
           '<button class="link-btn" id="wkTplCancelBtn" style="color:var(--text-2);">Cancel</button>' +
@@ -10704,30 +10704,32 @@ async function renderWorkoutsTab(root) {
           templateDraft.lifts[idx][field] = (field === "targetWeight" || field === "targetMinutes") && e.target.value !== "" ? Number(e.target.value) : e.target.value;
         });
       });
-      document.getElementById("wkTplAddLiftBtn").addEventListener("click", function () {
-        var nameEl = document.getElementById("wkTplLiftName");
-        var name = nameEl.value.trim();
-        if (!name) { nameEl.focus(); return; }
+      // Reads the add row into the template. Returns "added", "empty" (nothing typed)
+      // or "noname" (details typed but no name).
+      function takePendingTplLift() {
+        var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
+        var name = val("wkTplLiftName");
+        var others = ["wkTplLiftSets", "wkTplLiftReps", "wkTplLiftWeight", "wkTplActDistance", "wkTplActPace", "wkTplActRest"].map(val).join("");
+        if (!name) return others ? "noname" : "empty";
         if (tplNewKind === "cardio") {
           templateDraft.lifts.push({
             name: name, kind: "cardio",
-            targetSets: document.getElementById("wkTplLiftSets").value || "", // number of reps
-            targetDistance: document.getElementById("wkTplActDistance").value.trim(),
-            targetPace: document.getElementById("wkTplActPace").value.trim(),
-            targetRest: document.getElementById("wkTplActRest").value.trim()
+            targetSets: val("wkTplLiftSets"), // number of reps
+            targetDistance: val("wkTplActDistance"), targetPace: val("wkTplActPace"), targetRest: val("wkTplActRest")
           });
-          renderTemplatesSection();
-          return;
+        } else {
+          var tags = _matchLiftTags(name);
+          templateDraft.lifts.push({
+            name: name, targetSets: val("wkTplLiftSets"), targetReps: val("wkTplLiftReps"),
+            targetWeight: val("wkTplLiftWeight") === "" ? "" : Number(val("wkTplLiftWeight")),
+            muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto"
+          });
         }
-        var tags = _matchLiftTags(name);
-        templateDraft.lifts.push({
-          name: name,
-          targetSets: document.getElementById("wkTplLiftSets").value || "",
-          targetReps: document.getElementById("wkTplLiftReps").value || "",
-          targetWeight: document.getElementById("wkTplLiftWeight").value === "" ? "" : Number(document.getElementById("wkTplLiftWeight").value),
-          muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto"
-        });
-        renderTemplatesSection();
+        return "added";
+      }
+      document.getElementById("wkTplAddLiftBtn").addEventListener("click", function () {
+        if (takePendingTplLift() === "added") renderTemplatesSection();
+        else document.getElementById("wkTplLiftName").focus();
       });
       bodyEl.querySelectorAll("[data-action='remove-tpl-lift']").forEach(function (btn) {
         btn.addEventListener("click", function (e) { templateDraft.lifts.splice(Number(e.currentTarget.getAttribute("data-idx")), 1); renderTemplatesSection(); });
@@ -10735,6 +10737,9 @@ async function renderWorkoutsTab(root) {
       document.getElementById("wkTplCancelBtn").addEventListener("click", function () { templateAddMode = false; templateDraft = null; templateEditId = null; renderTemplatesSection(); });
       document.getElementById("wkTplSaveBtn").addEventListener("click", function () {
         if (!templateDraft.name.trim()) { document.getElementById("wkTplError").textContent = "Give it a name first."; return; }
+        // Details typed in the add row count even if + wasn't tapped (it's easy to miss,
+        // and on a phone the number pad can cover it).
+        if (takePendingTplLift() === "noname") { document.getElementById("wkTplError").textContent = "Give that exercise a name (or clear its boxes) first."; document.getElementById("wkTplLiftName").focus(); return; }
         if (templateEditId) {
           var idx = templatesData.templates.findIndex(function (t) { return t.id === templateEditId; });
           if (idx !== -1) {
