@@ -1209,7 +1209,10 @@
   .ptr-ind .ptr-arrow { display: inline-block; transition: transform .2s; }
   .ptr-ind.ready { color: var(--accent); border-color: var(--accent); }
   .ptr-ind.ready .ptr-arrow { transform: rotate(180deg); }
-  .ptr-ind.busy .ptr-arrow { animation: ptrSpin .8s linear infinite; }
+  .ptr-ind .ptr-spin { display: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border-2); border-top-color: var(--accent); }
+  .ptr-ind.busy { color: var(--text-1); border-color: var(--accent); }
+  .ptr-ind.busy .ptr-arrow { display: none; }
+  .ptr-ind.busy .ptr-spin { display: inline-block; animation: ptrSpin .7s linear infinite; }
   @keyframes ptrSpin { to { transform: rotate(360deg); } }
   .bible-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--bg); color: var(--text-1); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px); }
   .bible-overlay-inner { max-width: 640px; margin: 0 auto; }
@@ -3283,6 +3286,9 @@ document.getElementById("authOrbLogo").addEventListener("load", function () { th
 // page load (e.g. it was just used to reveal the sign-in form), and can be
 // turned off in Settings (entryGate, mirrored to window._shellPrefs).
 var _entryGatePassed = false;
+// After a deliberate update (pull down / "Reload"), come back to the dashboard
+// without asking for the entry circle again.
+try { if (sessionStorage.getItem("skipGateOnce") === "1") { _entryGatePassed = true; sessionStorage.removeItem("skipGateOnce"); } } catch (e) {}
 function _entryGateWanted() {
   // Reduced-motion users still get the gate; the CSS just drops its animation.
   return !_entryGatePassed && !(window._shellPrefs && window._shellPrefs.gate === false);
@@ -19715,7 +19721,7 @@ function _onShellUpdated(reload) {
   el.addEventListener("click", function (e) {
     var b = e.target.closest("[data-u]");
     if (!b) return;
-    if (b.getAttribute("data-u") === "reload") { try { sessionStorage.setItem("keepRouteOnce", "1"); } catch (x) {} reload(); } else el.remove();
+    if (b.getAttribute("data-u") === "reload") { try { sessionStorage.setItem("keepRouteOnce", "1"); sessionStorage.setItem("skipGateOnce", "1"); } catch (x) {} reload(); } else el.remove();
   });
   document.body.appendChild(el);
 }
@@ -19732,7 +19738,7 @@ function _ptrEl() {
   if (el) return el;
   el = document.createElement("div");
   el.id = "ptrInd"; el.className = "ptr-ind"; el.setAttribute("role", "status");
-  el.innerHTML = '<span class="ptr-arrow">&#8595;</span><span class="ptr-txt">Pull to update</span>';
+  el.innerHTML = '<span class="ptr-arrow">&#8595;</span><span class="ptr-spin"></span><span class="ptr-txt">Pull to update</span>';
   document.body.appendChild(el);
   return el;
 }
@@ -19745,7 +19751,7 @@ function _ptrShow(dy, ready) {
 }
 function _ptrHide() { var el = document.getElementById("ptrInd"); if (el) { el.style.opacity = "0"; el.style.transform = "translate(-50%, 0)"; el.classList.remove("ready", "busy"); } }
 async function _pullUpdate() {
-  var el = _ptrEl();
+  var el = _ptrEl(), minShow = new Promise(function (r) { setTimeout(r, 900); });
   el.classList.add("busy"); el.style.opacity = "1"; el.style.transform = "translate(-50%, 40px)";
   el.querySelector(".ptr-txt").textContent = "Updating\u2026";
   try {
@@ -19760,7 +19766,8 @@ async function _pullUpdate() {
     var reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
     if (reg) await reg.update().catch(function () {});
   } catch (e) { /* offline: just reload what we have */ }
-  try { sessionStorage.setItem("keepRouteOnce", "1"); } catch (e) {}
+  await minShow; // let the spinner be seen even when the network is fast
+  try { sessionStorage.setItem("keepRouteOnce", "1"); sessionStorage.setItem("skipGateOnce", "1"); } catch (e) {}
   (window._pullReload || function () { location.reload(); })();
 }
 document.addEventListener("touchstart", function (e) {
