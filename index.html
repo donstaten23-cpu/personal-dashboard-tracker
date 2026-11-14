@@ -9465,7 +9465,7 @@ async function renderWorkoutsTab(root) {
         '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
         '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
       "</div>" +
-      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
+      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div><div id="wkCardioGoal" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);"></div></div>' +
       '<div class="chips" id="wkChips"></div>' +
       '<div class="card">' +
         '<div class="pills" id="wkPills"></div>' +
@@ -9535,7 +9535,7 @@ async function renderWorkoutsTab(root) {
       var weekWeightLbs = currentBodyWeight();
       var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
       var weekCardio = Math.round(thisWeek.reduce(function (sum, it) { return sum + _cardioMinutes(it); }, 0) * 10) / 10;
-      var weekCalSuffix = (weekCardio > 0 ? " · " + weekCardio + " cardio min" : "") + (weekCal > 0 ? " · ~" + weekCal + " cal" : "");
+      var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
       var weekTile = function (big, sub) { return '<span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span>"; };
       function showGoalEditor() {
         bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>' +
@@ -9566,6 +9566,29 @@ async function renderWorkoutsTab(root) {
           bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:var(--text-2);">Set a weekly goal to track against</button>';
           document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
         }
+      }
+      renderCardioGoal(weekCardio);
+    }
+    // Weekly cardio against a goal. Default 150 min: the standard adult recommendation
+    // (CDC / WHO / AHA: 150 minutes of moderate cardio a week, or 75 if vigorous).
+    var cardioGoalEditing = false;
+    function renderCardioGoal(weekCardio) {
+      var el = document.getElementById("wkCardioGoal"); if (!el) return;
+      var goal = Number(data.cardioGoal) > 0 ? Number(data.cardioGoal) : 150;
+      var pct = Math.min(100, weekCardio / goal * 100), met = weekCardio >= goal, left = Math.max(0, Math.round((goal - weekCardio) * 10) / 10);
+      var color = met ? "#5BAE7A" : "#E1543F";
+      el.innerHTML = '<div class="gauge-top"><span class="gauge-label mono">CARDIO THIS WEEK</span><span><span class="bento-value">' + weekCardio + ' of ' + goal + '</span><span class="bento-sub">min</span></span></div>' +
+        '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>' +
+        '<div style="color:var(--text-2);font-size:12px;margin-top:6px;">' + (met ? "Goal reached \u2713" : left + " min to go") + ' \u00B7 150 min is the standard weekly recommendation (CDC / WHO)</div>' +
+        (cardioGoalEditing
+          ? '<div class="row-gap" style="margin-top:8px;"><input id="wkCardioGoalDraft" class="small-input" type="number" min="1" placeholder="Minutes per week" value="' + goal + '" /><button class="small-btn" id="wkCardioGoalSet" style="background:' + accent + ';">Set</button><button class="link-btn" id="wkCardioGoalReset" style="color:var(--text-2);">Use 150</button></div>'
+          : '<button class="link-btn" id="wkCardioGoalEdit" style="color:var(--text-2);margin-top:6px;">Change cardio goal</button>');
+      var edit = document.getElementById("wkCardioGoalEdit");
+      if (edit) edit.addEventListener("click", function () { cardioGoalEditing = true; renderGauge(); });
+      var setB = document.getElementById("wkCardioGoalSet");
+      if (setB) {
+        setB.addEventListener("click", function () { var v = Number(document.getElementById("wkCardioGoalDraft").value); data.cardioGoal = v > 0 ? v : ""; cardioGoalEditing = false; save(); renderGauge(); });
+        document.getElementById("wkCardioGoalReset").addEventListener("click", function () { data.cardioGoal = ""; cardioGoalEditing = false; save(); renderGauge(); });
       }
     }
     function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
