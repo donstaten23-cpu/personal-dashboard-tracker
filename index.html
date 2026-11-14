@@ -935,6 +935,10 @@
   .plan-bn { flex: 1; min-width: 0; color: var(--text-1); overflow-wrap: anywhere; }
   .plan-ba { color: #FF8A5C; }
   .plan-x { min-width: 28px !important; min-height: 28px !important; padding: 2px !important; }
+  .plan-note { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; width: 100%; text-align: left; background: color-mix(in srgb, var(--accent) 8%, var(--bg)); border: 1px solid var(--border-2); border-radius: 10px; padding: 8px 10px; margin: 6px 0; color: var(--text-1); font: inherit; font-size: 13px; cursor: pointer; }
+  .plan-note-t { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+  .plan-note-add { display: block; font-size: 12px; margin: 4px 0; padding: 4px 0; }
+  .plan-note-edit { margin: 6px 0; }
   .plan-none { font-size: 12px; color: var(--text-3); padding: 6px 0; border-top: 1px solid var(--border-2); }
   .plan-foot { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: var(--text-2); padding-top: 8px; margin-top: 4px; border-top: 1px dashed var(--border-2); }
   .plan-total { margin-top: 16px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border-2); }
@@ -5492,6 +5496,8 @@ async function renderSpendTab(root, cfg) {
   // Bills moved to a different paycheck: "<bill id>@<its due date>" -> the paycheck date (YYYY-MM-DD) that pays it instead.
   if (!data.billMoves || typeof data.billMoves !== "object") data.billMoves = {};
   if (!data.payOverrides || typeof data.payOverrides !== "object") data.payOverrides = {};
+  // A free-text note per paycheck date (YYYY-MM-DD -> text).
+  if (!data.payNotes || typeof data.payNotes !== "object") data.payNotes = {};
   if ([1, 2, 3, 6].indexOf(data.planMonths) < 0) data.planMonths = 3;
   // migrate the old single shared periodSpend {spent,target} into a per-person shape.
   if (data.periodSpend && data.periodSpend.spent !== undefined && !data.periodSpend.me) {
@@ -6406,6 +6412,7 @@ async function renderSpendTab(root, cfg) {
   }
 
   var planEditKey = null, planEditVal = "";
+  var planNoteKey = null, planNoteDraft = ""; // the paycheck date whose note is being edited
   var planAddOpen = false, planAddForm = { name: "", amount: "", date: "", owner: "" }, planAddError = "";
   var allowEditOpen = false, allowDraft = [];
   var planMoveKey = null; // the bill whose "move to another paycheck" picker is open
@@ -6483,6 +6490,7 @@ async function renderSpendTab(root, cfg) {
       html += '<div class="plan-period"><div class="plan-when">' + pd.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) + '</div>' +
         '<div class="plan-cover">pays for ' + fmtShort(pd.date) + ' – ' + fmtShort(pd.end) + '</div>' +
         '<div class="plan-chips">' + chips + '</div>' +
+        planNoteHtml(_isoLocal(pd.date)) +
         (pd.bills.length ? pd.bills.map(billRow).join("") : '<div class="plan-none">Nothing due in this stretch ✨</div>') +
         '<div class="plan-foot"><span>Bills <span class="mono">' + formatCurrency(pd.billsTotal) + '</span></span><span>Left <span class="mono" style="color:' + (pd.left < 0 ? "#FF8A5C" : "#5BAE7A") + ';">' + formatCurrency(pd.left) + '</span></span></div></div>';
     });
@@ -6513,6 +6521,19 @@ async function renderSpendTab(root, cfg) {
     el.innerHTML = html;
   }
 
+  // Note for one paycheck: shows the text (tap to edit), an "add a note" link, or the editor.
+  function planNoteHtml(dateISO) {
+    var note = (data.payNotes || {})[dateISO] || "";
+    if (planNoteKey === dateISO) {
+      return '<div class="plan-note-edit"><textarea class="form-input" rows="3" data-plan-note placeholder="Notes for this paycheck — what it\u2019s for, things to remember\u2026" style="width:100%;resize:vertical;">' + escapeHtml(planNoteDraft) + '</textarea>' +
+        '<div class="row-gap" style="margin-top:6px;"><button class="small-btn" data-action="plan-note-save" data-date="' + dateISO + '" style="background:' + cfg.accent + ';">Save note</button>' +
+        '<button class="small-btn" data-action="plan-note-cancel" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button>' +
+        (note ? '<button class="link-btn" data-action="plan-note-delete" data-date="' + dateISO + '" style="color:var(--text-2);">Delete</button>' : "") + '</div></div>';
+    }
+    if (note) return '<button class="plan-note" data-action="plan-note-edit" data-date="' + dateISO + '" aria-label="Edit note"><span class="plan-note-t">' + escapeHtml(note) + '</span><span class="plan-pen">\u270E</span></button>';
+    return '<button class="link-btn plan-note-add" data-action="plan-note-edit" data-date="' + dateISO + '" style="color:' + cfg.accent + ';">+ Add a note</button>';
+  }
+
   function planSaveOverride(key, amount) {
     var usual = 0;
     (data.payPeriods || []).forEach(function (pp) { if (key.indexOf(pp.id + "@") === 0) usual = Number(pp.amount) || 0; });
@@ -6529,6 +6550,13 @@ async function renderSpendTab(root, cfg) {
       var btn = e.target.closest("[data-action]");
       if (!btn) return;
       var act = btn.getAttribute("data-action"), key = btn.getAttribute("data-key");
+      if (act === "plan-note-edit") { var nd = btn.getAttribute("data-date"); planNoteKey = nd; planNoteDraft = (data.payNotes || {})[nd] || ""; renderPlanAhead(); var nt = el.querySelector("[data-plan-note]"); if (nt) { nt.focus(); nt.setSelectionRange(nt.value.length, nt.value.length); } return; }
+      if (act === "plan-note-cancel") { planNoteKey = null; renderPlanAhead(); return; }
+      if (act === "plan-note-save" || act === "plan-note-delete") {
+        var sd = btn.getAttribute("data-date"), txt = act === "plan-note-delete" ? "" : planNoteDraft.trim();
+        if (txt) data.payNotes[sd] = txt; else delete data.payNotes[sd];
+        planNoteKey = null; save(); renderPlanAhead(); return;
+      }
       if (act === "plan-edit") { planEditKey = key; planEditVal = btn.getAttribute("data-amount") || ""; renderPlanAhead(); var inp = el.querySelector("[data-plan-input]"); if (inp) { inp.focus(); inp.select(); } }
       else if (act === "plan-cancel") { planEditKey = null; planMoveKey = null; renderPlanAhead(); }
       else if (act === "bill-move-open") { planMoveKey = planMoveKey === key ? null : key; renderPlanAhead(); }
@@ -6564,6 +6592,7 @@ async function renderSpendTab(root, cfg) {
     });
     el.addEventListener("input", function (e) {
       if (e.target.hasAttribute && e.target.hasAttribute("data-plan-input")) planEditVal = e.target.value;
+      if (e.target.hasAttribute && e.target.hasAttribute("data-plan-note")) planNoteDraft = e.target.value;
       var f = e.target.getAttribute && e.target.getAttribute("data-plan-add");
       if (f) planAddForm[f] = e.target.value;
       var an = e.target.getAttribute && e.target.getAttribute("data-allow-name"), aa = e.target.getAttribute && e.target.getAttribute("data-allow-amt");
@@ -9465,7 +9494,7 @@ async function renderWorkoutsTab(root) {
         '<div class="row-gap" style="margin-top:10px;"><input class="small-input" type="number" min="0" step="0.1" id="wkWeightDraft" placeholder="Log weight (lbs)" /><button class="small-btn" id="wkLogWeightBtn" style="background:' + accent + ';">Log</button></div>' +
         '<div id="wkWeightLog" style="margin-top:10px;"></div>' +
       "</div>" +
-      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div></div>' +
+      '<div class="card bento-half bento-stat"><div class="gauge-top"><span class="gauge-label mono">THIS WEEK</span><span id="wkGaugeAmount"></span></div><div id="wkGaugeBody"></div><div id="wkCardioGoal" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-2);"></div></div>' +
       '<div class="chips" id="wkChips"></div>' +
       '<div class="card">' +
         '<div class="pills" id="wkPills"></div>' +
@@ -9535,7 +9564,7 @@ async function renderWorkoutsTab(root) {
       var weekWeightLbs = currentBodyWeight();
       var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
       var weekCardio = Math.round(thisWeek.reduce(function (sum, it) { return sum + _cardioMinutes(it); }, 0) * 10) / 10;
-      var weekCalSuffix = (weekCardio > 0 ? " · " + weekCardio + " cardio min" : "") + (weekCal > 0 ? " · ~" + weekCal + " cal" : "");
+      var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
       var weekTile = function (big, sub) { return '<span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span>"; };
       function showGoalEditor() {
         bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>' +
@@ -9566,6 +9595,29 @@ async function renderWorkoutsTab(root) {
           bodyEl2.innerHTML = '<button class="link-btn" id="wkShowGoal" style="color:var(--text-2);">Set a weekly goal to track against</button>';
           document.getElementById("wkShowGoal").addEventListener("click", function () { showGoalInput = true; renderGauge(); });
         }
+      }
+      renderCardioGoal(weekCardio);
+    }
+    // Weekly cardio against a goal. Default 150 min: the standard adult recommendation
+    // (CDC / WHO / AHA: 150 minutes of moderate cardio a week, or 75 if vigorous).
+    var cardioGoalEditing = false;
+    function renderCardioGoal(weekCardio) {
+      var el = document.getElementById("wkCardioGoal"); if (!el) return;
+      var goal = Number(data.cardioGoal) > 0 ? Number(data.cardioGoal) : 150;
+      var pct = Math.min(100, weekCardio / goal * 100), met = weekCardio >= goal, left = Math.max(0, Math.round((goal - weekCardio) * 10) / 10);
+      var color = met ? "#5BAE7A" : "#E1543F";
+      el.innerHTML = '<div class="gauge-top"><span class="gauge-label mono">CARDIO THIS WEEK</span><span><span class="bento-value">' + weekCardio + ' of ' + goal + '</span><span class="bento-sub">min</span></span></div>' +
+        '<div class="gauge-track"><div class="gauge-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>' +
+        '<div style="color:var(--text-2);font-size:12px;margin-top:6px;">' + (met ? "Goal reached \u2713" : left + " min to go") + ' \u00B7 150 min is the standard weekly recommendation (CDC / WHO)</div>' +
+        (cardioGoalEditing
+          ? '<div class="row-gap" style="margin-top:8px;"><input id="wkCardioGoalDraft" class="small-input" type="number" min="1" placeholder="Minutes per week" value="' + goal + '" /><button class="small-btn" id="wkCardioGoalSet" style="background:' + accent + ';">Set</button><button class="link-btn" id="wkCardioGoalReset" style="color:var(--text-2);">Use 150</button></div>'
+          : '<button class="link-btn" id="wkCardioGoalEdit" style="color:var(--text-2);margin-top:6px;">Change cardio goal</button>');
+      var edit = document.getElementById("wkCardioGoalEdit");
+      if (edit) edit.addEventListener("click", function () { cardioGoalEditing = true; renderGauge(); });
+      var setB = document.getElementById("wkCardioGoalSet");
+      if (setB) {
+        setB.addEventListener("click", function () { var v = Number(document.getElementById("wkCardioGoalDraft").value); data.cardioGoal = v > 0 ? v : ""; cardioGoalEditing = false; save(); renderGauge(); });
+        document.getElementById("wkCardioGoalReset").addEventListener("click", function () { data.cardioGoal = ""; cardioGoalEditing = false; save(); renderGauge(); });
       }
     }
     function commitGoal() { data.weeklyGoal = goalDraft; showGoalInput = false; save(); renderGauge(); }
