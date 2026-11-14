@@ -615,6 +615,9 @@
   .lift-stat-l { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--text-3); }
   .lift-stat-v { font-size: 24px; font-weight: 700; color: var(--text-1); line-height: 1.15; margin-top: 4px; letter-spacing: -.01em; }
   .lift-stat-u { font-size: 11px; color: var(--text-2); }
+  .lift-min-input { width: 100%; min-width: 0; background: transparent; border: none; border-bottom: 1px dashed var(--border-2); padding: 0; margin-top: 4px; font-size: 24px; font-weight: 700; color: var(--text-1); line-height: 1.15; font-family: inherit; }
+  .lift-min-input:focus { outline: none; border-bottom-color: var(--accent); }
+  .lift-min-input::placeholder { color: var(--text-3); }
   .lift-rest {
     align-self: stretch; background: var(--bg); border: 1px solid var(--border-2); border-radius: 14px; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600;
     padding: 0 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .3s cubic-bezier(.34,1.8,.5,1), border-color .2s, color .2s;
@@ -9090,6 +9093,21 @@ function _fmtClock(sec) {
   var rs = (rest < 10 ? "0" : "") + (rest % 1 ? rest.toFixed(1) : String(rest));
   return mins + ":" + rs;
 }
+// Minutes for one cardio/activity exercise: what you typed for the whole activity,
+// otherwise the per-rep minutes added up.
+function _activityMinutes(l) {
+  if (!l || l.kind !== "cardio") return 0;
+  if (l.minutes !== "" && l.minutes != null && !isNaN(Number(l.minutes))) return Number(l.minutes);
+  return (l.sets || []).reduce(function (sum, st) { return sum + (Number(st.duration) || 0); }, 0);
+}
+// Cardio minutes in a workout: its activities' minutes, or the workout's own
+// minutes when it's a cardio workout with no per-activity minutes.
+function _cardioMinutes(item) {
+  if (!item) return 0;
+  var m = (item.lifts || []).reduce(function (sum, l) { return sum + _activityMinutes(l); }, 0);
+  if (!m && item.category === "cardio" && item.duration !== "" && item.duration != null) m = Number(item.duration) || 0;
+  return m;
+}
 // { sec: time - target, label: "-3s" / "+2s" / "on target", color } when both are readable.
 function _repVsTarget(set) {
   var t = _parseClock(set && set.time), g = _parseClock(set && set.target);
@@ -9516,7 +9534,8 @@ async function renderWorkoutsTab(root) {
       var bodyEl2 = document.getElementById("wkGaugeBody");
       var weekWeightLbs = currentBodyWeight();
       var weekCal = thisWeek.reduce(function (sum, it) { return sum + (estimateCalories(it, weekWeightLbs) || 0); }, 0);
-      var weekCalSuffix = weekCal > 0 ? " · ~" + weekCal + " cal" : "";
+      var weekCardio = Math.round(thisWeek.reduce(function (sum, it) { return sum + _cardioMinutes(it); }, 0) * 10) / 10;
+      var weekCalSuffix = (weekCardio > 0 ? " · " + weekCardio + " cardio min" : "") + (weekCal > 0 ? " · ~" + weekCal + " cal" : "");
       var weekTile = function (big, sub) { return '<span class="bento-value">' + big + '</span><span class="bento-sub">' + sub + "</span>"; };
       function showGoalEditor() {
         bodyEl2.innerHTML = '<div class="row-gap"><input id="wkGoalDraft" class="small-input" type="number" min="0" placeholder="Workouts per week" value="' + escapeHtml(goalDraft) + '" /><button class="small-btn" id="wkSetGoal" style="background:' + accent + ';">Set</button></div>' +
@@ -9705,7 +9724,10 @@ async function renderWorkoutsTab(root) {
         };
         var statsHtml = isEditingName ? "" : '<div class="lift-stats' + (isCardio ? "" : " three") + '">' +
           (isCardio
-            ? tile("REPS", (l.sets || []).length, "") + tile("TOTAL TIME", liftMinutes ? Math.round(liftMinutes * 10) / 10 : "\u2014", liftMinutes ? "min" : "")
+            ? tile("REPS", (l.sets || []).length, "") +
+              '<label class="lift-stat"><span class="lift-stat-l">MINUTES</span>' +
+                '<input class="lift-min-input mono" type="number" min="0" step="0.5" data-lift-minutes="1" data-item="' + item.id + '" data-lift="' + l.id + '" value="' + (l.minutes !== "" && l.minutes != null ? escapeHtml(l.minutes) : "") + '" placeholder="' + (liftMinutes ? Math.round(liftMinutes * 10) / 10 : "Add") + '" aria-label="Minutes for ' + escapeHtml(l.name) + '" />' +
+                '<span class="lift-stat-u">' + (l.minutes !== "" && l.minutes != null ? "min" : liftMinutes ? "min (from reps)" : "tap to add") + "</span></label>"
             // Bodyweight moves (pull-ups, push-ups…) have no volume or 1RM, so count reps instead.
             : !liftVolume && liftReps
               ? tile("TOTAL REPS", liftReps, "reps") + tile("BEST SET", bestReps, "reps") + tile("SETS", working.length, "working")
@@ -10247,6 +10269,12 @@ async function renderWorkoutsTab(root) {
     function _wkItemChange(e) {
       var field = e.target.getAttribute && e.target.getAttribute("data-edit");
       if (field) editRowForm[field] = e.target.value;
+      if (e.target.getAttribute && e.target.getAttribute("data-lift-minutes")) {
+        var mItem = data.items.find(function (it) { return it.id === e.target.getAttribute("data-item"); });
+        var mLift = mItem && (mItem.lifts || []).find(function (l) { return l.id === e.target.getAttribute("data-lift"); });
+        if (mLift) { var mv = e.target.value.trim(); mLift.minutes = mv === "" ? "" : Number(mv); save(); refreshLog(); }
+        return;
+      }
       if (e.target.getAttribute && e.target.getAttribute("data-set-time")) {
         // Quick time entry on a rep row (no need to open the editor for each rep).
         var tItem = data.items.find(function (it) { return it.id === e.target.getAttribute("data-item"); });
@@ -10344,7 +10372,9 @@ async function renderWorkoutsTab(root) {
     bodyEl.innerHTML =
       '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);justify-self:start;">‹ Back to Log</button>' +
       '<div class="card">' + headerHtml + "</div>" +
-      (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises") + (totalReps ? " \u00B7 " + totalReps.toLocaleString() + " reps" : "")) : "") +
+      (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises") + (totalReps ? " \u00B7 " + totalReps.toLocaleString() + " reps" : "")) +
+        (_cardioMinutes(item) ? statTile("CARDIO", Math.round(_cardioMinutes(item) * 10) / 10, "minutes") : "") :
+        (_cardioMinutes(item) ? statTile("CARDIO", Math.round(_cardioMinutes(item) * 10) / 10, "minutes") : "")) +
       renderLiftsBlock(item, prData);
     bodyEl.querySelectorAll("details.lift-tags").forEach(function (d) {
       d.addEventListener("toggle", function () { liftTagsOpen[d.getAttribute("data-lift")] = d.open; });
