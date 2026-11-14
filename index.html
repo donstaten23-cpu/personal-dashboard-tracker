@@ -1205,6 +1205,12 @@
   .bible-stat b { font-size: 22px; line-height: 1.1; color: var(--text-1); }
   .bible-stat span { font-size: 11px; color: var(--text-3); }
   .bible-pace { color: var(--text-2); font-size: 13px; margin: 12px 0 0; }
+  .ptr-ind { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 6px); left: 50%; transform: translate(-50%, 0); z-index: 1300; display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--bg-card); color: var(--text-2); border: 1px solid var(--border-2); box-shadow: 0 4px 16px rgba(0,0,0,.18); font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .15s; white-space: nowrap; }
+  .ptr-ind .ptr-arrow { display: inline-block; transition: transform .2s; }
+  .ptr-ind.ready { color: var(--accent); border-color: var(--accent); }
+  .ptr-ind.ready .ptr-arrow { transform: rotate(180deg); }
+  .ptr-ind.busy .ptr-arrow { animation: ptrSpin .8s linear infinite; }
+  @keyframes ptrSpin { to { transform: rotate(360deg); } }
   .bible-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--bg); color: var(--text-1); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px); }
   .bible-overlay-inner { max-width: 640px; margin: 0 auto; }
   .bible-ohead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0 12px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
@@ -19714,6 +19720,80 @@ function _onShellUpdated(reload) {
   document.body.appendChild(el);
 }
 window._onShellUpdated = _onShellUpdated;
+
+/* ---------------- pull down to update ----------------
+   Drag down from the top of any page and let go: the app re-downloads its own
+   files from the host (skipping every cache), then reloads on the same page.
+   It's the manual version of the "New version ready" prompt, for when an update
+   hasn't reached the phone yet. */
+var _ptr = null, PTR_TRIGGER = 90;
+function _ptrEl() {
+  var el = document.getElementById("ptrInd");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "ptrInd"; el.className = "ptr-ind"; el.setAttribute("role", "status");
+  el.innerHTML = '<span class="ptr-arrow">&#8595;</span><span class="ptr-txt">Pull to update</span>';
+  document.body.appendChild(el);
+  return el;
+}
+function _ptrShow(dy, ready) {
+  var el = _ptrEl();
+  el.style.opacity = String(Math.min(1, dy / 50));
+  el.style.transform = "translate(-50%, " + Math.min(70, dy * 0.5) + "px)";
+  el.classList.toggle("ready", !!ready);
+  el.querySelector(".ptr-txt").textContent = ready ? "Release to update" : "Pull to update";
+}
+function _ptrHide() { var el = document.getElementById("ptrInd"); if (el) { el.style.opacity = "0"; el.style.transform = "translate(-50%, 0)"; el.classList.remove("ready", "busy"); } }
+async function _pullUpdate() {
+  var el = _ptrEl();
+  el.classList.add("busy"); el.style.opacity = "1"; el.style.transform = "translate(-50%, 40px)";
+  el.querySelector(".ptr-txt").textContent = "Updating\u2026";
+  try {
+    // Fetch around the browser cache so the host's newest files are what get stored.
+    await Promise.all(["./index.html", "./sw.js"].map(function (u) { return fetch(u, { cache: "reload" }).catch(function () {}); }));
+    if (window.caches) {
+      var names = await caches.keys();
+      await Promise.all(names.filter(function (n) { return /^dashboard-shell/.test(n); }).map(function (n) {
+        return caches.open(n).then(function (c) { return Promise.all(["./", "./index.html"].map(function (u) { return c.delete(new Request(u)); })); });
+      }));
+    }
+    var reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.update().catch(function () {});
+  } catch (e) { /* offline: just reload what we have */ }
+  try { sessionStorage.setItem("keepRouteOnce", "1"); } catch (e) {}
+  (window._pullReload || function () { location.reload(); })();
+}
+document.addEventListener("touchstart", function (e) {
+  _ptr = null;
+  if (e.touches.length !== 1) return;
+  var dash = document.getElementById("dashboardScreen");
+  if (!dash || dash.style.display === "none") return;
+  var top = (document.scrollingElement || document.documentElement).scrollTop;
+  if (top > 0) return;
+  if (e.target.closest && e.target.closest("input, textarea, select, [contenteditable='true'], .bible-overlay, .numpad, [role='dialog'], .sidebar, .tabbar, #undoToast, #updateBanner")) return;
+  if (document.getElementById("bibleOverlay") || document.querySelector(".numpad.show")) return;
+  _ptr = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dy: 0, on: false };
+}, { passive: true });
+document.addEventListener("touchmove", function (e) {
+  var p = _ptr; if (!p) return;
+  var t = e.touches[0], dy = t.clientY - p.y0, dx = t.clientX - p.x0;
+  if (!p.on) {
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) { _ptr = null; return; } // a sideways swipe, not a pull
+    if (dy < -6) { _ptr = null; return; }
+    if (dy < 10) return;
+    p.on = true;
+  }
+  p.dy = dy;
+  if ((document.scrollingElement || document.documentElement).scrollTop > 0) { _ptr = null; _ptrHide(); return; }
+  _ptrShow(dy, dy >= PTR_TRIGGER);
+}, { passive: true });
+function _ptrRelease() {
+  var p = _ptr; _ptr = null;
+  if (!p || !p.on) return;
+  if (p.dy >= PTR_TRIGGER) _pullUpdate(); else _ptrHide();
+}
+document.addEventListener("touchend", _ptrRelease);
+document.addEventListener("touchcancel", function () { _ptr = null; _ptrHide(); });
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("message", function (event) {
     if (event.data && event.data.type === "shell-updated") { _onShellUpdated(); return; }
