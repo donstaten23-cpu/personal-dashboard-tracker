@@ -9142,11 +9142,12 @@ function _activityMinutes(l) {
   return (l.sets || []).reduce(function (sum, st) { return sum + (Number(st.duration) || 0); }, 0);
 }
 // Cardio minutes in a workout: its activities' minutes, or the workout's own
-// minutes when it's a cardio workout with no per-activity minutes.
+// minutes when it's a cardio or sports workout with no per-activity minutes.
 function _cardioMinutes(item) {
   if (!item) return 0;
   var m = (item.lifts || []).reduce(function (sum, l) { return sum + _activityMinutes(l); }, 0);
-  if (!m && item.category === "cardio" && item.duration !== "" && item.duration != null) m = Number(item.duration) || 0;
+  // Sports (basketball, football…) count as cardio too.
+  if (!m && (item.category === "cardio" || item.category === "sports") && item.duration !== "" && item.duration != null) m = Number(item.duration) || 0;
   return m;
 }
 // { sec: time - target, label: "-3s" / "+2s" / "on target", color } when both are readable.
