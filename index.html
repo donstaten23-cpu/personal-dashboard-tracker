@@ -5236,10 +5236,13 @@ function renderSavingsPlanHtml(plan, accentColor) {
 /* ---------------- budget tab ---------------- */
 
 var _budgetSection = "overview"; // which Budget section is showing (kept across visits)
+// The Limits tab (Eating out caps) is switched off for now. Nothing is deleted: the data and the
+// code stay, so setting this to true brings the tab and the "counts toward a limit" pickers back.
+var LIMITS_ENABLED = false;
 var BUDGET_SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "bills", label: "Bills" },
-  { id: "limits", label: "Limits" },
+  { id: "limits", label: "Limits", off: !LIMITS_ENABLED },
   { id: "goals", label: "Goals" },
   { id: "pay", label: "Paychecks" }
 ];
@@ -5721,7 +5724,7 @@ async function renderSpendTab(root, cfg) {
       "</div>"
     : "") +
     (cfg.showSavingsGoal ? '<div class="card" id="stBillsProgress"></div>' : "") +
-    (cfg.showSavingsGoal ? '<div class="card" id="stLimitsCard"></div>' : "") +
+    (cfg.showSavingsGoal && LIMITS_ENABLED ? '<div class="card" id="stLimitsCard"></div>' : "") +
     '<div class="card">' +
       '<div class="gauge-top"><span class="gauge-label mono">SPENT SO FAR</span><span class="mono" id="stGaugeAmount"></span></div>' +
       '<div id="stGaugeBody"></div>' +
@@ -7526,7 +7529,7 @@ async function renderSpendTab(root, cfg) {
   function renderBudgetSectionPills() {
     var el = document.getElementById("stSectionPills");
     if (!el) return;
-    el.innerHTML = BUDGET_SECTIONS.map(function (sec) {
+    el.innerHTML = BUDGET_SECTIONS.filter(function (sec) { return !sec.off; }).map(function (sec) {
       var active = sec.id === _budgetSection;
       return '<button class="pill" role="tab" aria-selected="' + active + '" data-bsec-pill="' + sec.id + '" style="background:' + (active ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (active ? "#12151A" : cfg.accent) + ';">' + escapeHtml(sec.label) + "</button>";
     }).join("");
@@ -7618,7 +7621,7 @@ async function renderSpendTab(root, cfg) {
     tag(document.getElementById("stBillsProgress"), "bills");
     tag(document.getElementById("stLimitsCard"), "limits");
     // Once the limits have loaded, redraw the purchase lists so they can show which limit each counts toward.
-    renderLimitsSection(document.getElementById("stLimitsCard"), cfg.accent).then(function () { renderPeriodEntries("me"); renderPeriodEntries("partner"); });
+    if (LIMITS_ENABLED) renderLimitsSection(document.getElementById("stLimitsCard"), cfg.accent).then(function () { renderPeriodEntries("me"); renderPeriodEntries("partner"); });
     tag(budgetCard("stGaugeBody"), "bills");
     ["stChips", "stSelectBar", "stPersonFilterRow", "stList"].forEach(function (id) { tag(document.getElementById(id), "bills"); });
     tag(collapseCardFor("addExpenseColl"), "bills");
@@ -7628,8 +7631,8 @@ async function renderSpendTab(root, cfg) {
 
     // Landed via a bookmarked #budget/<section> link.
     var pend = _pendingSectionByPage.budget;
-    if (pend) { delete _pendingSectionByPage.budget; if (BUDGET_SECTIONS.some(function (sec) { return sec.id === pend; })) _budgetSection = pend; }
-    if (!BUDGET_SECTIONS.some(function (sec) { return sec.id === _budgetSection; })) _budgetSection = "overview";
+    if (pend) { delete _pendingSectionByPage.budget; if (BUDGET_SECTIONS.some(function (sec) { return sec.id === pend && !sec.off; })) _budgetSection = pend; }
+    if (!BUDGET_SECTIONS.some(function (sec) { return sec.id === _budgetSection && !sec.off; })) _budgetSection = "overview";
     if (!data.spendView) data.spendView = "me";
 
     renderBudgetSectionPills();
