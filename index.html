@@ -5510,6 +5510,8 @@ async function renderSpendTab(root, cfg) {
   if (!data.payOverrides || typeof data.payOverrides !== "object") data.payOverrides = {};
   // A free-text note per paycheck date (YYYY-MM-DD -> text).
   if (!data.payNotes || typeof data.payNotes !== "object") data.payNotes = {};
+  // Generic spending categories you can tag purchases with (separate from the Limits tab's categories).
+  if (!Array.isArray(data.spendCats)) data.spendCats = ["Food", "Lunch", "Groceries", "Recreation", "Gas", "Shopping", "Other"];
   if ([1, 2, 3, 6].indexOf(data.planMonths) < 0) data.planMonths = 3;
   // migrate the old single shared periodSpend {spent,target} into a per-person shape.
   if (data.periodSpend && data.periodSpend.spent !== undefined && !data.periodSpend.me) {
@@ -5666,6 +5668,7 @@ async function renderSpendTab(root, cfg) {
         '<button type="button" class="small-btn" id="psAddEntryBtn-' + person + '" style="background:' + cfg.accent + ';flex-shrink:0;">+ Add</button>' +
       "</div>" +
       '<input class="small-input" type="text" autocomplete="off" id="psEntryNoteInput-' + person + '" placeholder="What was it for? (optional)" style="width:100%;margin-top:6px;" />' +
+      '<div class="spend-cats" data-cat-ctx="add" style="margin-top:8px;"></div>' +
       '<div id="psEntries-' + person + '" style="margin-top:6px;"></div>' +
       '<div class="row-gap" style="margin-top:14px;border-top:1px solid var(--border-2);padding-top:12px;">' +
         fieldRow("psTargetInput-" + person, "Target for period") +
@@ -5822,6 +5825,7 @@ async function renderSpendTab(root, cfg) {
         '<div class="qa-amount-wrap" id="stQaAmountWrap"><span class="qa-cur" aria-hidden="true">$</span>' +
           '<input class="small-input qa-amount" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="stQaAmount" aria-label="Amount" placeholder="0.00" /></div>' +
         '<input class="small-input" type="text" autocomplete="off" id="stQaNote" placeholder="What was it for? (optional)" style="width:100%;margin-top:8px;" />' +
+        '<div class="spend-cats" data-cat-ctx="qa" style="margin-top:10px;"></div>' +
         '<select class="edit-select" id="stQaLimit" aria-label="Counts toward a spending limit" style="width:100%;margin-top:8px;"></select>' +
         '<div class="pills" id="stQaWho" style="margin:12px 0 0;"></div>' +
         '<div class="qa-actions"><button type="button" class="small-btn" id="stQaCancel" style="background:var(--bg);color:var(--text-2);border:1px solid var(--border-2);">Cancel</button>' +
@@ -7283,6 +7287,55 @@ async function renderSpendTab(root, cfg) {
     entry.limitEntryId = api.upsert(entry.limitEntryId || null, catId, entry.amount, entry.note, localDateOf(entry.addedAt));
     entry.limitCatId = catId;
   }
+  // ---- generic spending categories (Food, Lunch, Recreation…) ----
+  var pendingCat = "", catEditMode = false, editEntryCat = { me: "", partner: "" };
+  function catSelected(ctx) { return ctx.indexOf("edit:") === 0 ? editEntryCat[ctx.slice(5)] || "" : pendingCat; }
+  function refreshCatGroup(el) {
+    var ctx = el.getAttribute("data-cat-ctx"), sel = catSelected(ctx);
+    el.innerHTML = '<div class="pills" style="margin:0;gap:6px;">' + data.spendCats.map(function (c) {
+      var on = c === sel;
+      return '<span style="display:inline-flex;align-items:center;"><button type="button" class="pill" data-cat-pick="' + escapeHtml(c) + '" aria-pressed="' + on + '" style="padding:4px 11px;font-size:12px;background:' + (on ? cfg.accent : "transparent") + ";border-color:" + cfg.accent + ";color:" + (on ? "#12151A" : cfg.accent) + ';">' + escapeHtml(c) + "</button>" +
+        (catEditMode ? '<button type="button" class="icon-btn" data-cat-del="' + escapeHtml(c) + '" aria-label="Remove ' + escapeHtml(c) + '" style="padding:2px 4px;font-size:12px;">\u2715</button>' : "") + "</span>";
+    }).join("") +
+      '<button type="button" class="pill" data-cat-new="1" style="padding:4px 11px;font-size:12px;border-style:dashed;border-color:var(--text-3);color:var(--text-2);background:transparent;">+ New</button>' +
+      '<button type="button" class="link-btn" data-cat-editmode="1" style="font-size:11px;color:var(--text-3);">' + (catEditMode ? "Done" : "Edit") + "</button></div>";
+  }
+  function refreshAllCatGroups() { document.querySelectorAll(".spend-cats").forEach(refreshCatGroup); }
+  function onCatClick(e) {
+    var b = e.target.closest("[data-cat-pick], [data-cat-new], [data-cat-del], [data-cat-editmode]");
+    if (!b) return;
+    var grp = b.closest(".spend-cats"); if (!grp) return;
+    var ctx = grp.getAttribute("data-cat-ctx");
+    function setSel(v) { if (ctx.indexOf("edit:") === 0) editEntryCat[ctx.slice(5)] = v; else pendingCat = v; }
+    if (b.hasAttribute("data-cat-pick")) { var c = b.getAttribute("data-cat-pick"); setSel(catSelected(ctx) === c ? "" : c); }
+    else if (b.hasAttribute("data-cat-new")) {
+      var name = (window.prompt("New spending category (e.g. Coffee, Gifts):") || "").trim();
+      if (!name) return;
+      var hit = data.spendCats.filter(function (x) { return x.toLowerCase() === name.toLowerCase(); })[0];
+      if (!hit) { data.spendCats.push(name); save(); }
+      setSel(hit || name);
+    }
+    else if (b.hasAttribute("data-cat-del")) {
+      var d = b.getAttribute("data-cat-del");
+      data.spendCats = data.spendCats.filter(function (x) { return x !== d; });
+      if (pendingCat === d) pendingCat = ""; if (editEntryCat.me === d) editEntryCat.me = ""; if (editEntryCat.partner === d) editEntryCat.partner = "";
+      save();
+    }
+    else catEditMode = !catEditMode;
+    refreshAllCatGroups();
+  }
+  // Totals for the period by category (only shown once something is tagged).
+  function catBreakdownHtml(entries) {
+    var totals = {}, any = false;
+    entries.forEach(function (e) { var k = e.cat || ""; if (k) any = true; totals[k] = (totals[k] || 0) + (Number(e.amount) || 0); });
+    if (!any) return "";
+    var keys = Object.keys(totals).sort(function (a, b) { return totals[b] - totals[a]; }), max = Math.max.apply(null, keys.map(function (k) { return totals[k]; })) || 1;
+    return '<div style="margin:2px 0 10px;"><div class="gauge-label mono" style="margin-bottom:6px;">BY CATEGORY</div>' + keys.map(function (k) {
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0;"><span style="width:92px;flex-shrink:0;color:' + (k ? "var(--text-1)" : "var(--text-3)") + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(k || "Uncategorized") + '</span>' +
+        '<span style="flex:1;height:6px;border-radius:999px;background:var(--border-2);overflow:hidden;"><span style="display:block;height:100%;width:' + Math.round(totals[k] / max * 100) + '%;background:' + (k ? cfg.accent : "var(--text-3)") + ';"></span></span>' +
+        '<span class="mono" style="color:var(--text-1);">' + formatCurrency(totals[k]) + "</span></div>";
+    }).join("") + "</div>";
+  }
   function renderPeriodEntries(person) {
     if (!cfg.showSavingsGoal) return;
     var el = document.getElementById("psEntries-" + person);
@@ -7291,12 +7344,13 @@ async function renderSpendTab(root, cfg) {
     if (!entries.length) { el.innerHTML = ""; return; }
     var limitApi = getLimitsApi(), limitCats = limitApi ? limitApi.cats() : [], limitNames = {};
     limitCats.forEach(function (c) { limitNames[c.id] = c.name; });
-    el.innerHTML = entries.map(function (e) {
+    el.innerHTML = catBreakdownHtml(entries) + entries.map(function (e) {
       if (editingPeriodEntry[person] === e.id) {
         return '<div class="weight-log-row" style="flex-wrap:wrap;">' +
           '<span style="color:var(--text-2);width:100%;">' + formatDateTimeShort(e.addedAt) + '</span>' +
           '<input class="small-input" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-entry-edit="amount" value="' + escapeHtml(String(e.amount)) + '" placeholder="Amount" style="width:100px;" />' +
           '<input class="small-input" type="text" autocomplete="off" data-entry-edit="note" value="' + escapeHtml(e.note || "") + '" placeholder="What was it for?" style="flex:1;min-width:140px;" />' +
+          '<div class="spend-cats" data-cat-ctx="edit:' + person + '" style="width:100%;"></div>' +
           (limitCats.length ? '<select class="edit-select" data-entry-edit="limit" aria-label="Count toward a spending limit" style="width:100%;"><option value="">Not part of a spending limit</option>' +
             limitCats.map(function (c) { return '<option value="' + escapeHtml(c.id) + '"' + (c.id === e.limitCatId ? " selected" : "") + ">Counts toward: " + escapeHtml(c.name) + "</option>"; }).join("") + "</select>" : "") +
           '<button type="button" class="small-btn" data-action="save-period-entry" data-id="' + e.id + '" style="background:' + cfg.accent + ';">Save</button>' +
@@ -7305,7 +7359,7 @@ async function renderSpendTab(root, cfg) {
       }
       return '<div class="weight-log-row">' +
         '<div style="flex:1;min-width:0;">' +
-          '<div style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + '</div>' +
+          '<div style="color:var(--text-2);">' + formatDateTimeShort(e.addedAt) + (e.cat ? ' &middot; <span style="color:' + cfg.accent + ';font-weight:600;">' + escapeHtml(e.cat) + '</span>' : "") + '</div>' +
           (e.note ? '<div style="color:var(--text-1);font-size:12px;overflow-wrap:anywhere;">' + escapeHtml(e.note) + '</div>' : '') +
           (limitCats.length ? '<button type="button" class="link-btn" data-action="edit-period-entry" data-id="' + e.id + '" style="font-size:11px;padding:0;color:' + (limitNames[e.limitCatId] ? cfg.accent : "var(--text-3)") + ';">' + (limitNames[e.limitCatId] ? "&#9679; Counts toward " + escapeHtml(limitNames[e.limitCatId]) : "+ Count toward a limit") + "</button>" : "") +
         '</div>' +
@@ -7313,6 +7367,7 @@ async function renderSpendTab(root, cfg) {
         '<button class="icon-btn" data-action="edit-period-entry" data-id="' + e.id + '" title="Edit amount or note">✎</button>' +
         '<button class="icon-btn" data-action="delete-period-entry" data-id="' + e.id + '" title="Delete this entry">✕</button></div>';
     }).join("");
+    refreshAllCatGroups();
   }
   function handleAddPeriodEntry(person, quick) {
     var inputEl = document.getElementById("psEntryAmountInput-" + person);
@@ -7326,12 +7381,15 @@ async function renderSpendTab(root, cfg) {
     var noteEl = document.getElementById("psEntryNoteInput-" + person);
     var note = noteEl ? noteEl.value.trim() : "";
     var entry = { id: uid(), amount: amount, note: note, addedAt: new Date().toISOString() };
+    if (pendingCat) entry.cat = pendingCat;
+    pendingCat = "";
     pd.entries.push(entry);
     save();
     inputEl.value = "";
     if (noteEl) noteEl.value = "";
     renderPeriodSpend(person);
     renderPeriodEntries(person);
+    refreshAllCatGroups();
     if (!quick) inputEl.focus();
     renderBudgetViews();
     return entry;
@@ -7341,6 +7399,8 @@ async function renderSpendTab(root, cfg) {
   var editingPeriodEntry = { me: null, partner: null };
   function handleStartEditPeriodEntry(person, id) {
     editingPeriodEntry[person] = id;
+    var ce = (data.periodSpend[person].entries || []).find(function (x) { return x.id === id; });
+    editEntryCat[person] = ce && ce.cat ? ce.cat : "";
     renderPeriodEntries(person);
     var amountEl = document.querySelector("#psEntries-" + person + ' [data-entry-edit="amount"]');
     if (amountEl) { amountEl.focus(); amountEl.select(); }
@@ -7360,6 +7420,7 @@ async function renderSpendTab(root, cfg) {
     if (!raw || amount === null || isNaN(amount)) { amountEl.focus(); return; }
     entry.amount = amount;
     entry.note = noteEl.value.trim();
+    if (editEntryCat[person]) entry.cat = editEntryCat[person]; else delete entry.cat;
     var limitSel = container.querySelector('[data-entry-edit="limit"]');
     syncEntryLimit(entry, limitSel ? limitSel.value : (entry.limitCatId || ""));
     editingPeriodEntry[person] = null;
@@ -7626,6 +7687,7 @@ async function renderSpendTab(root, cfg) {
       qaWho = data.spendView === "partner" ? "partner" : "me";
       renderQaWho();
       qaAmount.value = ""; qaNote.value = "";
+      pendingCat = ""; refreshAllCatGroups();
       var api = getLimitsApi();
       qaLimitEl.innerHTML = '<option value="">Not part of a spending limit</option>' + (api ? api.cats().map(function (c) { return '<option value="' + escapeHtml(c.id) + '">Counts toward: ' + escapeHtml(c.name) + "</option>"; }).join("") : "");
       qaLimitEl.style.display = api && api.cats().length ? "" : "none";
@@ -8209,6 +8271,8 @@ async function renderSpendTab(root, cfg) {
         if (btn) handleDeletePeriodHistory(person, btn.getAttribute("data-id"));
       });
     });
+    _setHandler(root, "click", onCatClick); // spending-category chips (add form, quick-add sheet, entry editor)
+    refreshAllCatGroups();
     // Quick +/- insert buttons — the reliable fallback when a phone's own
     // keyboard (whatever it ends up being) has no operator keys at all.
     // Replaces a trailing operator instead of stacking one on top of another
