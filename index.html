@@ -2893,13 +2893,21 @@ function _markSynced() {
 // its own timestamp is more meaningful on the Story page than the global one
 // (which would otherwise reflect whatever other page you last saved on).
 var _lastStorySyncedAt = null;
+var _storySaveState = "idle"; // idle | saving | failed | offline (see _setStorySaveState)
 function renderStorySyncStatus() {
   var el = document.getElementById("storySyncStatus");
   var textEl = document.getElementById("storySyncStatusText");
   if (!el || !textEl) return;
-  textEl.textContent = _relativeSyncTime(_lastStorySyncedAt);
-  el.classList.toggle("synced", !!_lastStorySyncedAt);
+  var st = _storySaveState;
+  textEl.textContent = st === "saving" ? "Saving…"
+    : st === "failed" ? "Couldn’t reach the cloud. Saved on this device, retrying…"
+    : st === "offline" ? "Saved on this device only. Story sync isn’t connected."
+    : _relativeSyncTime(_lastStorySyncedAt);
+  el.classList.toggle("synced", st === "idle" && !!_lastStorySyncedAt);
+  var dot = document.getElementById("storySyncStatusDot");
+  if (dot) dot.style.background = st === "failed" || st === "offline" ? "#FF8A5C" : st === "saving" ? "#D9A441" : "";
 }
+function _setStorySaveState(s) { _storySaveState = s; renderStorySyncStatus(); }
 function _markStorySynced() {
   _lastStorySyncedAt = Date.now();
   renderStorySyncStatus();
@@ -3157,6 +3165,7 @@ var _storyPendingSaves = {};
 function saveStoryData(key, data) {
   _writeCache(key, data); // synchronous, durable regardless of Firebase connection state
   _storyDirtySet(key, true);
+  _setStorySaveState("saving");
   _storyPendingSaves[key] = data;
   if (_storySaveDebounceTimers[key]) clearTimeout(_storySaveDebounceTimers[key]);
   _storySaveDebounceTimers[key] = setTimeout(function () { _flushStoryDataSave(key); }, 500);
@@ -3167,9 +3176,41 @@ async function _flushStoryDataSave(key) {
   var data = _storyPendingSaves[key];
   delete _storyPendingSaves[key];
   var connected = await ensureFirebaseAuthed();
-  if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); return; }
-  try { await window.FirebaseBridge.firestore.setStoryDoc(key, data); if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false); _markSynced(); _markStorySynced(); }
-  catch (e) { console.error("Firestore save failed [" + key + "]", e); }
+  if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); _setStorySaveState("offline"); return; }
+  try {
+    await window.FirebaseBridge.firestore.setStoryDoc(key, data);
+    if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false);
+    _markSynced(); _markStorySynced();
+    _storyRetryDelay = 5000;
+    // Only call it saved once nothing else is waiting; otherwise the other keys' saves finish the job.
+    if (!Object.keys(_storyPendingSaves).length && !Object.keys(_storyDirtyGet()).length) _setStorySaveState("idle");
+  } catch (e) {
+    console.error("Firestore save failed [" + key + "]", e);
+    _setStorySaveState("failed");
+    _scheduleStoryRetry();
+  }
+}
+// A failed save stays "dirty" (and in the local cache); keep trying with a growing delay until it lands.
+var _storyRetryTimer = null, _storyRetryDelay = 5000;
+function _scheduleStoryRetry() {
+  if (_storyRetryTimer) return;
+  _storyRetryTimer = setTimeout(function () { _storyRetryTimer = null; _retryDirtyStorySaves(); }, _storyRetryDelay);
+  _storyRetryDelay = Math.min(_storyRetryDelay * 2, 60000);
+}
+function _retryDirtyStorySaves() {
+  Object.keys(_storyDirtyGet()).forEach(function (key) {
+    if (_storyPendingSaves.hasOwnProperty(key)) return;
+    var local = _readCache(key);
+    if (local !== null) saveStoryData(key, local);
+  });
+}
+window.addEventListener("online", function () { _storyRetryDelay = 5000; _retryDirtyStorySaves(); });
+// "Save now": push everything unsaved immediately and report whether it all reached the cloud.
+async function storySaveNow() {
+  _retryDirtyStorySaves(); // queue anything dirty that isn't already waiting
+  Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
+  await Promise.all(Object.keys(_storyPendingSaves).map(_flushStoryDataSave));
+  return Object.keys(_storyDirtyGet()).length === 0;
 }
 function _flushAllPendingStorySaves() {
   Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
@@ -3974,7 +4015,45 @@ function _stableJson(v) {
   if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + _stableJson(v[k]); }).join(",") + "}";
   return JSON.stringify(v);
 }
+// Story lives in Firebase, not Supabase, so it has its own pull. Nothing is touched while there are
+// unsynced local edits (they go up first) or while you're typing, because the Story page keeps its
+// own in-memory copy of each doc and saving that after a pull would overwrite the newer version.
+var _lastStoryCheckAt = 0, _storyRefreshing = false;
+function _storyBusy() {
+  var ae = document.activeElement;
+  return Object.keys(_storyDirtyGet()).length > 0 || Object.keys(_storyPendingSaves).length > 0 ||
+    !!(ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable));
+}
+async function refreshStoryFromServer(force) {
+  if (_storyRefreshing || document.hidden || !currentUserId) return;
+  var now = Date.now();
+  if (!force && now - _lastStoryCheckAt < 120000) return;
+  if (_storyBusy()) return;
+  _storyRefreshing = true; _lastStoryCheckAt = now;
+  try {
+    if (!(await ensureFirebaseAuthed())) return;
+    var remotes = await Promise.all(STORY_TAB_KEYS.map(function (k) { return window.FirebaseBridge.firestore.getStoryDoc(k).catch(function () { return null; }); }));
+    if (_storyBusy() || currentPage !== "story") return; // something changed while we were fetching
+    var changed = false;
+    STORY_TAB_KEYS.forEach(function (k, i) {
+      var remote = remotes[i];
+      if (!remote || _stableJson(remote) === _stableJson(_readCache(k))) return;
+      try { var old = _readCache(k); if (old !== null) localStorage.setItem("dashboard-story-backup-" + k, JSON.stringify({ at: Date.now(), data: old })); } catch (e) { /* storage full */ }
+      _writeCache(k, remote); changed = true;
+    });
+    if (!changed) return;
+    var y = window.scrollY, stRoot = document.getElementById("storyPageRoot");
+    if (stRoot) stRoot._loaded = false;
+    _switchPageNow("story");
+    setTimeout(function () { window.scrollTo(0, y); }, 400);
+  } catch (e) {
+    console.error("Story refresh failed", e);
+  } finally {
+    _storyRefreshing = false;
+  }
+}
 async function refreshCurrentPageFromServer(force) {
+  if (currentPage === "story") { refreshStoryFromServer(force); return; }
   var page = currentPage;
   if (_syncRefreshing || !currentUserId || document.hidden || !_SYNC_PAGES[page]) return;
   var now = Date.now();
@@ -10773,6 +10852,7 @@ async function renderStoryPage(root) {
         '<div id="storySyncStatus" class="sync-status" style="margin-top:4px;"><span class="sync-dot" id="storySyncStatusDot"></span><span id="storySyncStatusText">Not synced yet</span></div>' +
       "</div>" +
       '<div class="row-gap">' +
+        '<button class="small-btn" id="storySaveNowBtn" style="background:#5BAE7A;" title="Save and sync now (Ctrl/Cmd+S)">Save now</button>' +
         '<button class="small-btn" id="storyDownloadBtn" style="background:' + accent + ';">⬇ Download</button>' +
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
       "</div>" +
@@ -10791,6 +10871,24 @@ async function renderStoryPage(root) {
     '<div id="storySectionBody" class="bento-body"></div>';
 
   renderStorySyncStatus();
+  var saveNowBtn = document.getElementById("storySaveNowBtn");
+  saveNowBtn.addEventListener("click", async function () {
+    saveNowBtn.disabled = true; saveNowBtn.textContent = "Saving…";
+    var ok = await storySaveNow();
+    saveNowBtn.textContent = ok ? "Saved ✓" : "Couldn’t sync";
+    saveNowBtn.style.background = ok ? "#5BAE7A" : "#FF8A5C";
+    setTimeout(function () { saveNowBtn.disabled = false; saveNowBtn.textContent = "Save now"; saveNowBtn.style.background = "#5BAE7A"; }, 1800);
+  });
+  if (!root._saveKeyWired) { // Ctrl/Cmd+S anywhere on the Story page
+    root._saveKeyWired = true;
+    root.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "s") {
+        e.preventDefault();
+        var b = document.getElementById("storySaveNowBtn");
+        if (b && !b.disabled) b.click();
+      }
+    });
+  }
   document.getElementById("storyDownloadBtn").addEventListener("click", downloadStoryExport);
   document.getElementById("storyManuscriptBtn").addEventListener("click", downloadManuscriptExport);
   var reconnectBtn = document.getElementById("storyReconnectBtn");
