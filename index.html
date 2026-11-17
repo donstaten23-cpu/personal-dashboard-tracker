@@ -889,6 +889,10 @@
   }
   .chapter-editor { min-height: 160px; line-height: 1.6; font-family: inherit; font-size: 14px; color: var(--text-1); background: #12151A; border: 1px solid #2A313A; border-radius: 6px; padding: 8px 12px; outline: none; }
   .chapter-editor:focus { border-color: var(--accent); }
+  .chapter-editor { overflow-wrap: anywhere; max-width: 100%; box-sizing: border-box; overflow-x: hidden; touch-action: pan-y; overscroll-behavior-x: none; }
+  #storyFocusOverlay { touch-action: pan-y; overscroll-behavior: contain; overflow-x: hidden; max-width: 100vw; }
+  .ch-page { max-width: 100%; overflow-x: hidden; touch-action: pan-y; }
+  .chapter-editor * { max-width: 100%; }
   .chapter-editor p { margin: 0 0 0.9em; text-indent: 2em; }
   .chapter-editor p:first-child { text-indent: 0; }
   .chapter-editor b { font-weight: 700; }
@@ -1190,6 +1194,31 @@
   .np-key.np-done { grid-column: 3 / span 2; font-size: 17px; }
   .np-key.np-back { font-size: 20px; }
   .np-open .main-content { padding-bottom: calc(var(--np-h, 300px) + 24px); }
+  /* Story reader: the story as fixed pages you turn, like an e-book */
+  .rd-overlay { position: fixed; inset: 0; z-index: 1100; display: flex; flex-direction: column; background: var(--paper); color: var(--paper-ink); font-family: var(--page-font); -webkit-user-select: none; user-select: none; touch-action: pan-y; }
+  .rd-bar { display: flex; align-items: center; gap: 6px; padding: calc(env(safe-area-inset-top, 0px) + 8px) 10px 6px; flex-shrink: 0; font-family: var(--font-body, system-ui, sans-serif); }
+  .rd-run { flex: 1; min-width: 0; text-align: center; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rd-btn { appearance: none; background: transparent; border: 1px solid color-mix(in srgb, var(--paper-ink) 25%, transparent); color: var(--paper-ink); border-radius: 10px; min-width: 38px; height: 36px; padding: 0 10px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .rd-btn:active { background: color-mix(in srgb, var(--paper-ink) 12%, transparent); }
+  .rd-view { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .rd-flow { position: absolute; left: 0; top: 0; box-sizing: border-box; column-fill: auto; transition: transform .28s cubic-bezier(.22,.8,.3,1); will-change: transform; hyphens: auto; -webkit-hyphens: auto; text-align: justify; line-height: 1.7; }
+  .rd-flow.no-anim { transition: none; }
+  .rd-ch { break-before: column; -webkit-column-break-before: always; }
+  .rd-ch:first-child { break-before: auto; -webkit-column-break-before: auto; }
+  .rd-num { text-align: center; font-size: .6em; letter-spacing: .24em; text-transform: uppercase; opacity: .55; margin: 1.4em 0 .3em; font-weight: 600; }
+  .rd-title { text-align: center; font-size: 1.5em; line-height: 1.25; margin: 0 0 .1em; font-weight: 700; hyphens: manual; }
+  .rd-orn { text-align: center; opacity: .5; margin: .2em 0 1.1em; }
+  .rd-body p { margin: 0 0 .15em; text-indent: 1.5em; orphans: 2; widows: 2; }
+  .rd-body p:first-child { text-indent: 0; }
+  .rd-body b { font-weight: 700; } .rd-body i { font-style: italic; }
+  .rd-foot { flex-shrink: 0; padding: 4px 18px calc(env(safe-area-inset-bottom, 0px) + 10px); font-family: var(--font-body, system-ui, sans-serif); text-align: center; font-size: 12px; opacity: .65; }
+  .rd-prog { height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--paper-ink) 14%, transparent); margin: 0 0 8px; overflow: hidden; }
+  .rd-prog > i { display: block; height: 100%; background: var(--accent); width: 0; }
+  .rd-toc { position: absolute; inset: 0; z-index: 3; background: var(--paper); overflow-y: auto; padding: calc(env(safe-area-inset-top, 0px) + 56px) 20px 30px; font-family: var(--font-body, system-ui, sans-serif); }
+  .rd-toc h3 { margin: 0 0 12px; font-family: var(--page-font); font-size: 22px; }
+  .rd-toc button { display: flex; width: 100%; justify-content: space-between; gap: 12px; text-align: left; background: none; border: none; border-bottom: 1px solid color-mix(in srgb, var(--paper-ink) 14%, transparent); color: var(--paper-ink); font: inherit; font-size: 15px; padding: 13px 2px; cursor: pointer; }
+  .rd-toc button span:last-child { opacity: .55; flex-shrink: 0; }
+  .rd-empty { padding: 40px 24px; text-align: center; opacity: .7; }
   /* Nightly Bible reading (Overview → Routines) */
   .bible-title { font-size: 36px; line-height: 1.05; color: var(--text-1); margin: 6px 0 2px; }
   .bible-sub { color: var(--text-2); font-size: 13px; }
@@ -4512,7 +4541,7 @@ document.addEventListener("touchstart", function (e) {
   var t = e.touches[0];
   var dash = document.getElementById("dashboardScreen");
   if (!dash || dash.style.display === "none" || document.getElementById("sidebar").classList.contains("open")) return;
-  if (t.clientX < 24 && navigator.standalone === true) { _sw = { mode: "edge", x0: t.clientX, y0: t.clientY }; return; }
+  if (t.clientX < 24 && navigator.standalone === true && !document.getElementById("storyReader")) { _sw = { mode: "edge", x0: t.clientX, y0: t.clientY }; return; }
   var row = e.target.closest && e.target.closest(SWIPE_ROW);
   // Skip rows open for editing (text fields); a row's selection checkbox is fine.
   var field = "input:not([type=checkbox]):not([type=radio]), textarea, select, [contenteditable='true']";
@@ -11251,6 +11280,207 @@ async function renderWorkoutsTab(root) {
 
 /* ---------------- story page ---------------- */
 
+/* ---------------- story reader + EPUB export ---------------- */
+
+// Fixed pages, like an e-book. The whole story is laid out in CSS columns exactly one screen
+// wide and tall, and "turning the page" slides the strip across by one screen: nothing
+// scrolls, and the text always fits the page, whatever the font size or the phone.
+function openStoryReader(chapters, startId) {
+  if (document.getElementById("storyReader")) return;
+  chapters = (chapters || []).filter(function (c) { return c && (c.title || chapterPlainText(c.content).trim()); });
+  var KEY_SIZE = "story-reader-size", KEY_POS = "story-reader-pos";
+  var size = 18, pos = null;
+  try { size = Number(localStorage.getItem(KEY_SIZE)) || 18; pos = JSON.parse(localStorage.getItem(KEY_POS) || "null"); } catch (e) {}
+  size = Math.max(14, Math.min(28, size));
+
+  var ov = document.createElement("div");
+  ov.id = "storyReader"; ov.className = "rd-overlay"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Story reader");
+  ov.innerHTML =
+    '<div class="rd-bar"><button class="rd-btn" data-rd="close" aria-label="Close reader">✕</button><button class="rd-btn" data-rd="toc" aria-label="Chapters">☰</button>' +
+      '<div class="rd-run" id="rdRun"></div><button class="rd-btn" data-rd="smaller" aria-label="Smaller text" style="font-size:12px;">A</button><button class="rd-btn" data-rd="bigger" aria-label="Larger text" style="font-size:18px;">A</button></div>' +
+    '<div class="rd-view" id="rdView"><div class="rd-flow" id="rdFlow"></div></div>' +
+    '<div class="rd-foot"><div class="rd-prog"><i id="rdProg"></i></div><span id="rdPage"></span></div>';
+  document.body.appendChild(ov);
+  document.body.style.overflow = "hidden";
+
+  var view = ov.querySelector("#rdView"), flow = ov.querySelector("#rdFlow");
+  var W = 0, H = 0, pages = 1, page = 0, chStart = [];
+
+  flow.innerHTML = chapters.length ? chapters.map(function (c, i) {
+    return '<section class="rd-ch" data-ch="' + escapeHtml(c.id) + '"><div class="rd-num">Chapter ' + (i + 1) + '</div><h1 class="rd-title">' + escapeHtml(c.title || "Untitled") + '</h1><div class="rd-orn">❦</div><div class="rd-body">' + sanitizeChapterHtml(c.content) + "</div></section>";
+  }).join("") : '<div class="rd-empty">No chapters to read yet.</div>';
+
+  function fraction() { // where we are inside the current chapter, so a re-layout can come back to the same spot
+    var ci = chapterIndexAt(page), start = chStart[ci] || 0, end = ci + 1 < chStart.length ? chStart[ci + 1] : pages;
+    return { id: chapters[ci] ? chapters[ci].id : null, frac: end > start ? (page - start) / (end - start) : 0 };
+  }
+  function chapterIndexAt(pg) { var ci = 0; for (var i = 0; i < chStart.length; i++) if (chStart[i] <= pg) ci = i; return ci; }
+  function layout(restore) {
+    var keep = restore || (pages > 1 ? fraction() : null);
+    W = view.clientWidth; H = view.clientHeight;
+    var padX = Math.max(22, Math.min(56, W * 0.075)), padY = 18;
+    flow.classList.add("no-anim");
+    flow.style.width = W + "px"; flow.style.height = H + "px";
+    flow.style.padding = padY + "px " + padX + "px";
+    flow.style.columnWidth = (W - 2 * padX) + "px"; flow.style.columnGap = (2 * padX) + "px";
+    flow.style.webkitColumnWidth = flow.style.columnWidth; flow.style.webkitColumnGap = flow.style.columnGap;
+    flow.style.fontSize = size + "px";
+    flow.style.transform = "translateX(0)";
+    void flow.offsetWidth;
+    pages = Math.max(1, Math.ceil((flow.scrollWidth - 2) / W));
+    chStart = Array.prototype.map.call(flow.querySelectorAll(".rd-ch"), function (el) { return Math.min(pages - 1, Math.max(0, Math.floor((el.offsetLeft + 2) / W))); });
+    var target = 0;
+    if (keep && keep.id) {
+      var ci = chapters.findIndex(function (c) { return c.id === keep.id; });
+      if (ci >= 0) { var st = chStart[ci] || 0, en = ci + 1 < chStart.length ? chStart[ci + 1] : pages; target = st + Math.round(keep.frac * Math.max(0, en - st - 1)); }
+    }
+    go(target, true);
+    void flow.offsetWidth; flow.classList.remove("no-anim");
+  }
+  function savePos() { try { localStorage.setItem(KEY_POS, JSON.stringify(fraction())); } catch (e) {} }
+  function go(n, instant) {
+    page = Math.max(0, Math.min(pages - 1, n));
+    flow.style.transform = "translateX(" + (-page * W) + "px)";
+    var ci = chapterIndexAt(page), c = chapters[ci];
+    ov.querySelector("#rdRun").textContent = c ? "Ch. " + (ci + 1) + " · " + (c.title || "Untitled") : "";
+    ov.querySelector("#rdPage").textContent = "Page " + (page + 1) + " of " + pages;
+    ov.querySelector("#rdProg").style.width = (pages > 1 ? page / (pages - 1) * 100 : 100) + "%";
+    if (!instant) savePos();
+  }
+  function jumpToChapter(id) { var ci = chapters.findIndex(function (c) { return c.id === id; }); if (ci >= 0) go(chStart[ci] || 0); savePos(); }
+
+  function toggleToc() {
+    var t = ov.querySelector(".rd-toc");
+    if (t) { t.remove(); return; }
+    t = document.createElement("div"); t.className = "rd-toc";
+    t.innerHTML = "<h3>Chapters</h3>" + chapters.map(function (c, i) {
+      return '<button data-rdtoc="' + escapeHtml(c.id) + '"><span>' + (i + 1) + ". " + escapeHtml(c.title || "Untitled") + "</span><span>p. " + ((chStart[i] || 0) + 1) + "</span></button>";
+    }).join("");
+    ov.appendChild(t);
+    ov.querySelector(".rd-bar").style.position = "relative"; ov.querySelector(".rd-bar").style.zIndex = "4";
+  }
+  function setSize(delta) { size = Math.max(14, Math.min(28, size + delta)); try { localStorage.setItem(KEY_SIZE, String(size)); } catch (e) {} layout(); savePos(); }
+  function close() {
+    savePos(); window.removeEventListener("resize", onResize); document.removeEventListener("keydown", onKey);
+    document.body.style.overflow = ""; ov.remove();
+  }
+
+  ov.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-rd]"), tb = e.target.closest("[data-rdtoc]");
+    if (tb) { toggleToc(); jumpToChapter(tb.getAttribute("data-rdtoc")); return; }
+    if (b) {
+      var a = b.getAttribute("data-rd");
+      if (a === "close") close(); else if (a === "toc") toggleToc(); else if (a === "bigger") setSize(1); else if (a === "smaller") setSize(-1);
+      return;
+    }
+    if (ov.querySelector(".rd-toc") || !e.target.closest("#rdView")) return;
+    var x = e.clientX / ov.clientWidth; // tap the left third to go back, anywhere else to go on
+    go(page + (x < 0.33 ? -1 : 1));
+  });
+  var tx = null, ty = null;
+  view.addEventListener("touchstart", function (e) { if (e.touches.length === 1) { tx = e.touches[0].clientX; ty = e.touches[0].clientY; } else tx = null; }, { passive: true });
+  view.addEventListener("touchend", function (e) {
+    if (tx === null) return;
+    var t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty; tx = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) { e.preventDefault(); go(page + (dx < 0 ? 1 : -1)); suppressTap = Date.now(); }
+  });
+  var suppressTap = 0;
+  ov.addEventListener("click", function (e) { if (Date.now() - suppressTap < 400) e.stopImmediatePropagation(); }, true);
+  function onKey(e) {
+    if (e.key === "Escape") close();
+    else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); go(page + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(page - 1); }
+  }
+  document.addEventListener("keydown", onKey);
+  var rT = null;
+  function onResize() { clearTimeout(rT); rT = setTimeout(function () { layout(); }, 120); }
+  window.addEventListener("resize", onResize);
+
+  var restore = null;
+  if (startId) restore = { id: startId, frac: 0 }; else if (pos && pos.id) restore = pos;
+  layout(restore);
+  setTimeout(function () { layout(restore || null); }, 250); // fonts finishing loading can change the page count
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { layout(); });
+  window._storyReaderApi = { go: go, pages: function () { return pages; }, page: function () { return page; }, layout: layout, chStart: function () { return chStart.slice(); } };
+}
+
+// ---- EPUB export: a real .epub file you can open in Apple Books and other readers ----
+function _crc32(bytes) {
+  if (!_crc32.t) { _crc32.t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; _crc32.t[n] = c >>> 0; } }
+  var crc = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) crc = _crc32.t[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+// Minimal ZIP writer (files stored uncompressed, which EPUB allows). "mimetype" goes first.
+function _zipStore(files) {
+  var enc = new TextEncoder(), chunks = [], central = [], offset = 0;
+  var now = new Date(), dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1), dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  files.forEach(function (f) {
+    var name = enc.encode(f.name), data = typeof f.data === "string" ? enc.encode(f.data) : f.data, crc = _crc32(data);
+    var lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(lh.buffer), name, data);
+    var ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true); ch.setUint16(28, name.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + data.length;
+  });
+  var cdSize = central.reduce(function (n, a) { return n + a.length; }, 0);
+  var end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob(chunks.concat(central, [new Uint8Array(end.buffer)]), { type: "application/epub+zip" });
+}
+function buildStoryEpub(chapters, title, author) {
+  var X = function (t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+  var ser = new XMLSerializer();
+  function bodyXhtml(html) { // sanitised chapter HTML -> well-formed XHTML
+    var doc = new DOMParser().parseFromString("<body>" + sanitizeChapterHtml(html) + "</body>", "text/html"), out = "";
+    Array.prototype.forEach.call(doc.body.childNodes, function (n) {
+      if (n.nodeType === 3) { if (n.nodeValue.trim()) out += "<p>" + X(n.nodeValue) + "</p>"; }
+      else out += ser.serializeToString(n);
+    });
+    return out;
+  }
+  var uid = "urn:uuid:" + "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
+  var head = '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en"><head><meta charset="utf-8"/><title>@T@</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body>';
+  var files = [
+    { name: "mimetype", data: "application/epub+zip" },
+    { name: "META-INF/container.xml", data: '<?xml version="1.0"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>' },
+    { name: "OEBPS/style.css", data: 'body{font-family:serif;line-height:1.55;margin:0 4%}h1{text-align:center;font-size:1.5em;margin:2em 0 .2em}.num{text-align:center;text-transform:uppercase;letter-spacing:.2em;font-size:.7em;margin-top:3em;color:#777}.orn{text-align:center;color:#888;margin:.2em 0 1.4em}p{margin:0;text-indent:1.5em;text-align:justify}h1+.orn+p,.orn+p{text-indent:0}.title{margin-top:30%}.by{text-align:center;color:#555}' }
+  ];
+  var items = ['<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>', '<item id="css" href="style.css" media-type="text/css"/>', '<item id="titlepage" href="title.xhtml" media-type="application/xhtml+xml"/>'];
+  var spine = ['<itemref idref="titlepage"/>'], toc = [];
+  files.push({ name: "OEBPS/title.xhtml", data: head.replace("@T@", X(title)) + '<h1 class="title">' + X(title) + '</h1>' + (author ? '<p class="by" style="text-indent:0">' + X(author) + '</p>' : "") + "</body></html>" });
+  chapters.forEach(function (c, i) {
+    var id = "ch" + String(i + 1).padStart(3, "0"), t = c.title || "Chapter " + (i + 1);
+    files.push({ name: "OEBPS/" + id + ".xhtml", data: head.replace("@T@", X(t)) + '<div class="num">Chapter ' + (i + 1) + "</div><h1>" + X(t) + '</h1><div class="orn">❦</div>' + bodyXhtml(c.content) + "</body></html>" });
+    items.push('<item id="' + id + '" href="' + id + '.xhtml" media-type="application/xhtml+xml"/>');
+    spine.push('<itemref idref="' + id + '"/>');
+    toc.push('<li><a href="' + id + '.xhtml">' + X(i + 1 + ". " + t) + "</a></li>");
+  });
+  files.push({ name: "OEBPS/nav.xhtml", data: head.replace("@T@", "Contents") + '<nav epub:type="toc" id="toc"><h1>Contents</h1><ol style="list-style:none;padding:0">' + toc.join("") + "</ol></nav></body></html>" });
+  files.push({ name: "OEBPS/content.opf", data: '<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">' + uid + "</dc:identifier><dc:title>" + X(title) + "</dc:title><dc:language>en</dc:language>" + (author ? "<dc:creator>" + X(author) + "</dc:creator>" : "") + '<meta property="dcterms:modified">' + new Date().toISOString().replace(/\.\d+Z$/, "Z") + "</meta></metadata><manifest>" + items.join("") + "</manifest><spine>" + spine.join("") + "</spine></package>" });
+  return _zipStore(files);
+}
+function downloadStoryEpub(chapters) {
+  var list = (chapters || []).filter(function (c) { return c && (c.title || chapterPlainText(c.content).trim()); });
+  if (!list.length) { alert("Write a chapter first, then you can download the story as an EPUB."); return; }
+  var title = (window.prompt("Book title:", "My Story") || "").trim();
+  if (!title) return;
+  var blob = buildStoryEpub(list, title, typeof USER_DISPLAY_NAME === "string" ? USER_DISPLAY_NAME : "");
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() + ".epub";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
 async function renderStoryPage(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
@@ -11771,6 +12001,7 @@ async function renderStoryPage(root) {
           '<span class="ch-spacer"></span>' +
           '<button class="icon-btn" data-action="move-chapter-up" data-id="' + c.id + '" title="Move up" aria-label="Move chapter up">▴</button>' +
           '<button class="icon-btn" data-action="move-chapter-down" data-id="' + c.id + '" title="Move down" aria-label="Move chapter down">▾</button>' +
+          '<button class="icon-btn" data-action="read-chapter" data-id="' + c.id + '" title="Read in the page reader" aria-label="Read in the page reader">\uD83D\uDCD6</button>' +
           '<button class="icon-btn" data-action="focus-chapter" data-id="' + c.id + '" title="Full-screen writing" aria-label="Full-screen writing">⛶</button>' +
           '<button class="icon-btn" data-action="delete-chapter" data-id="' + c.id + '" title="Delete chapter" aria-label="Delete chapter">✕</button>' +
         "</div>" +
@@ -11798,6 +12029,7 @@ async function renderStoryPage(root) {
     bodyEl.innerHTML =
       leftOffHtml +
       wordCountHtml +
+      (chapters.length ? '<div class="row-gap" style="margin:0 0 14px;flex-wrap:wrap;"><button class="add-btn" id="storyReadBtn" style="background:' + accent + ';">\uD83D\uDCD6 Read the story</button><button class="port-edit-btn" id="storyEpubBtn" title="Download the whole story as an e-book file">\u21E9 Download EPUB</button></div>' : "") +
       '<div class="card">' +
         structureLabel("ARCS") + arcNavHtml +
         structureLabel("STATUSES") + statusManagerHtml +
@@ -11910,6 +12142,7 @@ async function renderStoryPage(root) {
       var id = btn.getAttribute("data-id");
       if (action === "delete-chapter") handleDeleteChapter(id);
       else if (action === "focus-chapter") openFocusMode(id);
+      else if (action === "read-chapter") openStoryReader(sortedChapters(), id);
       else if (action === "move-chapter-up") handleMoveChapter(id, -1);
       else if (action === "move-chapter-down") handleMoveChapter(id, 1);
       else if (action === "delete-arc") handleDeleteArc(id);
@@ -11940,6 +12173,9 @@ async function renderStoryPage(root) {
         if (rc && (rc.top < 120 || rc.bottom > window.innerHeight - 80)) window.scrollBy(0, rc.top - window.innerHeight / 2);
       }
     });
+    var readBtn = document.getElementById("storyReadBtn"), epubBtn = document.getElementById("storyEpubBtn");
+    if (readBtn) readBtn.addEventListener("click", function () { openStoryReader(sortedChapters(), null); });
+    if (epubBtn) epubBtn.addEventListener("click", function () { downloadStoryEpub(sortedChapters()); });
     document.getElementById("storyAddChapterBtn").addEventListener("click", handleAddChapter);
     document.getElementById("storyAddArcBtn").addEventListener("click", handleAddArc);
     document.getElementById("storyAddStatusBtn").addEventListener("click", handleAddStatus);
@@ -11991,7 +12227,7 @@ async function renderStoryPage(root) {
     if (!c) return;
     var overlay = document.createElement("div");
     overlay.id = "storyFocusOverlay";
-    overlay.style.cssText = "position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;flex-direction:column;overflow-x:hidden;";
     overlay.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;">' +
         '<input id="focusChapterTitle" class="form-input" style="flex:1;min-width:160px;max-width:480px;font-weight:600;" placeholder="Chapter title" value="' + escapeHtml(c.title) + '" />' +
@@ -12002,7 +12238,7 @@ async function renderStoryPage(root) {
         '<span class="mono" id="focusStats" style="color:var(--text-3);font-size:12px;flex-shrink:0;"></span>' +
         '<button class="small-btn" id="focusExitBtn" style="background:var(--bg-card);color:var(--text-1);border:1px solid var(--border);flex-shrink:0;">Done (Esc)</button>' +
       "</div>" +
-      '<div id="focusChapterEditor" class="chapter-editor" contenteditable="true" data-placeholder="Write here…" style="flex:1;width:100%;box-sizing:border-box;background:var(--paper);color:var(--paper-ink);border:none;border-radius:0;padding:36px max(20px, calc(50% - 340px));font-family:var(--page-font);font-size:19px;line-height:1.85;overflow-y:auto;">' + sanitizeChapterHtml(c.content) + "</div>";
+      '<div id="focusChapterEditor" class="chapter-editor" contenteditable="true" data-placeholder="Write here…" style="flex:1;width:100%;box-sizing:border-box;background:var(--paper);color:var(--paper-ink);border:none;border-radius:0;padding:36px max(20px, calc(50% - 340px));font-family:var(--page-font);font-size:19px;line-height:1.85;overflow-y:auto;overflow-x:hidden;overflow-wrap:anywhere;word-break:normal;hyphens:auto;-webkit-hyphens:auto;min-width:0;">' + sanitizeChapterHtml(c.content) + "</div>";
     document.body.appendChild(overlay);
     document.body.style.overflow = "hidden";
 
@@ -12013,6 +12249,8 @@ async function renderStoryPage(root) {
     updateStats();
 
     var editorEl = document.getElementById("focusChapterEditor");
+    // Never let the page slide sideways (a long unbroken run or a caret scroll used to push the text off the left edge).
+    editorEl.addEventListener("scroll", function () { if (editorEl.scrollLeft) editorEl.scrollLeft = 0; });
     initChapterEditor(editorEl,
       function (html) { c.content = html; updateStats(); },
       function (html) { c.content = html; },
