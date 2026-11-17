@@ -440,6 +440,12 @@
     padding: 22px 24px; margin-bottom: 14px;
   }
   .page-hero header { margin-bottom: 0 !important; }
+  .story-savebar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; margin-bottom: 14px; background: var(--bg-card); border: 1px solid var(--border-2); border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.25);
+  }
+  .story-savebar .sync-status { min-width: 0; font-size: 12px; }
   .page-hero .tab-eyebrow, .page-hero .port-eyebrow { margin-top: 0; }
   .page-hero .trip-switcher { margin-bottom: 0; }
   .page-hero .pills { margin: 16px 0 0; }
@@ -11375,14 +11381,17 @@ async function renderStoryPage(root) {
     '<header style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
       '<div>' +
         '<h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0;">Story</h2>' +
-        '<div id="storySyncStatus" class="sync-status" style="margin-top:4px;"><span class="sync-dot" id="storySyncStatusDot"></span><span id="storySyncStatusText">Not synced yet</span></div>' +
       "</div>" +
       '<div class="row-gap">' +
-        '<button class="small-btn" id="storySaveNowBtn" style="background:#5BAE7A;" title="Save and sync now (Ctrl/Cmd+S)">Save now</button>' +
         '<button class="small-btn" id="storyDownloadBtn" style="background:' + accent + ';">⬇ Download</button>' +
         '<button class="small-btn" id="storyManuscriptBtn" style="background:#8A919C;">⬇ Manuscript</button>' +
       "</div>" +
     "</header>" +
+    '</div>' +
+    // Pinned to the top while you scroll, so Save now and the sync status are on screen in every section.
+    '<div class="story-savebar">' +
+      '<div id="storySyncStatus" class="sync-status"><span class="sync-dot" id="storySyncStatusDot"></span><span id="storySyncStatusText">Not synced yet</span></div>' +
+      '<button class="small-btn" id="storySaveNowBtn" style="background:#5BAE7A;" title="Save and sync now (Ctrl/Cmd+S)">Save now</button>' +
     '</div>' +
     (window.FirebaseBridge && window.FirebaseBridge.auth.currentUser() ? "" :
       '<div class="card" style="margin-bottom:16px;border-color:' + accent + ';">' +
