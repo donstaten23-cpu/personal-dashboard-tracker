@@ -2654,11 +2654,42 @@ function _setHandler(el, type, fn) {
 // on blur. onCommit(sanitizedHtml) fires on blur/paste only and also saves;
 // sanitizing never happens on plain "input" since rewriting innerHTML
 // mid-type would reset the caret position.
-function initChapterEditor(el, onInput, onCommit) {
+// Caret position as a character offset from the start of the editor, so
+// "where I left off" survives re-renders and syncs between devices.
+function _caretOffsetIn(el) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return null;
+  var r = sel.getRangeAt(0).cloneRange();
+  r.selectNodeContents(el);
+  r.setEnd(sel.anchorNode, sel.anchorOffset);
+  return r.toString().length;
+}
+function _setCaretOffsetIn(el, offset) {
+  var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), node, left = offset, range = document.createRange();
+  while ((node = walker.nextNode())) {
+    if (left <= node.nodeValue.length) { range.setStart(node, left); range.collapse(true); break; }
+    left -= node.nodeValue.length;
+  }
+  if (!node) { range.selectNodeContents(el); range.collapse(false); }
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function initChapterEditor(el, onInput, onCommit, onCaret) {
   document.execCommand("defaultParagraphSeparator", false, "p");
   function updateEmptyState() { el.classList.toggle("is-empty", el.textContent.trim() === ""); }
   updateEmptyState();
+  function reportCaret() { if (onCaret) { var o = _caretOffsetIn(el); if (o !== null) onCaret(o); } }
+  el.addEventListener("keyup", reportCaret);
+  el.addEventListener("mouseup", reportCaret);
   el.addEventListener("keydown", function (e) {
+    // Tab indents (two em spaces, which HTML never collapses) instead of jumping to the next control.
+    // Shift+Tab still moves focus out, so the keyboard is never trapped.
+    if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      document.execCommand("insertText", false, "  ");
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
       var k = e.key.toLowerCase();
       if (k === "b") { e.preventDefault(); document.execCommand("bold"); }
@@ -2676,6 +2707,7 @@ function initChapterEditor(el, onInput, onCommit) {
     onInput(el.innerHTML);
   });
   el.addEventListener("blur", function () {
+    reportCaret();
     var clean = sanitizeChapterHtml(el.innerHTML);
     el.innerHTML = clean;
     updateEmptyState();
@@ -11758,7 +11790,13 @@ async function renderStoryPage(root) {
       var color = c.arcId ? arcColor(c.arcId) : accent;
       return '<button class="pill" data-toc="' + c.id + '" style="border-color:' + color + ';color:' + color + ';">' + (i + 1) + ". " + escapeHtml(c.title || "Untitled chapter") + "</button>";
     }).join("") + "</div>";
+    var leftOff = chaptersData.leftOff, leftOffIdx = -1;
+    if (leftOff) leftOffIdx = chapters.findIndex(function (c) { return c.id === leftOff.id; });
+    var leftOffHtml = leftOffIdx < 0 ? "" :
+      '<button class="add-btn" id="storyLeftOffBtn" style="background:' + accent + ';width:100%;margin-bottom:14px;text-align:left;">▶ Continue where you left off — Chapter ' +
+        (leftOffIdx + 1) + (chapters[leftOffIdx].title ? ": " + escapeHtml(chapters[leftOffIdx].title) : "") + "</button>";
     bodyEl.innerHTML =
+      leftOffHtml +
       wordCountHtml +
       '<div class="card">' +
         structureLabel("ARCS") + arcNavHtml +
@@ -11837,7 +11875,8 @@ async function renderStoryPage(root) {
       }
       initChapterEditor(el,
         function (html) { var c = findChapter(); if (c) c.content = html; showWords(html); },
-        function (html) { var c = findChapter(); if (c) c.content = html; saveChapters(); showWords(html); }
+        function (html) { var c = findChapter(); if (c) c.content = html; saveChapters(); showWords(html); },
+        function (offset) { chaptersData.leftOff = { id: el.getAttribute("data-id"), offset: offset, at: Date.now() }; }
       );
     });
     bodyEl.querySelectorAll(".chapter-tb-btn").forEach(function (btn) {
@@ -11886,6 +11925,20 @@ async function renderStoryPage(root) {
         var target = document.getElementById("storyComic-" + e.currentTarget.getAttribute("data-jump-episode"));
         if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
+    });
+    var leftOffBtn = document.getElementById("storyLeftOffBtn");
+    if (leftOffBtn) leftOffBtn.addEventListener("click", function () {
+      var ed = document.querySelector('.chapter-editor[data-id="' + leftOff.id + '"]');
+      if (!ed) return;
+      ed.scrollIntoView({ block: "center" });
+      ed.focus({ preventScroll: true });
+      _setCaretOffsetIn(ed, leftOff.offset || 0);
+      // scrollIntoView on the editor centres the chapter; nudge so the caret line itself is visible too
+      var sel = window.getSelection();
+      if (sel.rangeCount) {
+        var rc = sel.getRangeAt(0).getClientRects()[0];
+        if (rc && (rc.top < 120 || rc.bottom > window.innerHeight - 80)) window.scrollBy(0, rc.top - window.innerHeight / 2);
+      }
     });
     document.getElementById("storyAddChapterBtn").addEventListener("click", handleAddChapter);
     document.getElementById("storyAddArcBtn").addEventListener("click", handleAddArc);
@@ -11962,7 +12015,8 @@ async function renderStoryPage(root) {
     var editorEl = document.getElementById("focusChapterEditor");
     initChapterEditor(editorEl,
       function (html) { c.content = html; updateStats(); },
-      function (html) { c.content = html; }
+      function (html) { c.content = html; },
+      function (offset) { chaptersData.leftOff = { id: c.id, offset: offset, at: Date.now() }; }
     );
     document.getElementById("focusBoldBtn").addEventListener("mousedown", function (e) { e.preventDefault(); });
     document.getElementById("focusBoldBtn").addEventListener("click", function () { editorEl.focus(); document.execCommand("bold"); });
