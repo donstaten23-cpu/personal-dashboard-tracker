@@ -1678,6 +1678,9 @@
           </div>
         </div>
 
+        <!-- Nightly Bible reading: right under the header (filled by renderBibleCard). -->
+        <div id="rtBible"></div>
+
         <!-- Bento overview tiles — filled by renderOverviewTiles() from each page's saved data. -->
         <div class="ov-grid" id="overviewTiles"></div>
 
@@ -13423,7 +13426,6 @@ async function renderRoutinesTab(root) {
     '<div class="tab-eyebrow">' + escapeHtml(_pageLabel('routines', 'DAILY ROUTINES')) + '</div>' +
     '<header style="margin-bottom:20px;"><h2 class="serif" style="color:var(--text-1);font-size:30px;margin:0 0 4px;">Routines</h2><div class="mono" id="rtLongest" style="color:' + accent + ';font-size:12px;"></div></header>' +
     '<div class="card"><div class="gauge-top"><span class="gauge-label mono">TODAY</span><span class="mono" id="rtTodayAmount" style="color:' + accent + ';"></span></div><div class="gauge-track"><div class="gauge-fill" id="rtGaugeFill" style="background:linear-gradient(90deg,' + accent + ",color-mix(in srgb, " + accent + " 80%, transparent));box-shadow:0 0 14px color-mix(in srgb, " + accent + ' 33%, transparent);"></div></div></div>' +
-    '<div id="rtBible"></div>' +
     '<div class="card">' +
       '<div class="pills" id="rtFreqPills" style="margin-bottom:8px;"></div>' +
       '<div class="row-gap"><input class="form-input" id="rtNewName" placeholder="New routine, e.g. Morning walk" /><button class="add-btn" id="rtAddBtn" style="background:' + accent + ';flex-shrink:0;">+ Add</button></div>' +
