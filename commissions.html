@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Commissions</title>
+<meta name="description" content="Custom portraits, logos and line art. See the work, prices and how to request a commission." />
+<style>
+  @font-face {
+    font-family: 'Asap';
+    src: url('Asap_VariableFont_wdth_wght.ttf') format('truetype');
+    font-weight: 100 900; font-style: normal; font-display: swap;
+  }
+  :root {
+    --bg: #D6D7DA; --tile: #FFFFFF; --ink: #16181D; --ink-2: #4A505A; --ink-3: #80868F;
+    --line: #E4E6E9; --pill-line: #CDD0D5; --accent: #E8643A; --open: #2E8B57; --closed: #B33A3A;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Asap', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 20px 60px; display: grid; gap: 20px; }
+  .tile { background: var(--tile); border-radius: 20px; padding: 26px 28px; min-width: 0; }
+  h2 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 16px; }
+  .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent); font-weight: 700; }
+
+  /* Header */
+  .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--pill-line); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; }
+  .badge::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--dot); }
+  .badge.open { --dot: var(--open); color: var(--open); }
+  .badge.closed { --dot: var(--closed); color: var(--closed); }
+  .hero-name { font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 0 0 6px; }
+  .hero-pitch { font-size: 18px; color: var(--ink-2); margin: 0 0 14px; }
+  .hero-bio { font-size: 16px; line-height: 1.65; margin: 0 0 18px; max-width: 700px; }
+  .btn { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; padding: 12px 22px; border-radius: 12px; }
+  .btn:hover { text-decoration: none; filter: brightness(.95); }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+  /* Gallery */
+  .group-title { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); font-weight: 700; margin: 22px 0 10px; }
+  .group-title:first-of-type { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .shot { border: none; background: none; padding: 0; cursor: zoom-in; text-align: left; font: inherit; color: inherit; }
+  .shot img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; border: 1px solid var(--line); background: #F6F7F8; }
+  .shot span { display: block; font-size: 13px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
+  .empty { color: var(--ink-3); font-size: 14px; }
+  .lightbox { position: fixed; inset: 0; background: rgba(16,18,22,.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; z-index: 10; cursor: zoom-out; }
+  .lightbox img { max-width: 100%; max-height: 82vh; border-radius: 10px; background: #fff; }
+  .lightbox p { color: #fff; margin: 0; font-size: 14px; text-align: center; }
+
+  /* Services */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .card { border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; }
+  .card h3 { margin: 0 0 4px; font-size: 18px; }
+  .price { font-size: 26px; font-weight: 800; color: var(--accent); margin: 0 0 12px; }
+  .price small { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; display: block; }
+  .card ul { list-style: none; margin: 0; padding: 0; }
+  .card li { position: relative; padding-left: 18px; font-size: 14px; line-height: 1.55; color: var(--ink-2); margin-bottom: 7px; }
+  .card li::before { content: ''; position: absolute; left: 3px; top: .6em; width: 7px; height: 7px; border-radius: 50%; background: #C9CCD1; }
+
+  /* How it works + terms */
+  ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 14px; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+  ol.steps li::before { content: counter(s); width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; display: grid; place-items: center; }
+  ol.steps b { color: var(--ink); }
+  .terms { margin: 0; padding-left: 18px; font-size: 14.5px; line-height: 1.65; color: var(--ink-2); }
+  .terms li { margin-bottom: 8px; }
+
+  /* Form */
+  .form-frame { width: 100%; height: 900px; border: 1px solid var(--line); border-radius: 12px; display: block; margin-bottom: 14px; }
+  .notice { background: #FFF4EE; border: 1px solid #E8643A66; border-radius: 12px; padding: 14px 18px; color: #9A3A16; font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+  .notice code { background: #fff; padding: 2px 6px; border-radius: 4px; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 20px 16px 40px; gap: 14px; }
+    .tile { padding: 22px 20px; border-radius: 16px; }
+    .hero-name { font-size: 30px; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .cards { grid-template-columns: 1fr; }
+    .btn { display: block; text-align: center; }
+    .form-frame { height: 1100px; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap" id="root"></main>
+
+<script>
+/* ============================================================
+   EDIT EVERYTHING HERE. The page below builds itself from this.
+   Anything still in [square brackets] is a placeholder to fill in.
+   ============================================================ */
+var STATUS = "open";   // <-- the one word to flip: "open" or "closed"
+
+var SITE = {
+  name:  "[Your name or brand]",
+  pitch: "[One-line pitch, e.g. Custom portraits, logos and line art]",
+  bio:   "[Two-sentence bio.]",
+  // Google Form: Send > the <> tab > copy the src="..." link from the iframe code (ends in ?embedded=true)
+  formUrl: ""
+};
+
+// group must match one of GROUPS. src is a file in the art/ folder.
+var GROUPS = ["Portraits", "Logos", "Line art"];
+var GALLERY = [
+  // { group: "Portraits", src: "art/portrait-1.jpg", caption: "Caption here" },
+];
+
+var OFFERINGS = [
+  { name: "Portraits", price: "[$ starting price]", includes: ["[What's included]", "[Package or size options]"] },
+  { name: "Logos",     price: "[$ starting price]", includes: ["[What's included]", "[Package or size options]"] },
+  { name: "Line art",  price: "[$ starting price]", includes: ["[What's included]", "[Package or size options]"] }
+];
+
+var STEPS = [
+  ["Request",   "Fill out the form below with what you want and any references."],
+  ["Quote",     "I reply by email with a price and timeline."],
+  ["Deposit",   "A 50% deposit by Zelle locks in your spot. I'll send the details once you accept the quote."],
+  ["Drafts",    "You see early drafts so we're on track before the final."],
+  ["Revisions", "Ask for changes within the revision limit below."],
+  ["Delivery",  "Final files sent after the remaining balance is paid."]
+];
+
+var TERMS = [
+  "Revisions: [number of included revisions, and what extra ones cost].",
+  "Rights: [what the client may do with the work, and that you may show it in your portfolio].",
+  "Cancellations: [deposit refund policy once work has started]."
+];
+/* ============================================================ */
+
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+var isOpen = STATUS === "open";
+var gallery = GROUPS.map(function (g) {
+  var items = GALLERY.filter(function (x) { return x.group === g; });
+  if (!items.length) return "";
+  return '<div class="group-title">' + esc(g) + '</div><div class="grid">' + items.map(function (x) {
+    return '<button class="shot" data-src="' + esc(x.src) + '" data-cap="' + esc(x.caption) + '">' +
+      '<img src="' + esc(x.src) + '" alt="' + esc(x.caption) + '" loading="lazy" decoding="async" /><span>' + esc(x.caption) + '</span></button>';
+  }).join("") + "</div>";
+}).join("") || '<div class="empty">Work coming soon.</div>';
+
+var formBlock = SITE.formUrl
+  ? '<iframe class="form-frame" src="' + esc(SITE.formUrl) + '" title="Commission request form" loading="lazy">Loading…</iframe>' +
+    '<a class="btn ghost" href="' + esc(SITE.formUrl.replace("?embedded=true", "")) + '" target="_blank" rel="noopener">Open the form on its own page</a>'
+  : '<div class="notice">The request form isn’t connected yet. Paste the Google Form link into <code>formUrl</code> at the top of this file.</div>';
+
+document.getElementById("root").innerHTML =
+  '<section class="tile"><div class="hero-top"><span class="eyebrow">Commissions</span>' +
+    '<span class="badge ' + (isOpen ? "open" : "closed") + '">' + (isOpen ? "Open for commissions" : "Closed") + '</span></div>' +
+    '<h1 class="hero-name">' + esc(SITE.name) + '</h1><p class="hero-pitch">' + esc(SITE.pitch) + '</p>' +
+    '<p class="hero-bio">' + esc(SITE.bio) + '</p>' +
+    (isOpen ? '<a class="btn" href="#request">Request a commission</a>' : '<p class="empty">Not taking requests right now. Check back soon.</p>') + '</section>' +
+  '<section class="tile"><h2>Work</h2>' + gallery + '</section>' +
+  '<section class="tile"><h2>Services and prices</h2><div class="cards">' + OFFERINGS.map(function (o) {
+    return '<div class="card"><h3>' + esc(o.name) + '</h3><p class="price"><small>Starting at</small>' + esc(o.price) + '</p><ul>' +
+      o.includes.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul></div>";
+  }).join("") + '</div></section>' +
+  '<section class="tile"><h2>How it works</h2><ol class="steps">' + STEPS.map(function (s) {
+    return "<li><div><b>" + esc(s[0]) + ".</b> " + esc(s[1]) + "</div></li>";
+  }).join("") + '</ol></section>' +
+  '<section class="tile"><h2>Terms in short</h2><ul class="terms">' + TERMS.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + '</ul></section>' +
+  (isOpen ? '<section class="tile" id="request"><h2>Request a commission</h2>' + formBlock + '</section>' : "");
+
+// Tap a picture to enlarge it; tap again to close.
+document.addEventListener("click", function (e) {
+  var shot = e.target.closest(".shot");
+  if (shot) {
+    var lb = document.createElement("div");
+    lb.className = "lightbox";
+    lb.innerHTML = '<img src="' + esc(shot.dataset.src) + '" alt="' + esc(shot.dataset.cap) + '" /><p>' + esc(shot.dataset.cap) + "</p>";
+    document.body.appendChild(lb);
+  } else if (e.target.closest(".lightbox")) {
+    e.target.closest(".lightbox").remove();
+  }
+});
+document.addEventListener("keydown", function (e) { if (e.key === "Escape") { var l = document.querySelector(".lightbox"); if (l) l.remove(); } });
+</script>
+</body>
+</html>
