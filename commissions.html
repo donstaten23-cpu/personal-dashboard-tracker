@@ -44,7 +44,7 @@
   .group-title:first-of-type { margin-top: 0; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .shot { border: none; background: none; padding: 0; cursor: zoom-in; text-align: left; font: inherit; color: inherit; }
-  .shot img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; border: 1px solid var(--line); background: #F6F7F8; }
+  .shot img { width: 100%; aspect-ratio: 1; object-fit: cover; object-position: center 25%; border-radius: 12px; display: block; border: 1px solid var(--line); background: #F6F7F8; }
   .shot span { display: block; font-size: 13px; color: var(--ink-2); margin-top: 6px; line-height: 1.4; }
   .empty { color: var(--ink-3); font-size: 14px; }
   .lightbox { position: fixed; inset: 0; background: rgba(16,18,22,.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; z-index: 10; cursor: zoom-out; }
@@ -105,8 +105,18 @@ var SITE = {
 
 // group must match one of GROUPS. src is a file in the art/ folder.
 var GROUPS = ["Portraits", "Logos", "Line art"];
+// Each picture has a full-size file (src) and a small one for the grid (art/<same name>-sm.jpg).
 var GALLERY = [
-  // { group: "Portraits", src: "art/portrait-1.jpg", caption: "Caption here" },
+  { group: "Portraits", src: "art/portrait-01.jpg", caption: "Graphite portrait, eyes closed" },
+  { group: "Portraits", src: "art/portrait-02.jpg", caption: "Pencil portrait, long hair" },
+  { group: "Portraits", src: "art/portrait-03.jpg", caption: "Pencil portrait with a soda bottle" },
+  { group: "Portraits", src: "art/portrait-04.jpg", caption: "Pencil portrait, curly hair" },
+  { group: "Portraits", src: "art/portrait-05.jpg", caption: "Low-angle pencil portrait" },
+  { group: "Portraits", src: "art/portrait-06.jpg", caption: "Close-up graphite portrait" },
+  { group: "Portraits", src: "art/portrait-07.jpg", caption: "Couple portrait" },
+  { group: "Portraits", src: "art/portrait-08.jpg", caption: "Pencil and ink portrait, cap" },
+  { group: "Portraits", src: "art/portrait-09.jpg", caption: "Pencil portrait with watch" },
+  { group: "Portraits", src: "art/portrait-10.jpg", caption: "Profile portrait, hair up" }
 ];
 
 var OFFERINGS = [
@@ -139,7 +149,7 @@ var gallery = GROUPS.map(function (g) {
   if (!items.length) return "";
   return '<div class="group-title">' + esc(g) + '</div><div class="grid">' + items.map(function (x) {
     return '<button class="shot" data-src="' + esc(x.src) + '" data-cap="' + esc(x.caption) + '">' +
-      '<img src="' + esc(x.src) + '" alt="' + esc(x.caption) + '" loading="lazy" decoding="async" /><span>' + esc(x.caption) + '</span></button>';
+      '<img src="' + esc(x.src.replace(/\.jpg$/, "-sm.jpg")) + '" alt="' + esc(x.caption) + '" loading="lazy" decoding="async" /><span>' + esc(x.caption) + '</span></button>';
   }).join("") + "</div>";
 }).join("") || '<div class="empty">Work coming soon.</div>';
 
