@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Commissions</title>
-<meta name="description" content="Custom portraits, logos and line art. See the work, prices and how to request a commission." />
+<meta name="description" content="Custom pencil portraits, digital art and logos. See the work, prices and how to request a commission." />
 <style>
   @font-face {
     font-family: 'Asap';
@@ -129,7 +129,7 @@ var STATUS = "open";   // <-- the one word to flip: "open" or "closed"
 
 var SITE = {
   name:  "Donovan",
-  pitch: "Custom portraits, logos, and line art",
+  pitch: "Custom pencil portraits, digital art, and logos",
   // Optional: a picture of you (a self-portrait or a photo at your desk). Put it in art/ and set e.g. photo: "art/artist.jpg".
   photo: "",
   bio:   "I am a self taught artist who has been sketching for years. My speciality are physical portraits done with pencil, but I also enjoy character art, digital art, as well as logos.",
@@ -153,7 +153,7 @@ var PORTRAIT_SIZES = [
   { size: "11 x 14 in",  price: "$250" }
 ];
 
-var GROUPS = ["Portraits", "Digital art", "Logos", "Line art"];
+var GROUPS = ["Portraits", "Digital art", "Logos"];
 // Each picture has a full-size file (src) and a small one for the grid (art/<same name>-sm.jpg).
 var GALLERY = [
   { group: "Portraits", src: "art/portrait-01.jpg", caption: "Graphite portrait, eyes closed" },
@@ -176,8 +176,7 @@ var GALLERY = [
 
 var OFFERINGS = [
   { name: "Digital art", price: "$150",  includes: ["One person, head and shoulders", "Simple background", "Anything beyond that (full body, extra people, detailed scenes) is quoted after your request"] },
-  { name: "Logos",       price: "$400",  includes: ["Main logo: your full, primary design", "Alternative logo: a variation for other uses, such as a stacked or horizontal layout", "Simplified logo: a clean, minimal version for small sizes, icons and one-color use", "Final price quoted after your request, based on complexity"] },
-  { name: "Line art",    price: "Quote", includes: ["Final price quoted after your request"] }
+  { name: "Logos",       price: "$400",  includes: ["Main logo: your full, primary design", "Alternative logo: a variation for other uses, such as a stacked or horizontal layout", "Simplified logo: a clean, minimal version for small sizes, icons and one-color use", "Final price quoted after your request, based on complexity"] }
 ];
 
 var STEPS = [
