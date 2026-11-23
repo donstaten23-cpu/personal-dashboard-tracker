@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Commissions</title>
-<meta name="description" content="Custom portraits, logos and line art. See the work, prices and how to request a commission." />
+<meta name="description" content="Custom pencil portraits, digital art and logos. See the work, prices and how to request a commission." />
 <style>
   @font-face {
     font-family: 'Asap';
@@ -38,6 +38,34 @@
   .btn { display: inline-block; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; padding: 12px 22px; border-radius: 12px; }
   .btn:hover { text-decoration: none; filter: brightness(.95); }
   .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+  /* Hero (headline + collage) */
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: center; }
+  .hero-title { font-size: 58px; font-weight: 800; letter-spacing: -.03em; line-height: .98; margin: 6px 0 12px; text-transform: uppercase; }
+  .hero-title em { font-style: normal; color: var(--accent); display: block; }
+  .hero-title.closed em { color: var(--closed); }
+  .collage { position: relative; height: 310px; }
+  .collage img { position: absolute; width: 38%; aspect-ratio: 3/4; object-fit: cover; border: 5px solid #fff; border-radius: 10px; box-shadow: 0 8px 22px rgba(22,24,29,.22); background: #F6F7F8; }
+  .collage img:nth-child(1) { left: 0;   top: 12%; transform: rotate(-6deg); }
+  .collage img:nth-child(2) { left: 20%; top: 0;   transform: rotate(3deg);  z-index: 2; }
+  .collage img:nth-child(3) { left: 42%; top: 16%; transform: rotate(-3deg); z-index: 3; }
+  .collage img:nth-child(4) { left: 62%; top: 2%;  transform: rotate(7deg);  z-index: 4; }
+
+  /* Meet the artist */
+  .artist { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: center; }
+  .artist.has-photo { grid-template-columns: 260px 1fr; }
+  .artist-photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; border: 1px solid var(--line); }
+  .facts { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  .facts li { font-size: 14.5px; color: var(--ink-2); }
+  .facts b { display: inline-block; min-width: 92px; color: var(--ink); }
+
+  /* Portrait price grid */
+  .pgrid-title { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); font-weight: 700; margin: 0 0 4px; }
+  .pgrid-sub { font-size: 14px; color: var(--ink-2); margin: 0 0 12px; line-height: 1.5; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .pcell { border: 1px solid var(--line); border-radius: 16px; padding: 18px; text-align: center; background: #FBFBFC; }
+  .pcell .size { font-size: 15px; font-weight: 700; color: var(--ink-2); }
+  .pcell .amt { font-size: 38px; font-weight: 800; color: var(--accent); letter-spacing: -.02em; line-height: 1.15; }
 
   /* Gallery */
   .group-title { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); font-weight: 700; margin: 22px 0 10px; }
@@ -77,7 +105,11 @@
   @media (max-width: 720px) {
     .wrap { padding: 20px 16px 40px; gap: 14px; }
     .tile { padding: 22px 20px; border-radius: 16px; }
-    .hero-name { font-size: 30px; }
+    .hero { grid-template-columns: 1fr; gap: 18px; }
+    .hero-title { font-size: 42px; }
+    .collage { height: 235px; }
+    .artist.has-photo { grid-template-columns: 1fr; }
+    .artist-photo { max-width: 260px; }
     .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .cards { grid-template-columns: 1fr; }
     .btn { display: block; text-align: center; }
@@ -97,14 +129,31 @@ var STATUS = "open";   // <-- the one word to flip: "open" or "closed"
 
 var SITE = {
   name:  "Donovan",
-  pitch: "Custom portraits, logos, and line art",
+  pitch: "Custom pencil portraits, digital art, and logos",
+  // Optional: a picture of you (a self-portrait or a photo at your desk). Put it in art/ and set e.g. photo: "art/artist.jpg".
+  photo: "",
   bio:   "I am a self taught artist who has been sketching for years. My speciality are physical portraits done with pencil, but I also enjoy character art, digital art, as well as logos.",
   // Google Form: Send > the <> tab > copy the src="..." link from the iframe code (ends in ?embedded=true)
   formUrl: "https://docs.google.com/forms/d/e/1FAIpQLScTRkI-VNCW_jTd8Kw-rAlUD8RuvT38UtnjmmoHxGm-6Lxkow/viewform?embedded=true"
 };
 
 // group must match one of GROUPS. src is a file in the art/ folder.
-var GROUPS = ["Portraits", "Digital art", "Logos", "Line art"];
+// Four pictures for the tilted collage at the top (files in art/, small versions are used).
+var HERO = ["art/portrait-06.jpg", "art/digital-02.jpg", "art/portrait-01.jpg", "art/portrait-05.jpg"];
+
+// A few quick facts shown beside the bio.
+var FACTS = [
+  ["Specialty", "Pencil portraits"],
+  ["Also", "Digital art, character art, logos"]
+];
+
+// Pencil portrait price grid (one person, personal use). Add a size by adding a line.
+var PORTRAIT_SIZES = [
+  { size: "8.5 x 11 in", price: "$150" },
+  { size: "11 x 14 in",  price: "$250" }
+];
+
+var GROUPS = ["Portraits", "Digital art", "Logos"];
 // Each picture has a full-size file (src) and a small one for the grid (art/<same name>-sm.jpg).
 var GALLERY = [
   { group: "Portraits", src: "art/portrait-01.jpg", caption: "Graphite portrait, eyes closed" },
@@ -122,13 +171,12 @@ var GALLERY = [
   { group: "Logos", src: "art/logo-01.jpg", caption: "Pharaoh Galactic Metals, full logo" },
   { group: "Logos", src: "art/logo-02.jpg", caption: "Pharaoh Galactic Metals, separated elements" },
   { group: "Logos", src: "art/logo-03.jpg", caption: "Galactic Metals, stacked logo" },
-  { group: "Logos", src: "art/logo-04.jpg", caption: "Braids By Naija" }
+  { group: "Logos", src: "art/logo-04.jpg", caption: "Braids By Nauja" }
 ];
 
 var OFFERINGS = [
-  { name: "Portraits", price: "$250", includes: ["11x14 pencil portrait", "[Other sizes or packages]", "[What else is included]"] },
-  { name: "Logos",     price: "Quote", includes: ["Set price quoted after your request", "[What's included]"] },
-  { name: "Line art",  price: "Quote", includes: ["Set price quoted after your request", "[What's included]"] }
+  { name: "Digital art", price: "$150",  includes: ["One person, head and shoulders", "Simple background", "Anything beyond that (full body, extra people, detailed scenes) is quoted after your request"] },
+  { name: "Logos",       price: "$400",  includes: ["Main logo: your full, primary design", "Alternative logo: a variation for other uses, such as a stacked or horizontal layout", "Simplified logo: a clean, minimal version for small sizes, icons and one-color use", "Final price quoted after your request, based on complexity"] }
 ];
 
 var STEPS = [
@@ -143,7 +191,7 @@ var STEPS = [
 var TERMS = [
   "Payment: 50% up front to start, the rest when the work is complete. Zelle or Cash App.",
   "Revisions: 5 revisions per design are included. Additional revisions are $10 each.",
-  "Rights: you get exclusive rights to use the finished design, including commercial use. I keep the right to show it in my portfolio.",
+  "Rights: portraits and digital art are for personal use. Logos include full rights to use the design, including commercial use. Commercial use of a portrait can be arranged, so ask for a quote. I keep the right to show finished work in my portfolio.",
   "Cancellations: either of us can cancel at any time. The deposit is non-refundable if you cancel after work has begun."
 ];
 /* ============================================================ */
@@ -165,17 +213,35 @@ var formBlock = SITE.formUrl
     '<a class="btn ghost" href="' + esc(SITE.formUrl.replace("?embedded=true", "")) + '" target="_blank" rel="noopener">Open the form on its own page</a>'
   : '<div class="notice">The request form isn’t connected yet. Paste the Google Form link into <code>formUrl</code> at the top of this file.</div>';
 
+var heroImgs = HERO.map(function (f) {
+  return '<img src="' + esc(f.replace(/\.jpg$/, "-sm.jpg")) + '" alt="" loading="eager" decoding="async" />';
+}).join("");
+
+var portraitGrid = '<p class="pgrid-title">Pencil portraits</p><p class="pgrid-sub">One person, personal use. Price depends on the size of the drawing.</p><div class="pgrid">' +
+  PORTRAIT_SIZES.map(function (z) {
+    return '<div class="pcell"><div class="size">' + esc(z.size) + '</div><div class="amt">' + esc(z.price) + '</div></div>';
+  }).join("") + '</div>';
+
+var cards = OFFERINGS.map(function (o) {
+  var from = /^\$/.test(o.price);
+  return '<div class="card"><h3>' + esc(o.name) + '</h3><p class="price">' + (from ? '<small>Starting at</small>' : '<small>Custom</small>') + esc(o.price) + '</p><ul>' +
+    o.includes.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul></div>";
+}).join("");
+
 document.getElementById("root").innerHTML =
-  '<section class="tile"><div class="hero-top"><span class="eyebrow">Commissions</span>' +
-    '<span class="badge ' + (isOpen ? "open" : "closed") + '">' + (isOpen ? "Open for commissions" : "Closed") + '</span></div>' +
-    '<h1 class="hero-name">' + esc(SITE.name) + '</h1><p class="hero-pitch">' + esc(SITE.pitch) + '</p>' +
-    '<p class="hero-bio">' + esc(SITE.bio) + '</p>' +
-    (isOpen ? '<a class="btn" href="#request">Request a commission</a>' : '<p class="empty">Not taking requests right now. Check back soon.</p>') + '</section>' +
+  '<section class="tile"><div class="hero"><div>' +
+    '<span class="eyebrow">' + esc(SITE.name) + '</span>' +
+    '<h1 class="hero-title ' + (isOpen ? "open" : "closed") + '">Commissions<em>' + (isOpen ? "Open" : "Closed") + '</em></h1>' +
+    '<p class="hero-pitch">' + esc(SITE.pitch) + '</p>' +
+    (isOpen ? '<a class="btn" href="#request">Request a commission</a>' : '<p class="empty">Not taking requests right now. Check back soon.</p>') +
+    '</div><div class="collage" aria-hidden="true">' + heroImgs + '</div></div></section>' +
   '<section class="tile"><h2>Work</h2>' + gallery + '</section>' +
-  '<section class="tile"><h2>Services and prices</h2><div class="cards">' + OFFERINGS.map(function (o) {
-    return '<div class="card"><h3>' + esc(o.name) + '</h3><p class="price"><small>Starting at</small>' + esc(o.price) + '</p><ul>' +
-      o.includes.map(function (i) { return "<li>" + esc(i) + "</li>"; }).join("") + "</ul></div>";
-  }).join("") + '</div></section>' +
+  '<section class="tile"><h2>Meet the artist</h2><div class="artist' + (SITE.photo ? " has-photo" : "") + '">' +
+    (SITE.photo ? '<img class="artist-photo" src="' + esc(SITE.photo) + '" alt="' + esc(SITE.name) + '" />' : "") +
+    '<div><p class="hero-bio" style="margin:0">' + esc(SITE.bio) + '</p><ul class="facts">' + FACTS.map(function (f) {
+      return "<li><b>" + esc(f[0]) + "</b> " + esc(f[1]) + "</li>";
+    }).join("") + '</ul></div></div></section>' +
+  '<section class="tile"><h2>Services and prices</h2>' + portraitGrid + '<div class="cards">' + cards + '</div></section>' +
   '<section class="tile"><h2>How it works</h2><ol class="steps">' + STEPS.map(function (s) {
     return "<li><div><b>" + esc(s[0]) + ".</b> " + esc(s[1]) + "</div></li>";
   }).join("") + '</ol></section>' +
