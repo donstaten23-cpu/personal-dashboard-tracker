@@ -259,7 +259,7 @@ document.getElementById("root").innerHTML =
     return "<li><div><b>" + esc(s[0]) + ".</b> " + esc(s[1]) + "</div></li>";
   }).join("") + '</ol></section>' +
   '<section class="tile"><h2>Terms in short</h2><ul class="terms">' + TERMS.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + '</ul></section>' +
-  (isOpen ? '<section class="tile" id="request"><h2>Request a commission</h2>' + refNote + formBlock + '</section>' : "");
+  (isOpen ? '<section class="tile" id="request"><h2>Request a commission</h2>' + formBlock + '</section>' : "");
 
 // Tap a picture to enlarge it; tap again to close.
 document.addEventListener("click", function (e) {
