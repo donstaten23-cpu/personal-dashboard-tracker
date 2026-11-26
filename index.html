@@ -2025,7 +2025,7 @@
     signInWithEmailAndPassword, signOut as fbSignOut
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import {
-    getFirestore, doc, getDoc, setDoc
+    getFirestore, doc, getDoc, setDoc, runTransaction
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import {
     getStorage, ref, uploadBytes, uploadString, getDownloadURL, deleteObject
@@ -2070,9 +2070,42 @@
           return snap.exists() ? (snap.data().data || null) : null;
         });
       },
+      // Same as getStoryDoc but also returns the doc's updatedAt (its version).
+      getStoryDocMeta: function (tabKey) {
+        var uid = requireUid();
+        return getDoc(doc(fbDb, "users", uid, "storyData", tabKey)).then(function (snap) {
+          if (!snap.exists()) return null;
+          var d = snap.data();
+          return { data: d.data || null, updatedAt: d.updatedAt || 0 };
+        });
+      },
       setStoryDoc: function (tabKey, data) {
         var uid = requireUid();
         return setDoc(doc(fbDb, "users", uid, "storyData", tabKey), { data: data, updatedAt: Date.now() });
+      },
+      // Guarded write: only saves if the cloud copy is still the version this
+      // device last loaded (baseUpdatedAt). Otherwise another device saved in
+      // between, and writing would wipe its changes, so nothing is written and
+      // { conflict: true, remote, remoteAt } comes back. Runs as a transaction
+      // so the check and the write can't be split by a save from elsewhere.
+      setStoryDocIfBase: function (tabKey, data, baseUpdatedAt) {
+        var uid = requireUid();
+        var ref = doc(fbDb, "users", uid, "storyData", tabKey);
+        return runTransaction(fbDb, function (tx) {
+          return tx.get(ref).then(function (snap) {
+            var curAt = 0;
+            if (snap.exists()) {
+              var cur = snap.data();
+              curAt = cur.updatedAt || 0;
+              if (baseUpdatedAt === null || baseUpdatedAt === undefined || curAt !== baseUpdatedAt) {
+                return { conflict: true, remote: cur.data || null, remoteAt: curAt };
+              }
+            }
+            var at = Math.max(Date.now(), curAt + 1);
+            tx.set(ref, { data: data, updatedAt: at });
+            return { conflict: false, updatedAt: at };
+          });
+        });
       }
     },
     storage: {
@@ -3050,10 +3083,11 @@ function renderStorySyncStatus() {
   textEl.textContent = st === "saving" ? "Saving…"
     : st === "failed" ? "Couldn’t reach the cloud. Saved on this device, retrying…"
     : st === "offline" ? "Saved on this device only. Story sync isn’t connected."
+    : st === "conflict" ? "Not saved: changed on another device."
     : _relativeSyncTime(_lastStorySyncedAt);
   el.classList.toggle("synced", st === "idle" && !!_lastStorySyncedAt);
   var dot = document.getElementById("storySyncStatusDot");
-  if (dot) dot.style.background = st === "failed" || st === "offline" ? "#FF8A5C" : st === "saving" ? "#D9A441" : "";
+  if (dot) dot.style.background = st === "failed" || st === "offline" || st === "conflict" ? "#FF8A5C" : st === "saving" ? "#D9A441" : "";
 }
 function _setStorySaveState(s) { _storySaveState = s; renderStorySyncStatus(); }
 function _markStorySynced() {
@@ -3243,13 +3277,32 @@ async function maybeMigrateStoryTabToFirestore(key, defaultData) {
   }
 }
 
+/* Version tracking: every cached Story doc is paired with the cloud version
+   (updatedAt) it was copied from. A save only goes through if the cloud is still
+   at that version (see setStoryDocIfBase). Without this, a device holding an old
+   copy would write the whole doc back and wipe what another device added. */
+function _storyBaseGet(key) {
+  try { var v = localStorage.getItem("dashboard-story-base-" + key); return v === null ? null : Number(v); } catch (e) { return null; }
+}
+function _storyBaseSet(key, at) { try { localStorage.setItem("dashboard-story-base-" + key, String(at)); } catch (e) {} }
+var _storyMemBase = {}; // version of the copy this page is showing/editing right now (null = unknown)
+
 async function loadStoryData(key, defaultData) {
   var cached = _readCache(key);
-  if (cached !== null) {
+  var base = _storyBaseGet(key);
+  // Use the cache only when it has a known version, or holds edits that still need to go up.
+  if (cached !== null && (base !== null || _storyDirtyGet()[key])) {
+    _storyMemBase[key] = base;
     _bgRefreshStoryData(key, defaultData);
     return Object.assign({}, defaultData, cached);
   }
-  return _fetchStoryDataFromNetwork(key, defaultData);
+  try {
+    return await _fetchStoryDataFromNetwork(key, defaultData);
+  } catch (e) {
+    if (cached === null) throw e;
+    _storyMemBase[key] = null; // unknown version: a later save will be checked against the cloud before it's allowed
+    return Object.assign({}, defaultData, cached);
+  }
 }
 
 // A timeout here is rethrown on purpose rather than answered with the stale
@@ -3257,7 +3310,7 @@ async function loadStoryData(key, defaultData) {
 // would let a later save overwrite the real story in Firestore.
 async function _fetchStoryDataFromNetwork(key, defaultData) {
   var connected = await _firebaseAuthedOrThrow();
-  if (!connected) return _fetchTabDataFromNetwork(key, defaultData); // read-only Supabase fallback until connected
+  if (!connected) { _storyMemBase[key] = null; return _fetchTabDataFromNetwork(key, defaultData); } // read-only Supabase fallback until connected
   try {
     await _withTimeout(maybeMigrateStoryTabToFirestore(key, defaultData), 15000, "story migration check");
   } catch (e) {
@@ -3265,8 +3318,12 @@ async function _fetchStoryDataFromNetwork(key, defaultData) {
     if (e && e.isTimeout) throw e;
   }
   try {
-    var data = await _withTimeout(window.FirebaseBridge.firestore.getStoryDoc(key), 12000, "story load");
-    if (data) { _writeCache(key, data); return Object.assign({}, defaultData, data); }
+    var meta = await _withTimeout(window.FirebaseBridge.firestore.getStoryDocMeta(key), 12000, "story load");
+    if (meta && meta.data) {
+      _writeCache(key, meta.data); _storyBaseSet(key, meta.updatedAt); _storyMemBase[key] = meta.updatedAt;
+      return Object.assign({}, defaultData, meta.data);
+    }
+    _storyMemBase[key] = meta ? meta.updatedAt : 0;
     return JSON.parse(JSON.stringify(defaultData));
   } catch (e) {
     if (e && e.isTimeout) throw e;
@@ -3296,14 +3353,21 @@ function _bgRefreshStoryData(key, defaultData) {
       if (local !== null && !_storyPendingSaves.hasOwnProperty(key)) saveStoryData(key, local);
       return;
     }
-    return window.FirebaseBridge.firestore.getStoryDoc(key).then(function (data) {
-      if (!data || _storyDirtyGet()[key]) return;
+    return window.FirebaseBridge.firestore.getStoryDocMeta(key).then(function (meta) {
+      if (!meta || !meta.data || _storyDirtyGet()[key]) return;
+      var data = meta.data, old = _readCache(key);
+      if (old !== null && _stableJson(old) === _stableJson(data)) {
+        // Same content as what's on screen: just adopt the cloud's version number.
+        _storyBaseSet(key, meta.updatedAt); _storyMemBase[key] = meta.updatedAt;
+        return;
+      }
       // Keep the copy being replaced (one level) so a wrong overwrite is recoverable.
       try {
-        var old = _readCache(key);
-        if (old !== null && JSON.stringify(old) !== JSON.stringify(data)) localStorage.setItem("dashboard-story-backup-" + key, JSON.stringify({ at: Date.now(), data: old }));
+        if (old !== null) localStorage.setItem("dashboard-story-backup-" + key, JSON.stringify({ at: Date.now(), data: old }));
       } catch (e) { /* storage full/unavailable */ }
-      _writeCache(key, data);
+      _writeCache(key, data); _storyBaseSet(key, meta.updatedAt);
+      // The page on screen was built from the older copy; saving from it now is blocked, so say so.
+      if (_storyMemBase[key] !== meta.updatedAt) _showStoryBanner("stale");
     });
   }).catch(function () { /* silent — best-effort, same pattern as _bgRefreshTabData */ });
 }
@@ -3326,17 +3390,68 @@ async function _flushStoryDataSave(key) {
   var connected = await ensureFirebaseAuthed();
   if (!connected) { console.warn("Firebase not connected — [" + key + "] saved locally only, will sync once reconnected"); _setStorySaveState("offline"); return; }
   try {
-    await window.FirebaseBridge.firestore.setStoryDoc(key, data);
+    var res = await window.FirebaseBridge.firestore.setStoryDocIfBase(key, data, _storyMemBase.hasOwnProperty(key) ? _storyMemBase[key] : null);
+    if (res.conflict) { _storyHandleConflict(key, data, res); return; }
+    _storyMemBase[key] = res.updatedAt; _storyBaseSet(key, res.updatedAt);
     if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false);
     _markSynced(); _markStorySynced();
     _storyRetryDelay = 5000;
     // Only call it saved once nothing else is waiting; otherwise the other keys' saves finish the job.
-    if (!Object.keys(_storyPendingSaves).length && !Object.keys(_storyDirtyGet()).length) _setStorySaveState("idle");
+    if (!Object.keys(_storyPendingSaves).length && !Object.keys(_storyDirtyGet()).length && !Object.keys(_storyConflicts).length) _setStorySaveState("idle");
   } catch (e) {
     console.error("Firestore save failed [" + key + "]", e);
     _setStorySaveState("failed");
     _scheduleStoryRetry();
   }
+}
+/* The cloud copy changed on another device since this one loaded, so saving would
+   wipe those changes. Nothing is written. This device's version is kept in
+   localStorage ("dashboard-story-conflict-<key>") and the user picks what to do. */
+var _storyConflicts = {};
+function _storyHandleConflict(key, localData, res) {
+  try { localStorage.setItem("dashboard-story-conflict-" + key, JSON.stringify({ at: Date.now(), data: localData })); } catch (e) { /* storage full */ }
+  _storyConflicts[key] = { local: localData, remoteAt: res.remoteAt };
+  _storyDirtySet(key, false); // stop retrying; the banner decides
+  if (res.remote) { _writeCache(key, res.remote); _storyBaseSet(key, res.remoteAt); } // a reload shows the other device's version
+  _setStorySaveState("conflict");
+  _showStoryBanner("conflict");
+}
+async function _storyKeepMine() {
+  var keys = Object.keys(_storyConflicts);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i], c = _storyConflicts[k];
+    try {
+      var res = await window.FirebaseBridge.firestore.setStoryDocIfBase(k, c.local, c.remoteAt);
+      if (res.conflict) { c.remoteAt = res.remoteAt; continue; } // changed yet again; leave the choice open
+      _writeCache(k, c.local); _storyBaseSet(k, res.updatedAt); _storyMemBase[k] = res.updatedAt;
+      delete _storyConflicts[k];
+    } catch (e) { console.error("Keep-mine save failed [" + k + "]", e); }
+  }
+  if (!Object.keys(_storyConflicts).length) _setStorySaveState("idle");
+  _showStoryBanner();
+}
+var _storyStaleBanner = false;
+function _showStoryBanner(kind) {
+  if (kind === "stale") _storyStaleBanner = true;
+  var el = document.getElementById("storyConflictBanner");
+  var hasConflict = Object.keys(_storyConflicts).length > 0;
+  if (!hasConflict && !_storyStaleBanner) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "storyConflictBanner";
+    el.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:9999;width:min(560px,calc(100vw - 24px));box-sizing:border-box;background:#2a1d14;color:#fff;border:1px solid #FF8A5C;border-radius:12px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.4);font-size:14px;line-height:1.45;";
+    document.body.appendChild(el);
+  }
+  var btn = "border:0;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;margin:10px 8px 0 0;";
+  el.innerHTML = hasConflict
+    ? '<b>Your Story changed on another device.</b><br>Your edits here were not saved, so they can’t wipe the newer version. They are kept on this device.' +
+      '<br><button id="storyBannerLatest" style="' + btn + 'background:#FF8A5C;color:#1b1209;">Load the latest</button>' +
+      '<button id="storyBannerMine" style="' + btn + 'background:transparent;color:#fff;border:1px solid #fff;">Keep my edits instead</button>'
+    : '<b>Your Story was updated on another device.</b><br>Reload to see the latest before you edit, so nothing gets overwritten.' +
+      '<br><button id="storyBannerLatest" style="' + btn + 'background:#FF8A5C;color:#1b1209;">Reload</button>';
+  document.getElementById("storyBannerLatest").onclick = function () { location.reload(); };
+  var mine = document.getElementById("storyBannerMine");
+  if (mine) mine.onclick = function () { mine.disabled = true; mine.textContent = "Saving…"; _storyKeepMine(); };
 }
 // A failed save stays "dirty" (and in the local cache); keep trying with a growing delay until it lands.
 var _storyRetryTimer = null, _storyRetryDelay = 5000;
@@ -3358,7 +3473,7 @@ async function storySaveNow() {
   _retryDirtyStorySaves(); // queue anything dirty that isn't already waiting
   Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
   await Promise.all(Object.keys(_storyPendingSaves).map(_flushStoryDataSave));
-  return Object.keys(_storyDirtyGet()).length === 0;
+  return Object.keys(_storyDirtyGet()).length === 0 && Object.keys(_storyConflicts).length === 0;
 }
 function _flushAllPendingStorySaves() {
   Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
@@ -4172,7 +4287,7 @@ function _stableJson(v) {
 var _lastStoryCheckAt = 0, _storyRefreshing = false;
 function _storyBusy() {
   var ae = document.activeElement;
-  return Object.keys(_storyDirtyGet()).length > 0 || Object.keys(_storyPendingSaves).length > 0 ||
+  return Object.keys(_storyDirtyGet()).length > 0 || Object.keys(_storyPendingSaves).length > 0 || Object.keys(_storyConflicts).length > 0 ||
     !!(ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable));
 }
 async function refreshStoryFromServer(force) {
@@ -4183,16 +4298,18 @@ async function refreshStoryFromServer(force) {
   _storyRefreshing = true; _lastStoryCheckAt = now;
   try {
     if (!(await ensureFirebaseAuthed())) return;
-    var remotes = await Promise.all(STORY_TAB_KEYS.map(function (k) { return window.FirebaseBridge.firestore.getStoryDoc(k).catch(function () { return null; }); }));
+    var remotes = await Promise.all(STORY_TAB_KEYS.map(function (k) { return window.FirebaseBridge.firestore.getStoryDocMeta(k).catch(function () { return null; }); }));
     if (_storyBusy() || currentPage !== "story") return; // something changed while we were fetching
     var changed = false;
     STORY_TAB_KEYS.forEach(function (k, i) {
-      var remote = remotes[i];
-      if (!remote || _stableJson(remote) === _stableJson(_readCache(k))) return;
+      var meta = remotes[i], remote = meta && meta.data;
+      if (!remote) return;
+      if (_stableJson(remote) === _stableJson(_readCache(k))) { _storyBaseSet(k, meta.updatedAt); _storyMemBase[k] = meta.updatedAt; return; }
       try { var old = _readCache(k); if (old !== null) localStorage.setItem("dashboard-story-backup-" + k, JSON.stringify({ at: Date.now(), data: old })); } catch (e) { /* storage full */ }
-      _writeCache(k, remote); changed = true;
+      _writeCache(k, remote); _storyBaseSet(k, meta.updatedAt); changed = true;
     });
     if (!changed) return;
+    _storyStaleBanner = false; _showStoryBanner(); // the page is about to show the latest copy
     var y = window.scrollY, stRoot = document.getElementById("storyPageRoot");
     if (stRoot) stRoot._loaded = false;
     _switchPageNow("story");
