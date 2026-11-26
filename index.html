@@ -644,6 +644,29 @@
   .lift-set-e1rm { font-size: 11px; color: var(--text-3); white-space: nowrap; }
   .lift-set-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-2); white-space: nowrap; }
   .lift-set-tag.pr { background: #D9A441; border-color: #D9A441; color: #12151A; }
+  /* Template builder */
+  .tb-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .tb-saved { font-size: 12px; color: var(--text-3); }
+  .tb-name { width: 100%; font-size: 18px; font-weight: 700; box-sizing: border-box; }
+  .tb-lift-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .tb-lift-btns { display: flex; flex-shrink: 0; }
+  .tb-lift-btns .icon-btn { min-width: 34px; min-height: 36px; }
+  .tb-lift-btns .icon-btn:disabled { opacity: .3; }
+  .tb-set { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border-2); border-radius: 14px; padding: 6px 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .tb-set.warm { border-style: dashed; opacity: .85; }
+  .tb-set-n { width: 20px; text-align: center; color: var(--text-3); font-size: 13px; flex-shrink: 0; }
+  .tb-stepper { display: inline-flex; align-items: center; border: 1px solid var(--border-2); border-radius: 10px; overflow: hidden; }
+  .tb-step { width: 40px; height: 42px; border: 0; background: var(--bg-card); color: var(--text-1); font-size: 20px; cursor: pointer; }
+  .tb-step:active { background: var(--border-2); }
+  .tb-num { width: 54px; height: 42px; border: 0; background: transparent; color: var(--text-1); text-align: center; font-size: 16px; -moz-appearance: textfield; appearance: textfield; }
+  .tb-num::-webkit-outer-spin-button, .tb-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .tb-addset { width: 100%; padding: 10px; border: 1.5px dashed var(--border-2); background: transparent; color: var(--text-2); border-radius: 14px; font-size: 14px; cursor: pointer; }
+  .tb-cardio { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tb-cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-3); }
+  .tb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tb-chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border-2); background: transparent; color: var(--text-1); font-size: 13px; cursor: pointer; }
+  .tb-tpl-sum { color: var(--text-2); font-size: 13px; margin: 6px 0 10px; line-height: 1.4; }
+  .tb-tpl-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .lift-add { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 7px 8px; border: 1.5px dashed var(--border-2); border-radius: 14px; flex-wrap: wrap; }
   .lift-add-n { width: 26px; height: 26px; border-radius: 50%; border: 1.5px dashed var(--text-3); color: var(--text-3); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
   .lift-add-fields { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
@@ -9765,11 +9788,8 @@ async function renderWorkoutsTab(root) {
   var historyMetric = "topWeight";
   var calYear = new Date().getFullYear();
   var calMonth = new Date().getMonth();
-  var templateAddMode = false;
-  var templateDraft = null;
-  var tplNewKind = "lift"; // what the add-exercise row in the template form is for: "lift" or "cardio"
-  var templateEditId = null;
-  var confirmResetTemplates = false;
+  var tplNewKind = "lift"; // what the add-exercise row in the template builder is for: "lift" or "cardio"
+  var templateEditId = null; // the template open in the builder (null = showing the list)
   var planEditingDay = null;
   var planEditingId = null; // null = adding a new planned workout to planEditingDay
   var planScrollToForm = false;
@@ -9833,6 +9853,7 @@ async function renderWorkoutsTab(root) {
       inputEl.value = opt.textContent;
       listEl.classList.remove("open");
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      inputEl.dispatchEvent(new CustomEvent("combo-pick")); // lets a form add the pick right away
       inputEl.focus();
     });
   }
@@ -10958,6 +10979,7 @@ async function renderWorkoutsTab(root) {
     bodyEl.innerHTML =
       '<button class="link-btn" id="wkBackBtn" style="color:var(--text-2);justify-self:start;">‹ Back to Log</button>' +
       '<div class="card">' + headerHtml + "</div>" +
+      (nLifts ? '<button class="link-btn" id="wkSaveAsTplBtn" style="color:' + accent + ';justify-self:start;">Save as template</button>' : "") +
       (nLifts ? statTile("TOTAL VOLUME", totalVol ? Math.round(totalVol).toLocaleString() : "&mdash;", "lbs lifted") + statTile("WORKING SETS", totalSets, nLifts + (nLifts === 1 ? " exercise" : " exercises") + (totalReps ? " \u00B7 " + totalReps.toLocaleString() + " reps" : "")) +
         (_cardioMinutes(item) ? statTile("CARDIO", Math.round(_cardioMinutes(item) * 10) / 10, "minutes") : "") :
         (_cardioMinutes(item) ? statTile("CARDIO", Math.round(_cardioMinutes(item) * 10) / 10, "minutes") : "")) +
@@ -10972,6 +10994,14 @@ async function renderWorkoutsTab(root) {
       editingLiftItemId = null; editingLiftId = null;
       editingSetItemId = null; editingSetLiftId = null; editingSetId = null;
       renderLogSection();
+    });
+    var saveTplBtn = document.getElementById("wkSaveAsTplBtn");
+    if (saveTplBtn) saveTplBtn.addEventListener("click", function () {
+      var nt = _tplFromItem(item);
+      templatesData.templates.push(nt); saveTemplates();
+      templateEditId = nt.id; tplNewKind = "lift";
+      viewingWorkoutId = null; activeSection = "templates";
+      renderSectionPills(); renderSection(); window.scrollTo(0, 0);
     });
     // bodyEl outlives every render and each renderLogSection makes fresh handler
     // functions, so drop the previous ones first or a tap would run once per
@@ -10997,7 +11027,8 @@ async function renderWorkoutsTab(root) {
         for (i = 0; i < n; i++) setsArr.push({ id: uid(), duration: blank(pl.targetMinutes) === "" ? "" : Number(pl.targetMinutes), distance: pl.targetDistance || "", time: "", target: pl.targetPace || "", rest: pl.targetRest || "", reps: blank(pl.targetReps), isWarmup: false });
         return { id: uid(), name: pl.name, kind: "cardio", sets: setsArr };
       }
-      for (i = 0; i < n; i++) setsArr.push({ id: uid(), weight: blank(pl.targetWeight), reps: blank(pl.targetReps), isWarmup: false });
+      if (Array.isArray(pl.sets) && pl.sets.length) setsArr = pl.sets.map(function (s) { return { id: uid(), weight: blank(s.weight), reps: blank(s.reps), isWarmup: !!s.isWarmup }; });
+      else for (i = 0; i < n; i++) setsArr.push({ id: uid(), weight: blank(pl.targetWeight), reps: blank(pl.targetReps), isWarmup: false });
       return { id: uid(), name: pl.name, muscleGroup: pl.muscleGroup, trainingStyles: (pl.trainingStyles || []).slice(), tagSource: pl.tagSource || "auto", sets: setsArr };
     });
   }
@@ -11192,198 +11223,327 @@ async function renderWorkoutsTab(root) {
 
   /* ---------------- Templates section ---------------- */
 
-  function renderTemplatesSection() {
-    var bodyEl = document.getElementById("wkSectionBody");
-    var templates = templatesData.templates || [];
+  /* ---------------- Templates section: list + builder ----------------
+     The list shows each template as a card with Start / Edit / Duplicate / Delete.
+     Edit and "New template" open the builder, which edits the template in place and
+     saves as you type (no Save / Cancel). A lift's per-set targets live in `sets`
+     ([{reps, weight, isWarmup}]); the older flat fields (targetSets / targetReps /
+     targetWeight) are kept in step so anything reading the old shape still works. */
 
-    function templateFormHtml() {
-      var t = templateDraft;
-      return '<div class="card">' +
-        '<div class="form-row"><input class="form-input" id="wkTplName" placeholder="Template name, e.g. Push Day" value="' + escapeHtml(t.name) + '" /></div>' +
-        '<div class="pills" id="wkTplCatPills">' + WORKOUT_CATEGORIES.map(function (c) {
-          var active = c.id === t.category;
-          return '<button class="pill" data-tpl-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
-        }).join("") + "</div>" +
-        '<div style="margin:12px 0;">' +
-          (t.lifts.length === 0 ? '<div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">Nothing added yet. Add lifts or activities (like sprints) below.</div>' : t.lifts.map(function (pl, i) {
-            var nameCell = '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="edit-input" style="width:100%;" data-tpl-lift-field="name" data-idx="' + i + '" value="' + escapeHtml(pl.name) + '" data-exercise-combo="1" /></span>';
-            var rm = '<button class="icon-btn" data-action="remove-tpl-lift" data-idx="' + i + '">✕</button>';
-            if (pl.kind === "cardio") {
-              return '<div class="weight-log-row" style="flex-wrap:wrap;">' + nameCell +
-                '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetSets) + '" />' +
-                '<input class="edit-input" style="width:96px;" type="text" data-tpl-lift-field="targetDistance" data-idx="' + i + '" placeholder="Distance" value="' + escapeHtml(pl.targetDistance || "") + '" />' +
-                '<input class="edit-input" style="width:96px;" type="text" data-tpl-lift-field="targetPace" data-idx="' + i + '" placeholder="Target pace" value="' + escapeHtml(pl.targetPace || "") + '" />' +
-                '<input class="edit-input" style="width:110px;" type="text" data-tpl-lift-field="targetRest" data-idx="' + i + '" placeholder="Rest" value="' + escapeHtml(pl.targetRest || "") + '" />' + rm + '</div>';
-            }
-            return '<div class="weight-log-row" style="flex-wrap:wrap;">' + nameCell +
-              '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetSets" data-idx="' + i + '" placeholder="Sets" value="' + escapeHtml(pl.targetSets) + '" />' +
-              '<input class="edit-input amt" type="number" min="0" data-tpl-lift-field="targetReps" data-idx="' + i + '" placeholder="Reps" value="' + escapeHtml(pl.targetReps) + '" />' +
-              '<input class="edit-input amt" type="number" min="0" step="0.5" data-tpl-lift-field="targetWeight" data-idx="' + i + '" placeholder="Lbs" value="' + (pl.targetWeight === "" || pl.targetWeight == null ? "" : pl.targetWeight) + '" />' + rm + '</div>';
-          }).join("")) +
-        "</div>" +
-        '<div class="pills" style="margin:0 0 8px;">' +
-          '<button type="button" class="pill" data-tpl-kind="lift" style="padding:4px 12px;font-size:12px;background:' + (tplNewKind === "cardio" ? "transparent" : accent) + ";border-color:" + accent + ";color:" + (tplNewKind === "cardio" ? accent : "#12151A") + ';">Lift</button>' +
-          '<button type="button" class="pill" data-tpl-kind="cardio" style="padding:4px 12px;font-size:12px;background:' + (tplNewKind === "cardio" ? accent : "transparent") + ";border-color:" + accent + ";color:" + (tplNewKind === "cardio" ? "#12151A" : accent) + ';">Cardio / Activity</button>' +
-        '</div>' +
-        (tplNewKind === "cardio"
-          ? '<div style="color:var(--text-3);font-size:12px;margin-bottom:6px;">e.g. Sprint · 6 reps · 300m · target 0:50 · rest 2 min (or "walk back"). Everything but the name is optional.</div>' +
-            '<div class="row-gap" style="margin-bottom:12px;">' +
-              '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="wkTplLiftName" placeholder="Activity name, e.g. Sprint" data-exercise-combo="1" /></span>' +
-              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Reps" />' +
-              '<input class="form-input" style="width:100px;" type="text" id="wkTplActDistance" placeholder="Distance" />' +
-              '<input class="form-input" style="width:100px;" type="text" id="wkTplActPace" placeholder="Target pace" />' +
-              '<input class="form-input" style="width:110px;" type="text" id="wkTplActRest" placeholder="Rest" />' +
-              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+ Add</button>' +
-            "</div>"
-          : '<div class="row-gap" style="margin-bottom:12px;">' +
-              '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="wkTplLiftName" placeholder="Lift name" data-exercise-combo="1" /></span>' +
-              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftSets" placeholder="Sets" />' +
-              '<input class="form-input" style="width:70px;" type="number" min="0" id="wkTplLiftReps" placeholder="Reps" />' +
-              '<input class="form-input" style="width:80px;" type="number" min="0" step="0.5" id="wkTplLiftWeight" placeholder="Lbs" />' +
-              '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" id="wkTplAddLiftBtn">+ Add</button>' +
-            "</div>") +
-        '<div class="form-actions"><span class="error-text" id="wkTplError"></span>' +
-          '<button class="link-btn" id="wkTplCancelBtn" style="color:var(--text-2);">Cancel</button>' +
-          '<button class="add-btn" id="wkTplSaveBtn" style="background:' + accent + ';">' + (templateEditId ? "Update Template" : "Save Template") + '</button>' +
-        "</div></div>";
+  function _numOrBlank(v) { if (v === "" || v == null) return ""; var n = Number(v); return isNaN(n) ? "" : n; }
+  function _tplById(id) { return (templatesData.templates || []).find(function (t) { return t.id === id; }); }
+
+  function _tplSyncLift(pl) {
+    if (pl.kind === "cardio" || !Array.isArray(pl.sets)) return;
+    pl.targetSets = pl.sets.length;
+    var first = pl.sets.filter(function (s) { return !s.isWarmup; })[0] || pl.sets[0];
+    pl.targetReps = first ? _numOrBlank(first.reps) : "";
+    pl.targetWeight = first ? _numOrBlank(first.weight) : "";
+  }
+  // Templates saved before per-set targets existed: expand "3 sets x 8 @ 135" into 3 set rows.
+  function _tplEnsureSets(pl) {
+    if (pl.kind === "cardio" || Array.isArray(pl.sets)) return;
+    var n = Math.min(Math.max(Number(pl.targetSets) || 1, 1), 12), arr = [];
+    for (var i = 0; i < n; i++) arr.push({ reps: _numOrBlank(pl.targetReps), weight: _numOrBlank(pl.targetWeight), isWarmup: false });
+    pl.sets = arr;
+  }
+  // Sets of the most recent logged session of this lift, so a new exercise starts from what you actually did.
+  function _lastSetsFor(name) {
+    var key = String(name).trim().toLowerCase(), best = null, bestDate = "";
+    data.items.forEach(function (it) {
+      (it.lifts || []).forEach(function (l) {
+        if (l.kind === "cardio" || String(l.name).trim().toLowerCase() !== key || !(l.sets || []).length) return;
+        if ((it.date || "") >= bestDate) { best = l; bestDate = it.date || ""; }
+      });
+    });
+    if (!best) return null;
+    return best.sets.slice(0, 8).map(function (s) { return { reps: _numOrBlank(s.reps), weight: _numOrBlank(s.weight), isWarmup: !!s.isWarmup }; });
+  }
+  function _frequentLifts() {
+    var count = {}, shown = {};
+    data.items.forEach(function (it) {
+      (it.lifts || []).forEach(function (l) {
+        if (l.kind === "cardio" || !l.name) return;
+        var k = String(l.name).trim().toLowerCase();
+        count[k] = (count[k] || 0) + 1; shown[k] = String(l.name).trim();
+      });
+    });
+    return Object.keys(count).sort(function (a, b) { return count[b] - count[a]; }).map(function (k) { return shown[k]; });
+  }
+  function _tplLiftSummary(pl) {
+    if (pl.kind === "cardio") {
+      return pl.name + (pl.targetSets ? " " + pl.targetSets + (pl.targetDistance ? " × " + pl.targetDistance : " reps") : "");
     }
+    _tplEnsureSets(pl);
+    var sets = pl.sets || [];
+    if (!sets.length) return pl.name;
+    var same = sets.every(function (s) { return s.reps === sets[0].reps && s.weight === sets[0].weight; });
+    if (same) return pl.name + " " + sets.length + "×" + (sets[0].reps === "" ? "?" : sets[0].reps) + (sets[0].weight !== "" ? " @ " + sets[0].weight : "");
+    return pl.name + " " + sets.length + " sets";
+  }
+  // Builds a template from a workout that was already logged (its sets become the targets).
+  function _tplFromItem(item) {
+    return {
+      id: uid(), name: item.name || "", category: item.category || "strength",
+      lifts: (item.lifts || []).map(function (l) {
+        if (l.kind === "cardio") {
+          var s0 = (l.sets || [])[0] || {};
+          return { name: l.name, kind: "cardio", targetSets: (l.sets || []).length || "", targetDistance: s0.distance || "", targetPace: s0.target || "", targetRest: s0.rest || "" };
+        }
+        var pl = {
+          name: l.name, muscleGroup: l.muscleGroup, trainingStyles: (l.trainingStyles || []).slice(), tagSource: l.tagSource || "auto",
+          sets: (l.sets || []).map(function (s) { return { reps: _numOrBlank(s.reps), weight: _numOrBlank(s.weight), isWarmup: !!s.isWarmup }; })
+        };
+        if (!pl.sets.length) pl.sets = [{ reps: "", weight: "", isWarmup: false }];
+        _tplSyncLift(pl);
+        return pl;
+      })
+    };
+  }
+  // Logs a copy of the template as today's workout and opens it.
+  function _startTemplateNow(id) {
+    var tpl = _tplById(id);
+    if (!tpl) return;
+    var newItem = { id: uid(), category: tpl.category || "strength", name: tpl.name || "Workout", date: todayISO(), duration: "", notes: "", lifts: _liftsFromTemplate(tpl) };
+    data.items.push(newItem);
+    save();
+    activeSection = "log";
+    viewingWorkoutId = newItem.id;
+    renderSectionPills();
+    renderSection();
+    window.scrollTo(0, 0);
+  }
+
+  function renderTemplatesSection() {
+    var t = templateEditId ? _tplById(templateEditId) : null;
+    if (templateEditId && !t) templateEditId = null;
+    if (t) renderTemplateBuilder(t); else renderTemplateList();
+  }
+
+  function renderTemplateList() {
+    var bodyEl = document.getElementById("wkSectionBody");
+    // A template that was started and abandoned (no name, no exercises) isn't worth keeping.
+    var before = (templatesData.templates || []).length;
+    templatesData.templates = (templatesData.templates || []).filter(function (t) { return (t.name && t.name.trim()) || (t.lifts || []).length; });
+    if (templatesData.templates.length !== before) saveTemplates();
+    var templates = templatesData.templates;
 
     bodyEl.innerHTML =
-      '<div style="color:var(--text-3);font-size:12px;margin-bottom:12px;">Manage the custom exercise/activity suggestions list from <a href="#" id="wkExercisesSettingsLink" style="color:' + accent + ';">Settings</a>.</div>' +
-      '<div class="list-card" style="margin-bottom:16px;">' +
-        (templates.length === 0 ? '<div class="empty-state">No templates yet. Save a routine below to reuse it later.</div>' :
-          templates.map(function (t) {
-            var liftCount = (t.lifts || []).length;
-            return '<div class="item-row"><div class="item-display">' +
-              '<div class="item-main"><div class="item-name">' + escapeHtml(t.name) + "</div>" +
-              '<div class="item-sub">' + liftCount + (liftCount === 1 ? " planned exercise" : " planned exercises") + (t.category ? " \u00B7 " + escapeHtml(categoryById(WORKOUT_CATEGORIES, t.category).label) : "") + "</div></div>" +
-              '<div class="item-actions">' +
-                '<button class="icon-btn" data-action="edit-template" data-id="' + t.id + '">\u270E</button>' +
-                '<button class="icon-btn" data-action="delete-template" data-id="' + t.id + '">\u2715</button>' +
-              "</div>" +
+      '<button class="add-btn" data-tb="new" style="background:' + accent + ';margin-bottom:14px;">+ New template</button>' +
+      (templates.length === 0 ? '<div class="empty-state">No templates yet. Build one here, or open a workout you already logged and tap Save as template.</div>' :
+        templates.map(function (t) {
+          var n = (t.lifts || []).length;
+          var cat = t.category ? categoryById(WORKOUT_CATEGORIES, t.category) : null;
+          var sum = (t.lifts || []).slice(0, 6).map(_tplLiftSummary).join(" · ") + (n > 6 ? " · +" + (n - 6) + " more" : "");
+          return '<div class="card tb-tpl">' +
+            '<div class="item-name">' + escapeHtml(t.name || "Untitled workout") + '</div>' +
+            '<div class="item-sub">' + n + (n === 1 ? " exercise" : " exercises") + (cat ? " · " + escapeHtml(cat.label) : "") + "</div>" +
+            (sum ? '<div class="tb-tpl-sum">' + escapeHtml(sum) + "</div>" : '<div class="tb-tpl-sum">No exercises yet.</div>') +
+            '<div class="tb-tpl-btns">' +
+              '<button class="small-btn" data-tb="start-tpl" data-id="' + t.id + '" style="background:#5BAE7A;">Start</button>' +
+              '<button class="small-btn" data-tb="edit" data-id="' + t.id + '" style="background:' + accent + ';">Edit</button>' +
+              '<button class="small-btn" data-tb="dup-tpl" data-id="' + t.id + '" style="background:#8A919C;">Duplicate</button>' +
+              '<button class="icon-btn" data-tb="del-tpl" data-id="' + t.id + '" aria-label="Delete template">✕</button>' +
             "</div></div>";
-          }).join("")) +
-      "</div>" +
-      (templateAddMode ? templateFormHtml() : '<button class="add-btn" id="wkNewTemplateBtn" style="background:' + accent + ';">+ New Template</button>') +
-      '<div class="bottom-row"><button class="link-btn" id="wkResetTemplatesBtn" style="color:var(--text-2);">Clear all templates</button></div>';
+        }).join("")) +
+      '<div style="color:var(--text-3);font-size:12px;margin:12px 0;">The suggestion list for exercise names is managed in <a href="#" id="wkExercisesSettingsLink" style="color:' + accent + ';">Settings</a>.</div>';
 
     document.getElementById("wkExercisesSettingsLink").addEventListener("click", function (e) { e.preventDefault(); switchPage("settings"); });
-    initExerciseCombos(bodyEl);
-
-    if (templateAddMode) {
-      document.getElementById("wkTplName").addEventListener("input", function (e) { templateDraft.name = e.target.value; });
-      document.getElementById("wkTplCatPills").querySelectorAll("[data-tpl-cat]").forEach(function (btn) {
-        btn.addEventListener("click", function (e) {
-          templateDraft.category = e.currentTarget.getAttribute("data-tpl-cat");
-          tplNewKind = templateDraft.category === "strength" ? "lift" : "cardio"; // sprints/yoga/sports aren't weight × reps
-          renderTemplatesSection();
-        });
-      });
-      bodyEl.querySelectorAll("[data-tpl-kind]").forEach(function (btn) {
-        btn.addEventListener("click", function (e) { tplNewKind = e.currentTarget.getAttribute("data-tpl-kind"); renderTemplatesSection(); });
-      });
-      bodyEl.querySelectorAll("[data-tpl-lift-field]").forEach(function (el) {
-        el.addEventListener("input", function (e) {
-          var idx = Number(e.target.getAttribute("data-idx"));
-          var field = e.target.getAttribute("data-tpl-lift-field");
-          if (!templateDraft.lifts[idx]) return;
-          templateDraft.lifts[idx][field] = (field === "targetWeight" || field === "targetMinutes") && e.target.value !== "" ? Number(e.target.value) : e.target.value;
-        });
-      });
-      // Reads the add row into the template. Returns "added", "empty" (nothing typed)
-      // or "noname" (details typed but no name).
-      function takePendingTplLift() {
-        var val = function (id) { var el = document.getElementById(id); return el ? el.value.trim() : ""; };
-        var name = val("wkTplLiftName");
-        var others = ["wkTplLiftSets", "wkTplLiftReps", "wkTplLiftWeight", "wkTplActDistance", "wkTplActPace", "wkTplActRest"].map(val).join("");
-        if (!name) return others ? "noname" : "empty";
-        if (tplNewKind === "cardio") {
-          templateDraft.lifts.push({
-            name: name, kind: "cardio",
-            targetSets: val("wkTplLiftSets"), // number of reps
-            targetDistance: val("wkTplActDistance"), targetPace: val("wkTplActPace"), targetRest: val("wkTplActRest")
-          });
-        } else {
-          var tags = _matchLiftTags(name);
-          templateDraft.lifts.push({
-            name: name, targetSets: val("wkTplLiftSets"), targetReps: val("wkTplLiftReps"),
-            targetWeight: val("wkTplLiftWeight") === "" ? "" : Number(val("wkTplLiftWeight")),
-            muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto"
-          });
-        }
-        return "added";
+    bodyEl.oninput = null; bodyEl.onkeydown = null;
+    bodyEl.onclick = function (e) {
+      var b = e.target.closest("[data-tb]");
+      if (!b || !bodyEl.contains(b)) return;
+      var act = b.getAttribute("data-tb"), id = b.getAttribute("data-id");
+      if (act === "new") {
+        var nt = { id: uid(), name: "", category: "strength", lifts: [] };
+        templatesData.templates.push(nt); saveTemplates();
+        templateEditId = nt.id; tplNewKind = "lift";
+        renderTemplatesSection();
+        var nm = bodyEl.querySelector("[data-tb-field='name']"); if (nm) nm.focus();
+      } else if (act === "edit") {
+        templateEditId = id; var tt = _tplById(id); tplNewKind = !tt || !tt.category || tt.category === "strength" ? "lift" : "cardio";
+        renderTemplatesSection(); window.scrollTo(0, 0);
+      } else if (act === "start-tpl") {
+        _startTemplateNow(id);
+      } else if (act === "dup-tpl") {
+        var src = _tplById(id); if (!src) return;
+        var copy = JSON.parse(JSON.stringify(src)); copy.id = uid(); copy.name = (src.name || "Untitled workout") + " (copy)";
+        templatesData.templates.splice(templatesData.templates.indexOf(src) + 1, 0, copy);
+        saveTemplates(); renderTemplatesSection();
+      } else if (act === "del-tpl") {
+        var d = _tplById(id); if (!d) return;
+        if (!confirm('Delete "' + (d.name || "Untitled workout") + '"? Workouts you already logged from it are not affected.')) return;
+        templatesData.templates = templatesData.templates.filter(function (x) { return x.id !== id; });
+        saveTemplates(); renderTemplatesSection();
       }
-      document.getElementById("wkTplAddLiftBtn").addEventListener("click", function () {
-        if (takePendingTplLift() === "added") renderTemplatesSection();
-        else document.getElementById("wkTplLiftName").focus();
-      });
-      bodyEl.querySelectorAll("[data-action='remove-tpl-lift']").forEach(function (btn) {
-        btn.addEventListener("click", function (e) { templateDraft.lifts.splice(Number(e.currentTarget.getAttribute("data-idx")), 1); renderTemplatesSection(); });
-      });
-      document.getElementById("wkTplCancelBtn").addEventListener("click", function () { templateAddMode = false; templateDraft = null; templateEditId = null; renderTemplatesSection(); });
-      document.getElementById("wkTplSaveBtn").addEventListener("click", function () {
-        if (!templateDraft.name.trim()) { document.getElementById("wkTplError").textContent = "Give it a name first."; return; }
-        // Details typed in the add row count even if + wasn't tapped (it's easy to miss,
-        // and on a phone the number pad can cover it).
-        if (takePendingTplLift() === "noname") { document.getElementById("wkTplError").textContent = "Give that exercise a name (or clear its boxes) first."; document.getElementById("wkTplLiftName").focus(); return; }
-        if (templateEditId) {
-          var idx = templatesData.templates.findIndex(function (t) { return t.id === templateEditId; });
-          if (idx !== -1) {
-            templatesData.templates[idx] = Object.assign({}, templatesData.templates[idx], { name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
-          }
-        } else {
-          templatesData.templates.push({ id: uid(), name: templateDraft.name.trim(), category: templateDraft.category, lifts: templateDraft.lifts });
+    };
+  }
+
+  function renderTemplateBuilder(t) {
+    var bodyEl = document.getElementById("wkSectionBody");
+    t.lifts = t.lifts || [];
+    t.lifts.forEach(_tplEnsureSets);
+
+    function stepperHtml(field, i, j, val, unit) {
+      var isW = field === "weight";
+      return '<span class="tb-stepper">' +
+        '<button type="button" class="tb-step" data-tb="step" data-dir="-1" data-f="' + field + '" data-i="' + i + '" data-j="' + j + '" aria-label="Less ' + unit + '">−</button>' +
+        '<input class="tb-num" type="number" inputmode="' + (isW ? "decimal" : "numeric") + '" min="0" step="' + (isW ? "0.5" : "1") + '" data-tb-set="' + field + '" data-i="' + i + '" data-j="' + j + '" value="' + escapeHtml(val === "" || val == null ? "" : val) + '" placeholder="' + unit + '" aria-label="' + unit + '" />' +
+        '<button type="button" class="tb-step" data-tb="step" data-dir="1" data-f="' + field + '" data-i="' + i + '" data-j="' + j + '" aria-label="More ' + unit + '">+</button>' +
+      "</span>";
+    }
+    function liftCardHtml(pl, i) {
+      var n = t.lifts.length;
+      var head = '<div class="tb-lift-head">' +
+        '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:0;"><input class="edit-input" style="width:100%;font-weight:600;" data-tb-lift="name" data-i="' + i + '" value="' + escapeHtml(pl.name) + '" placeholder="Exercise" data-exercise-combo="1" /></span>' +
+        '<span class="tb-lift-btns">' +
+          '<button class="icon-btn" data-tb="up" data-i="' + i + '" aria-label="Move up"' + (i === 0 ? " disabled" : "") + '>↑</button>' +
+          '<button class="icon-btn" data-tb="down" data-i="' + i + '" aria-label="Move down"' + (i === n - 1 ? " disabled" : "") + '>↓</button>' +
+          '<button class="icon-btn" data-tb="dup" data-i="' + i + '" aria-label="Duplicate exercise">⧉</button>' +
+          '<button class="icon-btn" data-tb="rm" data-i="' + i + '" aria-label="Remove exercise">✕</button>' +
+        "</span></div>";
+      var body;
+      if (pl.kind === "cardio") {
+        var cf = function (field, label, val, w, type) {
+          return '<label class="tb-cf"><span>' + label + '</span><input class="edit-input" style="width:' + w + 'px;" type="' + (type || "text") + '" data-tb-lift="' + field + '" data-i="' + i + '" value="' + escapeHtml(val == null ? "" : val) + '" /></label>';
+        };
+        body = '<div class="tb-cardio">' + cf("targetSets", "Reps", pl.targetSets, 64, "number") + cf("targetDistance", "Distance", pl.targetDistance, 96) + cf("targetPace", "Target pace", pl.targetPace, 96) + cf("targetRest", "Rest", pl.targetRest, 100) + "</div>";
+      } else {
+        body = (pl.sets || []).map(function (s, j) {
+          return '<div class="tb-set' + (s.isWarmup ? " warm" : "") + '"><span class="tb-set-n">' + (j + 1) + "</span>" +
+            stepperHtml("weight", i, j, s.weight, "lbs") + stepperHtml("reps", i, j, s.reps, "reps") +
+            '<button class="icon-btn" data-tb="warm" data-i="' + i + '" data-j="' + j + '" title="Warm-up set" aria-label="Toggle warm-up" style="' + (s.isWarmup ? "color:" + accent + ";font-weight:800;" : "") + '">W</button>' +
+            ((pl.sets || []).length > 1 ? '<button class="icon-btn" data-tb="rm-set" data-i="' + i + '" data-j="' + j + '" aria-label="Remove set">✕</button>' : "") +
+          "</div>";
+        }).join("") + '<button type="button" class="tb-addset" data-tb="add-set" data-i="' + i + '">+ Set</button>';
+      }
+      return '<div class="card tb-lift">' + head + body + "</div>";
+    }
+
+    var have = {};
+    t.lifts.forEach(function (pl) { have[String(pl.name).trim().toLowerCase()] = true; });
+    var chips = tplNewKind === "cardio" ? [] : _frequentLifts().filter(function (nm) { return !have[nm.toLowerCase()]; }).slice(0, 8);
+    var kindPill = function (kind, label) {
+      var on = tplNewKind === kind;
+      return '<button type="button" class="pill" data-tb="kind" data-kind="' + kind + '" style="padding:4px 12px;font-size:12px;background:' + (on ? accent : "transparent") + ";border-color:" + accent + ";color:" + (on ? "#12151A" : accent) + ';">' + label + "</button>";
+    };
+
+    bodyEl.innerHTML =
+      '<div class="tb-top"><button class="link-btn" data-tb="done" style="color:var(--text-2);">‹ Done</button><span class="tb-saved">Changes save automatically</span></div>' +
+      '<div class="card">' +
+        '<input class="form-input tb-name" data-tb-field="name" placeholder="Workout name, e.g. Push Day" value="' + escapeHtml(t.name) + '" />' +
+        '<div class="pills" style="margin-top:10px;">' + WORKOUT_CATEGORIES.map(function (c) {
+          var active = c.id === t.category;
+          return '<button class="pill" data-tb="cat" data-cat="' + c.id + '" style="background:' + (active ? c.color : "transparent") + ";border-color:" + c.color + ";color:" + (active ? "#12151A" : c.color) + ';">' + c.glyph + " " + escapeHtml(c.label) + "</button>";
+        }).join("") + "</div>" +
+      "</div>" +
+      (t.lifts.length ? t.lifts.map(liftCardHtml).join("") : '<div class="card" style="color:var(--text-2);font-size:13px;">No exercises yet. Add the first one below.</div>') +
+      '<div class="card lift-new">' +
+        '<div class="pills" style="margin:0 0 8px;">' + kindPill("lift", "Lift") + kindPill("cardio", "Cardio / Activity") + "</div>" +
+        '<div class="row-gap">' +
+          '<span class="exercise-combo-wrap" style="position:relative;flex:1;min-width:100px;"><input class="form-input" style="width:100%;" id="tbAddName" placeholder="' + (tplNewKind === "cardio" ? "Activity name, e.g. Sprint" : "Add exercise: type, then pick") + '" data-exercise-combo="1" autocomplete="off" /></span>' +
+          '<button class="small-btn" style="background:' + accent + ';flex-shrink:0;" data-tb="add-ex">+ Add</button>' +
+        "</div>" +
+        (chips.length ? '<div class="tb-chips">' + chips.map(function (nm) { return '<button type="button" class="tb-chip" data-tb="chip" data-name="' + escapeHtml(nm) + '">' + escapeHtml(nm) + "</button>"; }).join("") + "</div>" +
+          '<div style="color:var(--text-3);font-size:12px;margin-top:8px;">Tap a lift you do often. Its sets start from your last session.</div>' : "") +
+      "</div>" +
+      '<button class="add-btn" data-tb="start" style="background:#5BAE7A;">Start this workout</button>';
+
+    initExerciseCombos(bodyEl);
+    var addInput = document.getElementById("tbAddName");
+    function rerender(keepScroll) { var y = window.scrollY; renderTemplateBuilder(t); if (keepScroll !== false) window.scrollTo(0, y); }
+    function addExercise(name) {
+      name = String(name || "").trim();
+      if (!name) { addInput.focus(); return; }
+      var pl;
+      if (tplNewKind === "cardio") {
+        pl = { name: name, kind: "cardio", targetSets: "", targetDistance: "", targetPace: "", targetRest: "" };
+      } else {
+        var tags = _matchLiftTags(name), last = _lastSetsFor(name);
+        pl = { name: name, muscleGroup: tags.muscleGroup, trainingStyles: tags.trainingStyles, tagSource: "auto",
+          sets: last || [{ reps: 8, weight: "", isWarmup: false }, { reps: 8, weight: "", isWarmup: false }, { reps: 8, weight: "", isWarmup: false }] };
+        _tplSyncLift(pl);
+      }
+      t.lifts.push(pl); saveTemplates();
+      renderTemplateBuilder(t);
+      var cards = bodyEl.querySelectorAll(".tb-lift");
+      if (cards.length) cards[cards.length - 1].scrollIntoView({ block: "nearest" });
+    }
+    // Picking a suggestion from the list adds it straight away.
+    addInput.addEventListener("combo-pick", function () { addExercise(addInput.value); });
+
+    bodyEl.onkeydown = function (e) {
+      if (e.key === "Enter" && e.target && e.target.id === "tbAddName") { e.preventDefault(); addExercise(e.target.value); }
+    };
+    bodyEl.oninput = function (e) {
+      var el = e.target;
+      if (el.hasAttribute("data-tb-field")) { t.name = el.value; saveTemplates(); return; }
+      var lf = el.getAttribute("data-tb-lift");
+      if (lf) {
+        var pl = t.lifts[Number(el.getAttribute("data-i"))];
+        if (!pl) return;
+        pl[lf] = lf === "targetMinutes" && el.value !== "" ? Number(el.value) : el.value;
+        if (lf === "name" && pl.kind !== "cardio" && pl.tagSource !== "manual") {
+          var tg = _matchLiftTags(el.value); pl.muscleGroup = tg.muscleGroup; pl.trainingStyles = tg.trainingStyles;
         }
         saveTemplates();
-        templateAddMode = false;
-        templateDraft = null;
-        templateEditId = null;
-        renderTemplatesSection();
-      });
-    } else {
-      document.getElementById("wkNewTemplateBtn").addEventListener("click", function () {
-        templateAddMode = true;
-        templateEditId = null;
-        templateDraft = { name: "", category: "strength", lifts: [] };
-        tplNewKind = "lift";
-        renderTemplatesSection();
-      });
-    }
-    bodyEl.querySelectorAll("[data-action='edit-template']").forEach(function (btn) {
-      btn.addEventListener("click", function (e) {
-        var id = e.currentTarget.getAttribute("data-id");
-        var t = templatesData.templates.find(function (tpl) { return tpl.id === id; });
-        if (!t) return;
-        templateEditId = id;
-        templateAddMode = true;
-        templateDraft = { name: t.name, category: t.category, lifts: JSON.parse(JSON.stringify(t.lifts || [])) };
-        tplNewKind = !t.category || t.category === "strength" ? "lift" : "cardio";
-        renderTemplatesSection();
-      });
-    });
-    bodyEl.querySelectorAll("[data-action='delete-template']").forEach(function (btn) {
-      btn.addEventListener("click", function (e) {
-        var id = e.currentTarget.getAttribute("data-id");
-        templatesData.templates = (templatesData.templates || []).filter(function (t) { return t.id !== id; });
-        if (templateEditId === id) { templateEditId = null; templateAddMode = false; templateDraft = null; }
-        saveTemplates();
-        renderTemplatesSection();
-      });
-    });
-    document.getElementById("wkResetTemplatesBtn").addEventListener("click", function () {
-      var btn = document.getElementById("wkResetTemplatesBtn");
-      if (!confirmResetTemplates) {
-        confirmResetTemplates = true;
-        btn.textContent = "Click again to clear all templates";
-        btn.style.color = "#FF8A5C";
-        setTimeout(function () { confirmResetTemplates = false; if (document.getElementById("wkResetTemplatesBtn")) { btn.textContent = "Clear all templates"; btn.style.color = "#8A919C"; } }, 4000);
         return;
       }
-      templatesData.templates = [];
-      confirmResetTemplates = false;
-      saveTemplates();
-      renderTemplatesSection();
-    });
+      var sf = el.getAttribute("data-tb-set");
+      if (sf) {
+        var p2 = t.lifts[Number(el.getAttribute("data-i"))], st = p2 && p2.sets[Number(el.getAttribute("data-j"))];
+        if (!st) return;
+        st[sf] = _numOrBlank(el.value);
+        _tplSyncLift(p2); saveTemplates();
+      }
+    };
+    bodyEl.onclick = function (e) {
+      var b = e.target.closest("[data-tb]");
+      if (!b || !bodyEl.contains(b)) return;
+      var act = b.getAttribute("data-tb"), i = Number(b.getAttribute("data-i")), j = Number(b.getAttribute("data-j"));
+      var pl = t.lifts[i];
+      if (act === "done" || act === "start") {
+        t.name = (t.name || "").trim();
+        if (!t.name && !t.lifts.length) templatesData.templates = templatesData.templates.filter(function (x) { return x.id !== t.id; });
+        else if (!t.name) t.name = "Untitled workout";
+        saveTemplates();
+        templateEditId = null;
+        if (act === "start" && _tplById(t.id)) _startTemplateNow(t.id); else { renderTemplatesSection(); window.scrollTo(0, 0); }
+      } else if (act === "cat") {
+        t.category = b.getAttribute("data-cat");
+        tplNewKind = t.category === "strength" ? "lift" : "cardio"; // sprints/yoga/sports aren't weight x reps
+        saveTemplates(); rerender();
+      } else if (act === "kind") {
+        tplNewKind = b.getAttribute("data-kind"); rerender();
+      } else if (act === "up" && pl && i > 0) {
+        t.lifts.splice(i - 1, 0, t.lifts.splice(i, 1)[0]); saveTemplates(); rerender();
+      } else if (act === "down" && pl && i < t.lifts.length - 1) {
+        t.lifts.splice(i + 1, 0, t.lifts.splice(i, 1)[0]); saveTemplates(); rerender();
+      } else if (act === "dup" && pl) {
+        t.lifts.splice(i + 1, 0, JSON.parse(JSON.stringify(pl))); saveTemplates(); rerender();
+      } else if (act === "rm" && pl) {
+        t.lifts.splice(i, 1); saveTemplates(); rerender();
+      } else if (act === "add-set" && pl) {
+        var prev = pl.sets[pl.sets.length - 1];
+        pl.sets.push({ reps: prev ? prev.reps : "", weight: prev ? prev.weight : "", isWarmup: false });
+        _tplSyncLift(pl); saveTemplates(); rerender();
+      } else if (act === "rm-set" && pl && pl.sets.length > 1) {
+        pl.sets.splice(j, 1); _tplSyncLift(pl); saveTemplates(); rerender();
+      } else if (act === "warm" && pl && pl.sets[j]) {
+        pl.sets[j].isWarmup = !pl.sets[j].isWarmup; _tplSyncLift(pl); saveTemplates(); rerender();
+      } else if (act === "step" && pl && pl.sets[j]) {
+        var field = b.getAttribute("data-f"), dir = Number(b.getAttribute("data-dir")), amt = field === "weight" ? 5 : 1;
+        var input = b.parentElement.querySelector("input");
+        var cur = input.value === "" ? (j > 0 ? _numOrBlank(pl.sets[j - 1][field]) : "") : Number(input.value);
+        var next = Math.max(0, Math.round(((cur === "" ? 0 : cur) + dir * amt) * 2) / 2);
+        input.value = next; pl.sets[j][field] = next;
+        _tplSyncLift(pl); saveTemplates();
+      } else if (act === "add-ex") {
+        addExercise(addInput.value);
+      } else if (act === "chip") {
+        addExercise(b.getAttribute("data-name"));
+      }
+    };
   }
 
   /* ---------------- History & PRs section ---------------- */
