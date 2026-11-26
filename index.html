@@ -3320,6 +3320,8 @@ async function _fetchStoryDataFromNetwork(key, defaultData) {
   try {
     var meta = await _withTimeout(window.FirebaseBridge.firestore.getStoryDocMeta(key), 12000, "story load");
     if (meta && meta.data) {
+      var held = _readCache(key); // the copy this device had; keep it before the cloud's replaces it
+      if (held !== null && _stableJson(held) !== _stableJson(meta.data)) _storyHistoryAdd(key, held, "Held on this device before syncing", null, true);
       _writeCache(key, meta.data); _storyBaseSet(key, meta.updatedAt); _storyMemBase[key] = meta.updatedAt;
       return Object.assign({}, defaultData, meta.data);
     }
@@ -3361,10 +3363,11 @@ function _bgRefreshStoryData(key, defaultData) {
         _storyBaseSet(key, meta.updatedAt); _storyMemBase[key] = meta.updatedAt;
         return;
       }
-      // Keep the copy being replaced (one level) so a wrong overwrite is recoverable.
+      // Keep the copy being replaced so a wrong overwrite is recoverable.
       try {
         if (old !== null) localStorage.setItem("dashboard-story-backup-" + key, JSON.stringify({ at: Date.now(), data: old }));
       } catch (e) { /* storage full/unavailable */ }
+      if (old !== null) _storyHistoryAdd(key, old, "Held on this device before syncing", null, true);
       _writeCache(key, data); _storyBaseSet(key, meta.updatedAt);
       // The page on screen was built from the older copy; saving from it now is blocked, so say so.
       if (_storyMemBase[key] !== meta.updatedAt) _showStoryBanner("stale");
@@ -3393,6 +3396,7 @@ async function _flushStoryDataSave(key) {
     var res = await window.FirebaseBridge.firestore.setStoryDocIfBase(key, data, _storyMemBase.hasOwnProperty(key) ? _storyMemBase[key] : null);
     if (res.conflict) { _storyHandleConflict(key, data, res); return; }
     _storyMemBase[key] = res.updatedAt; _storyBaseSet(key, res.updatedAt);
+    _storyHistoryAdd(key, data, "Saved"); // throttled: at most one every 10 minutes per section
     if (!_storyPendingSaves.hasOwnProperty(key)) _storyDirtySet(key, false);
     _markSynced(); _markStorySynced();
     _storyRetryDelay = 5000;
@@ -3411,6 +3415,8 @@ var _storyConflicts = {};
 function _storyHandleConflict(key, localData, res) {
   try { localStorage.setItem("dashboard-story-conflict-" + key, JSON.stringify({ at: Date.now(), data: localData })); } catch (e) { /* storage full */ }
   _storyConflicts[key] = { local: localData, remoteAt: res.remoteAt };
+  _storyHistoryAdd(key, localData, "Your edits that weren’t saved (changed on another device)", null, true);
+  if (res.remote) _storyHistoryAdd(key, res.remote, "Other device’s version", null, true);
   _storyDirtySet(key, false); // stop retrying; the banner decides
   if (res.remote) { _writeCache(key, res.remote); _storyBaseSet(key, res.remoteAt); } // a reload shows the other device's version
   _setStorySaveState("conflict");
@@ -3478,6 +3484,167 @@ async function storySaveNow() {
 function _flushAllPendingStorySaves() {
   Object.keys(_storySaveDebounceTimers).forEach(function (key) { clearTimeout(_storySaveDebounceTimers[key]); delete _storySaveDebounceTimers[key]; });
   Object.keys(_storyPendingSaves).forEach(function (key) { _flushStoryDataSave(key); });
+}
+
+/* ---------------- Story version history ----------------
+   Local snapshots (IndexedDB, this device only) of each Story section: what a save
+   sent to the cloud (at most one per 10 minutes), every copy this device held that
+   the cloud's newer copy replaced, and edits that couldn't be saved because another
+   device changed first. Opened from the History button on the Story page, where a
+   snapshot can be read, copied or restored. Keeps the newest 40 per section. */
+var _HIST_MAX = 40, _histLastAt = {}, _histDbP = null;
+var _STORY_KEY_LABELS = {
+  "dashboard-story-chapters": "Chapters", "dashboard-story-characters": "Characters", "dashboard-story-comic": "Comic",
+  "dashboard-story-moodboard": "Moodboard", "dashboard-story-lore": "Lore", "dashboard-story-locations": "Locations"
+};
+function _histDb() {
+  if (_histDbP) return _histDbP;
+  _histDbP = new Promise(function (resolve, reject) {
+    try {
+      var req = indexedDB.open("dashboard-story-history", 1);
+      req.onupgradeneeded = function () {
+        var st = req.result.createObjectStore("snaps", { keyPath: "id", autoIncrement: true });
+        st.createIndex("key", "key");
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    } catch (e) { reject(e); }
+  });
+  _histDbP.catch(function () { _histDbP = null; });
+  return _histDbP;
+}
+function _histAll(key) { // newest first; every section when key is omitted
+  return _histDb().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      var out = [], tx = db.transaction("snaps", "readonly"), st = tx.objectStore("snaps");
+      var req = key ? st.index("key").openCursor(IDBKeyRange.only(key)) : st.openCursor();
+      req.onsuccess = function () {
+        var c = req.result;
+        if (c) { out.push(c.value); c.continue(); }
+        else { out.sort(function (a, b) { return b.at - a.at; }); resolve(out); }
+      };
+      req.onerror = function () { reject(req.error); };
+    });
+  });
+}
+function _histHash(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ":" + s.length; }
+function _storyHistoryAdd(key, data, reason, at, force) {
+  if (!data) return Promise.resolve();
+  at = at || Date.now();
+  if (!force && _histLastAt[key] && at - _histLastAt[key] < 600000) return Promise.resolve(); // routine "Saved" snapshots only; forced ones always go in
+  var snap, sig;
+  try { snap = JSON.parse(JSON.stringify(data)); sig = _histHash(_stableJson(snap)); } catch (e) { return Promise.resolve(); } // copy now: the live object keeps changing
+  _histLastAt[key] = at;
+  return _histAll(key).then(function (all) {
+    if (all.some(function (s) { return s.sig === sig; })) return;
+    return _histDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("snaps", "readwrite"), st = tx.objectStore("snaps");
+        st.add({ key: key, at: at, reason: reason, sig: sig, data: snap });
+        all.slice(_HIST_MAX - 1).forEach(function (s) { st.delete(s.id); });
+        tx.oncomplete = resolve;
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }).catch(function (e) { console.warn("Story history save failed", e); });
+}
+// Pull in the older one-slot backups this app used to keep in localStorage.
+function _storyHistoryImportLegacy() {
+  STORY_TAB_KEYS.forEach(function (k) {
+    [["dashboard-story-backup-", "Older backup"], ["dashboard-story-conflict-", "Edits that weren’t saved (changed on another device)"]].forEach(function (p) {
+      try {
+        var raw = localStorage.getItem(p[0] + k);
+        if (!raw) return;
+        var o = JSON.parse(raw);
+        if (o && o.data) _storyHistoryAdd(k, o.data, p[1], o.at, true);
+      } catch (e) { /* unreadable backup: skip */ }
+    });
+  });
+}
+setTimeout(_storyHistoryImportLegacy, 3000);
+
+function _histDescribe(key, data) {
+  if (!data) return "";
+  if (key === "dashboard-story-chapters") {
+    var ch = data.chapters || [], words = 0;
+    ch.forEach(function (c) { var t = chapterPlainText(c.content); if (t) words += t.split(/\s+/).length; });
+    return ch.length + " chapter" + (ch.length === 1 ? "" : "s") + ", " + words.toLocaleString() + " words";
+  }
+  var parts = [];
+  Object.keys(data).forEach(function (p) { if (Array.isArray(data[p])) parts.push(data[p].length + " " + p); });
+  return parts.join(", ");
+}
+function _histFullText(snap) {
+  if (snap.key !== "dashboard-story-chapters") return JSON.stringify(snap.data, null, 2);
+  return (snap.data.chapters || []).map(function (c, i) {
+    return "Chapter " + (i + 1) + (c.title ? ": " + c.title : "") + "\n\n" + chapterPlainText(c.content);
+  }).join("\n\n\n");
+}
+function _histCopy(text, btn) {
+  function done(ok) { var o = btn.textContent; btn.textContent = ok ? "Copied ✓" : "Couldn’t copy"; setTimeout(function () { btn.textContent = o; }, 1500); }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+  else done(false);
+}
+async function _storyHistoryRestore(snap) {
+  await _storyHistoryAdd(snap.key, _readCache(snap.key), "Before a restore", null, true);
+  saveStoryData(snap.key, JSON.parse(JSON.stringify(snap.data)));
+  var ok = await storySaveNow();
+  if (ok) location.reload();
+  return ok;
+}
+async function showStoryHistory() {
+  var old = document.getElementById("storyHistoryOverlay");
+  if (old) old.remove();
+  var ov = document.createElement("div");
+  ov.id = "storyHistoryOverlay";
+  ov.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:12px;";
+  var box = document.createElement("div");
+  box.style.cssText = "background:var(--bg-card);color:var(--text-1);border:1px solid var(--border-2);border-radius:14px;width:min(760px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;";
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  function close() { ov.remove(); }
+  ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
+  var BTN = "border:0;border-radius:8px;padding:7px 12px;font-weight:600;cursor:pointer;color:#fff;margin-right:8px;";
+  function head(title, backFn) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border-2);">' +
+      (backFn ? '<button id="histBack" style="' + BTN + 'background:#8A919C;">← Back</button>' : "") +
+      '<div style="font-weight:700;font-size:16px;flex:1;">' + escapeHtml(title) + '</div>' +
+      '<button id="histClose" style="' + BTN + 'background:#8A919C;margin:0;">Close</button></div>';
+  }
+  function fmt(at) { return new Date(at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
+  var snaps = [];
+  try { snaps = await _histAll(); } catch (e) { /* history unavailable in this browser */ }
+  function showList() {
+    var rows = snaps.length ? snaps.map(function (s, i) {
+      return '<button data-i="' + i + '" style="display:block;width:100%;text-align:left;background:transparent;color:inherit;border:0;border-bottom:1px solid var(--border);padding:12px 16px;cursor:pointer;">' +
+        '<div style="font-weight:600;">' + escapeHtml(_STORY_KEY_LABELS[s.key] || s.key) + ' · ' + escapeHtml(fmt(s.at)) + '</div>' +
+        '<div style="color:var(--text-2);font-size:13px;margin-top:2px;">' + escapeHtml(s.reason || "") + ' · ' + escapeHtml(_histDescribe(s.key, s.data)) + '</div></button>';
+    }).join("") : '<div style="padding:18px 16px;color:var(--text-2);line-height:1.5;">No saved versions on this device yet. Versions are kept from now on: what each save sent to the cloud, and any older copy this device held before a newer one replaced it.</div>';
+    box.innerHTML = head("Story history (this device)") + '<div style="overflow:auto;">' + rows + '</div>';
+    box.querySelector("#histClose").onclick = close;
+    box.querySelectorAll("button[data-i]").forEach(function (b) { b.onclick = function () { showSnap(snaps[Number(b.getAttribute("data-i"))]); }; });
+  }
+  function showSnap(s) {
+    var text = _histFullText(s);
+    box.innerHTML = head((_STORY_KEY_LABELS[s.key] || s.key) + " · " + fmt(s.at), true) +
+      '<div style="padding:10px 16px;color:var(--text-2);font-size:13px;">' + escapeHtml(s.reason || "") + ' · ' + escapeHtml(_histDescribe(s.key, s.data)) + '</div>' +
+      '<div style="padding:0 16px 10px;"><button id="histCopy" style="' + BTN + 'background:#5BAE7A;">Copy all text</button>' +
+      '<button id="histRestore" style="' + BTN + 'background:#FF8A5C;">Restore this version</button></div>' +
+      '<pre style="margin:0;padding:12px 16px 18px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:14px;line-height:1.55;border-top:1px solid var(--border-2);flex:1;"></pre>';
+    box.querySelector("pre").textContent = text;
+    box.querySelector("#histClose").onclick = close;
+    box.querySelector("#histBack").onclick = showList;
+    var cp = box.querySelector("#histCopy");
+    cp.onclick = function () { _histCopy(text, cp); };
+    var rb = box.querySelector("#histRestore");
+    rb.onclick = async function () {
+      if (!confirm("Restore this " + (_STORY_KEY_LABELS[s.key] || "") + " version from " + fmt(s.at) + "? What's there now is kept in this history first.")) return;
+      rb.disabled = true; rb.textContent = "Restoring…";
+      var ok = await _storyHistoryRestore(s);
+      if (!ok) { rb.disabled = false; rb.textContent = "Couldn’t save. Check the banner or try again"; }
+    };
+  }
+  showList();
 }
 
 /* ---------------- auth ---------------- */
@@ -4305,7 +4472,7 @@ async function refreshStoryFromServer(force) {
       var meta = remotes[i], remote = meta && meta.data;
       if (!remote) return;
       if (_stableJson(remote) === _stableJson(_readCache(k))) { _storyBaseSet(k, meta.updatedAt); _storyMemBase[k] = meta.updatedAt; return; }
-      try { var old = _readCache(k); if (old !== null) localStorage.setItem("dashboard-story-backup-" + k, JSON.stringify({ at: Date.now(), data: old })); } catch (e) { /* storage full */ }
+      try { var old = _readCache(k); if (old !== null) { localStorage.setItem("dashboard-story-backup-" + k, JSON.stringify({ at: Date.now(), data: old })); _storyHistoryAdd(k, old, "Held on this device before syncing", null, true); } } catch (e) { /* storage full */ }
       _writeCache(k, remote); _storyBaseSet(k, meta.updatedAt); changed = true;
     });
     if (!changed) return;
@@ -11773,6 +11940,7 @@ async function renderStoryPage(root) {
     // Pinned to the top while you scroll, so Save now and the sync status are on screen in every section.
     '<div class="story-savebar">' +
       '<div id="storySyncStatus" class="sync-status"><span class="sync-dot" id="storySyncStatusDot"></span><span id="storySyncStatusText">Not synced yet</span></div>' +
+      '<button class="small-btn" id="storyHistoryBtn" style="background:#8A919C;" title="Earlier versions kept on this device">History</button>' +
       '<button class="small-btn" id="storySaveNowBtn" style="background:#5BAE7A;" title="Save and sync now (Ctrl/Cmd+S)">Save now</button>' +
     '</div>' +
     (window.FirebaseBridge && window.FirebaseBridge.auth.currentUser() ? "" :
@@ -11806,6 +11974,7 @@ async function renderStoryPage(root) {
       }
     });
   }
+  document.getElementById("storyHistoryBtn").addEventListener("click", showStoryHistory);
   document.getElementById("storyDownloadBtn").addEventListener("click", downloadStoryExport);
   document.getElementById("storyManuscriptBtn").addEventListener("click", downloadManuscriptExport);
   var reconnectBtn = document.getElementById("storyReconnectBtn");
