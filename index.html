@@ -9683,6 +9683,101 @@ function _repVsTarget(set) {
   return { sec: d, label: (d < 0 ? "−" : "+") + txt, color: d < 0 ? "#5BAE7A" : "#E1543F" };
 }
 
+/* ---------------- Workout export (CSV / JSON for analysis) ---------------- */
+var _WK_EX_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function _wkExCell(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "number") return isFinite(v) ? String(Math.round(v * 100) / 100) : "";
+  var s = String(v);
+  if (/^[=+\-@]/.test(s)) s = "'" + s; // keep spreadsheet apps from treating text as a formula
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function _wkExCsv(cols, rows) {
+  var lines = [cols.join(",")];
+  rows.forEach(function (r) { lines.push(cols.map(function (c) { return _wkExCell(r[c]); }).join(",")); });
+  return "﻿" + lines.join("\n"); // BOM so Excel reads accents/symbols correctly
+}
+function _wkExDateParts(iso) {
+  var d = new Date(String(iso || "") + "T12:00:00");
+  if (isNaN(d.getTime())) return { weekday: "", weekStart: "" };
+  return { weekday: _WK_EX_DAYS[d.getDay()], weekStart: addDaysISO(iso, -((d.getDay() + 6) % 7)) };
+}
+function _wkExLabel(list, id) {
+  var c = list.find(function (x) { return x.id === id; });
+  return c ? c.label : (id || "");
+}
+function _wkExNum(v) { return (v === "" || v == null || isNaN(Number(v))) ? null : Number(v); }
+
+var WK_EX_SET_COLS = ["date", "weekday", "week_start", "workout_id", "workout", "type", "workout_minutes", "exercise", "exercise_kind", "muscle_group",
+  "training_styles", "set_number", "is_warmup", "weight_lb", "reps", "volume", "est_1rm", "set_minutes", "exercise_minutes", "distance", "time", "time_sec",
+  "target_pace", "target_sec", "vs_target_sec", "rest", "workout_notes"];
+// One row per set (a workout with no exercises still gets one row, so sports and
+// timed sessions show up too).
+function _wkExSetRows(items) {
+  var out = [];
+  (items || []).slice().sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).forEach(function (it) {
+    var dp = _wkExDateParts(it.date);
+    var base = { date: it.date || "", weekday: dp.weekday, week_start: dp.weekStart, workout_id: it.id || "", workout: it.name || "",
+      type: _wkExLabel(WORKOUT_CATEGORIES, it.category), workout_minutes: _wkExNum(it.duration), workout_notes: it.notes || "" };
+    var lifts = it.lifts || [];
+    if (!lifts.length) { out.push(Object.assign({}, base)); return; }
+    lifts.forEach(function (l) {
+      var cardio = l.kind === "cardio";
+      var styles = (l.trainingStyles || []).map(function (id) { return _wkExLabel(TRAINING_STYLES, id); }).join("; ");
+      var common = Object.assign({}, base, { exercise: l.name || "", exercise_kind: cardio ? "cardio" : "lift", muscle_group: _wkExLabel(MUSCLE_GROUPS, l.muscleGroup),
+        training_styles: styles, exercise_minutes: cardio ? _activityMinutes(l) || null : null });
+      var sets = l.sets || [];
+      if (!sets.length) { out.push(common); return; }
+      sets.forEach(function (st, i) {
+        var w = _wkExNum(st.weight), r = _wkExNum(st.reps), warm = !!st.isWarmup;
+        var vs = _repVsTarget(st);
+        out.push(Object.assign({}, common, {
+          set_number: i + 1, is_warmup: warm ? 1 : 0, weight_lb: w, reps: r,
+          volume: (!warm && !cardio && r != null) ? (w > 0 ? w * r : r) : null,
+          est_1rm: (!warm && !cardio && w > 0 && r > 0) ? Math.round(estOneRM(w, r) * 10) / 10 : null,
+          set_minutes: _wkExNum(st.duration), distance: st.distance || "", time: st.time || "", time_sec: _parseClock(st.time),
+          target_pace: st.target || "", target_sec: _parseClock(st.target), vs_target_sec: vs ? vs.sec : null, rest: st.rest || ""
+        }));
+      });
+    });
+  });
+  return out;
+}
+
+var WK_EX_WORKOUT_COLS = ["date", "weekday", "week_start", "workout_id", "workout", "type", "minutes", "cardio_minutes", "exercises", "working_sets", "total_reps", "volume", "notes"];
+function _wkExWorkoutRows(items) {
+  return (items || []).slice().sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).map(function (it) {
+    var dp = _wkExDateParts(it.date), sets = 0, reps = 0, vol = 0;
+    (it.lifts || []).forEach(function (l) {
+      workingSets(l).forEach(function (st) { sets++; reps += Number(st.reps) || 0; });
+      if (l.kind !== "cardio") vol += liftVolume(l);
+    });
+    return { date: it.date || "", weekday: dp.weekday, week_start: dp.weekStart, workout_id: it.id || "", workout: it.name || "",
+      type: _wkExLabel(WORKOUT_CATEGORIES, it.category), minutes: _wkExNum(it.duration), cardio_minutes: _cardioMinutes(it) || null,
+      exercises: (it.lifts || []).length, working_sets: sets, total_reps: reps, volume: vol || null, notes: it.notes || "" };
+  });
+}
+
+function _wkExSave(name, text, mime) {
+  var blob = new Blob([text], { type: mime });
+  function plainDownload() {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+  // On a phone, the share sheet ("Save to Files", AirDrop, Mail) is more reliable than a download.
+  try {
+    var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    var file = new File([blob], name, { type: mime });
+    if (coarse && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: name }).catch(function (e) { if (!e || e.name !== "AbortError") plainDownload(); });
+      return;
+    }
+  } catch (e) { /* fall through to a normal download */ }
+  plainDownload();
+}
+
 async function renderWorkoutsTab(root) {
   root.innerHTML = skeletonCards(3);
   var accent = getAccentColor();
@@ -11604,13 +11699,37 @@ async function renderWorkoutsTab(root) {
       "</div>" +
       chartHtml +
       '<div class="tab-eyebrow" style="margin-top:8px;">ALL-TIME PRs</div>' +
-      (prBoardHtml || '<div class="empty-state">No personal records yet.</div>');
+      (prBoardHtml || '<div class="empty-state">No personal records yet.</div>') +
+      '<div class="tab-eyebrow" style="margin-top:14px;">EXPORT FOR ANALYSIS</div>' +
+      '<div class="card"><div style="color:var(--text-2);font-size:13px;line-height:1.55;margin-bottom:10px;">Download your training as a spreadsheet to look for patterns in Excel, Google Sheets, Python, or by uploading it to Claude. ' + data.items.length + ' workout' + (data.items.length === 1 ? "" : "s") + ' logged.</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+          '<button class="port-edit-btn" data-wk-export="sets" title="One row per set: weight, reps, volume, est. 1RM, cardio pace vs target">&#8681; Every set (CSV)</button>' +
+          '<button class="port-edit-btn" data-wk-export="workouts" title="One row per workout: minutes, sets, reps, volume">&#8681; Workout summary (CSV)</button>' +
+          '<button class="port-edit-btn" data-wk-export="weight" title="Your body weight log">&#8681; Body weight (CSV)</button>' +
+          '<button class="port-edit-btn" data-wk-export="json" title="Everything, including templates and splits, as one backup file">&#8681; Everything (JSON)</button>' +
+        '</div></div>';
 
     if (liftNames.length) {
       document.getElementById("wkHistoryLiftSelect").addEventListener("change", function (e) { historyLiftName = e.target.value; renderHistorySection(); });
     }
     bodyEl.querySelectorAll("[data-metric]").forEach(function (btn) {
       btn.addEventListener("click", function (e) { historyMetric = e.currentTarget.getAttribute("data-metric"); renderHistorySection(); });
+    });
+    bodyEl.querySelectorAll("[data-wk-export]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        var kind = e.currentTarget.getAttribute("data-wk-export");
+        var tag = (wkProfile === "wife" ? "-wife" : "") + "-" + todayISO();
+        if (kind === "weight") {
+          var wrows = (data.bodyWeightLog || []).slice().sort(function (a, b) { return (a.date || "").localeCompare(b.date || ""); }).map(function (w) { return { date: w.date || "", weight_lb: _wkExNum(w.weight) }; });
+          if (!wrows.length) { alert("No body weight entries to export yet."); return; }
+          _wkExSave("body-weight" + tag + ".csv", _wkExCsv(["date", "weight_lb"], wrows), "text/csv");
+          return;
+        }
+        if (!data.items.length) { alert("Log a workout first, then you can export it."); return; }
+        if (kind === "sets") _wkExSave("workout-sets" + tag + ".csv", _wkExCsv(WK_EX_SET_COLS, _wkExSetRows(data.items)), "text/csv");
+        else if (kind === "workouts") _wkExSave("workouts" + tag + ".csv", _wkExCsv(WK_EX_WORKOUT_COLS, _wkExWorkoutRows(data.items)), "text/csv");
+        else _wkExSave("workouts-everything" + tag + ".json", JSON.stringify({ exportedOn: todayISO(), profile: wkProfile, workouts: data.items, bodyWeightLog: data.bodyWeightLog || [], templates: templatesData.templates || [], splits: splitsData.days || {} }, null, 2), "application/json");
+      });
     });
   }
 
